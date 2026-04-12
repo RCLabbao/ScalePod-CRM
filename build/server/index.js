@@ -1,0 +1,6758 @@
+import { jsx, jsxs, Fragment } from "react/jsx-runtime";
+import { isbot } from "isbot";
+import { renderToReadableStream } from "react-dom/server";
+import { ServerRouter, UNSAFE_withComponentProps, Outlet, UNSAFE_withErrorBoundaryProps, isRouteErrorResponse, Meta, Links, ScrollRestoration, Scripts, redirect, createCookieSessionStorage, useActionData, Form, Link, useLocation, useLoaderData, useSearchParams, useNavigate, data } from "react-router";
+import { Authenticator } from "remix-auth";
+import { FormStrategy } from "remix-auth-form";
+import pkg from "bcryptjs";
+import { PrismaClient } from "@prisma/client";
+import * as React from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva } from "class-variance-authority";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, Upload, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, Plus, Search, CheckCircle2, XCircle, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, ArrowUp, ArrowDown, Trash2, FileCheck, Target, GripVertical, FileText, MessageSquare, Send, FileSpreadsheet, Moon } from "lucide-react";
+import { Draggable, DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { z } from "zod";
+async function handleRequest(request, responseStatusCode, responseHeaders, routerContext) {
+  const body = await renderToReadableStream(
+    /* @__PURE__ */ jsx(ServerRouter, { context: routerContext, url: request.url }),
+    {
+      signal: request.signal,
+      onError(error) {
+        console.error(error);
+        responseStatusCode = 500;
+      }
+    }
+  );
+  if (isbot(request.headers.get("user-agent") || "")) {
+    await body.allReady;
+  }
+  responseHeaders.set("Content-Type", "text/html");
+  return new Response(body, {
+    headers: responseHeaders,
+    status: responseStatusCode
+  });
+}
+const entryServer = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: handleRequest
+}, Symbol.toStringTag, { value: "Module" }));
+const links = () => [{
+  rel: "preconnect",
+  href: "https://fonts.googleapis.com"
+}, {
+  rel: "preconnect",
+  href: "https://fonts.gstatic.com",
+  crossOrigin: "anonymous"
+}, {
+  rel: "stylesheet",
+  href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+}];
+function Layout({
+  children
+}) {
+  return /* @__PURE__ */ jsxs("html", {
+    lang: "en",
+    className: "dark",
+    children: [/* @__PURE__ */ jsxs("head", {
+      children: [/* @__PURE__ */ jsx("meta", {
+        charSet: "utf-8"
+      }), /* @__PURE__ */ jsx("meta", {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1"
+      }), /* @__PURE__ */ jsx("script", {
+        dangerouslySetInnerHTML: {
+          __html: `(function(){try{var t=localStorage.getItem("theme")||"dark";document.documentElement.classList.add(t)}catch(e){document.documentElement.classList.add("dark")}})()`
+        }
+      }), /* @__PURE__ */ jsx(Meta, {}), /* @__PURE__ */ jsx(Links, {})]
+    }), /* @__PURE__ */ jsxs("body", {
+      className: "min-h-screen bg-background font-sans antialiased",
+      children: [children, /* @__PURE__ */ jsx(ScrollRestoration, {}), /* @__PURE__ */ jsx(Scripts, {})]
+    })]
+  });
+}
+const root = UNSAFE_withComponentProps(function App() {
+  return /* @__PURE__ */ jsx(Outlet, {});
+});
+const ErrorBoundary = UNSAFE_withErrorBoundaryProps(function ErrorBoundary2({
+  error
+}) {
+  let message = "Oops!";
+  let details = "An unexpected error occurred.";
+  let stack;
+  if (isRouteErrorResponse(error)) {
+    message = error.status === 404 ? "404" : "Error";
+    details = error.status === 404 ? "The requested page could not be found." : error.statusText || details;
+  }
+  return /* @__PURE__ */ jsxs("main", {
+    className: "mx-auto p-4 pt-16 text-center",
+    children: [/* @__PURE__ */ jsx("h1", {
+      className: "text-4xl font-bold",
+      children: message
+    }), /* @__PURE__ */ jsx("p", {
+      className: "mt-4 text-lg text-muted-foreground",
+      children: details
+    }), stack]
+  });
+});
+const route0 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  ErrorBoundary,
+  Layout,
+  default: root,
+  links
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$j() {
+  return redirect("/dashboard");
+}
+const home = UNSAFE_withComponentProps(function Index() {
+  return null;
+});
+const route1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: home,
+  loader: loader$j
+}, Symbol.toStringTag, { value: "Module" }));
+const globalForPrisma = globalThis;
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  throw new Error("SESSION_SECRET must be set");
+}
+const sessionStorage = createCookieSessionStorage({
+  cookie: {
+    name: "scalepod_session",
+    secure: process.env.NODE_ENV === "production",
+    secrets: [sessionSecret],
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+    // 7 days
+    httpOnly: true
+  }
+});
+function getSession(request) {
+  const cookie = request.headers.get("Cookie");
+  return sessionStorage.getSession(cookie);
+}
+const { compare, hash } = pkg;
+const authenticator = new Authenticator(sessionStorage);
+authenticator.use(
+  new FormStrategy(async ({ form }) => {
+    const email = form.get("email");
+    const password = form.get("password");
+    if (!email || !password) {
+      throw new Error("Email and password are required");
+    }
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
+    const isValid = await compare(password, user.passwordHash);
+    if (!isValid) {
+      throw new Error("Invalid email or password");
+    }
+    return user.id;
+  }),
+  "user-pass"
+);
+async function hashPassword(password) {
+  return hash(password, 12);
+}
+function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        outline: "border border-input bg-transparent text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline"
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-md px-8",
+        icon: "h-9 w-9"
+      }
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default"
+    }
+  }
+);
+const Button = React.forwardRef(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return /* @__PURE__ */ jsx(
+      Comp,
+      {
+        className: cn(buttonVariants({ variant, size, className })),
+        ref,
+        ...props
+      }
+    );
+  }
+);
+Button.displayName = "Button";
+const Input = React.forwardRef(
+  ({ className, type, ...props }, ref) => {
+    return /* @__PURE__ */ jsx(
+      "input",
+      {
+        type,
+        className: cn(
+          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        ),
+        ref,
+        ...props
+      }
+    );
+  }
+);
+Input.displayName = "Input";
+const Label = React.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ jsx(
+  "label",
+  {
+    ref,
+    className: cn(
+      "text-sm font-medium leading-none text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+      className
+    ),
+    ...props
+  }
+));
+Label.displayName = "Label";
+const Card = React.forwardRef(
+  ({ className, ...props }, ref) => /* @__PURE__ */ jsx(
+    "div",
+    {
+      ref,
+      className: cn("rounded-lg border bg-card text-card-foreground shadow", className),
+      ...props
+    }
+  )
+);
+Card.displayName = "Card";
+const CardHeader = React.forwardRef(
+  ({ className, ...props }, ref) => /* @__PURE__ */ jsx("div", { ref, className: cn("flex flex-col space-y-1.5 p-6", className), ...props })
+);
+CardHeader.displayName = "CardHeader";
+const CardTitle = React.forwardRef(
+  ({ className, ...props }, ref) => /* @__PURE__ */ jsx("div", { ref, className: cn("font-semibold leading-none tracking-tight", className), ...props })
+);
+CardTitle.displayName = "CardTitle";
+const CardDescription = React.forwardRef(
+  ({ className, ...props }, ref) => /* @__PURE__ */ jsx("div", { ref, className: cn("text-sm text-muted-foreground", className), ...props })
+);
+CardDescription.displayName = "CardDescription";
+const CardContent = React.forwardRef(
+  ({ className, ...props }, ref) => /* @__PURE__ */ jsx("div", { ref, className: cn("p-6 pt-0", className), ...props })
+);
+CardContent.displayName = "CardContent";
+async function loader$i({
+  request
+}) {
+  const session = await getSession(request);
+  if (session.get("userId")) {
+    return redirect("/dashboard");
+  }
+  return {};
+}
+async function action$e({
+  request
+}) {
+  const formData = await request.clone().formData();
+  const intent = formData.get("intent");
+  if (intent === "logout") {
+    const session = await getSession(request);
+    return redirect("/login", {
+      headers: {
+        "Set-Cookie": await sessionStorage.destroySession(session)
+      }
+    });
+  }
+  try {
+    const userId = await authenticator.authenticate("user-pass", request);
+    const session = await getSession(request);
+    session.set("userId", userId);
+    return redirect("/dashboard", {
+      headers: {
+        "Set-Cookie": await sessionStorage.commitSession(session)
+      }
+    });
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    return {
+      error: error.message
+    };
+  }
+}
+const login = UNSAFE_withComponentProps(function Login() {
+  const actionData = useActionData();
+  return /* @__PURE__ */ jsx("div", {
+    className: "flex min-h-screen items-center justify-center bg-background p-4",
+    children: /* @__PURE__ */ jsxs(Card, {
+      className: "w-full max-w-sm",
+      children: [/* @__PURE__ */ jsxs(CardHeader, {
+        className: "text-center",
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary",
+          children: /* @__PURE__ */ jsx("span", {
+            className: "text-xl font-bold text-primary-foreground",
+            children: "S"
+          })
+        }), /* @__PURE__ */ jsx(CardTitle, {
+          className: "text-2xl",
+          children: "ScalePod CRM"
+        }), /* @__PURE__ */ jsx(CardDescription, {
+          children: "Sign in to your account to continue"
+        })]
+      }), /* @__PURE__ */ jsxs(CardContent, {
+        children: [/* @__PURE__ */ jsxs(Form, {
+          method: "post",
+          className: "space-y-4",
+          children: [(actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+            className: "rounded-md bg-destructive/10 p-3 text-sm text-destructive",
+            children: actionData.error
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "email",
+              children: "Email"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "email",
+              name: "email",
+              type: "email",
+              placeholder: "you@company.com",
+              required: true
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: "flex items-center justify-between",
+              children: /* @__PURE__ */ jsx(Label, {
+                htmlFor: "password",
+                children: "Password"
+              })
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "password",
+              name: "password",
+              type: "password",
+              placeholder: "Enter your password",
+              required: true
+            })]
+          }), /* @__PURE__ */ jsx(Button, {
+            type: "submit",
+            className: "w-full",
+            children: "Sign in"
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "mt-4 text-center text-sm text-muted-foreground",
+          children: ["Don't have an account?", " ", /* @__PURE__ */ jsx(Link, {
+            to: "/register",
+            className: "text-primary underline-offset-4 hover:underline",
+            children: "Create one"
+          })]
+        })]
+      })]
+    })
+  });
+});
+const route2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$e,
+  default: login,
+  loader: loader$i
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$h({
+  request
+}) {
+  const session = await getSession(request);
+  if (session.get("userId")) {
+    return redirect("/dashboard");
+  }
+  return {};
+}
+async function action$d({
+  request
+}) {
+  const formData = await request.formData();
+  const email = formData.get("email");
+  const password = formData.get("password");
+  const confirmPassword = formData.get("confirmPassword");
+  const name = formData.get("name");
+  const role = formData.get("role");
+  if (!email || !password) {
+    return {
+      error: "Email and password are required."
+    };
+  }
+  if (password.length < 8) {
+    return {
+      error: "Password must be at least 8 characters."
+    };
+  }
+  if (password !== confirmPassword) {
+    return {
+      error: "Passwords do not match."
+    };
+  }
+  const existing = await prisma.user.findUnique({
+    where: {
+      email
+    }
+  });
+  if (existing) {
+    return {
+      error: "An account with this email already exists."
+    };
+  }
+  const passwordHash = await hashPassword(password);
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      name: name || null,
+      role: role === "ADMIN" ? "AGENT" : "AGENT"
+      // Registration always creates AGENT; admins are promoted via settings
+    }
+  });
+  return {
+    success: true
+  };
+}
+const register = UNSAFE_withComponentProps(function Register() {
+  const actionData = useActionData();
+  if (actionData == null ? void 0 : actionData.success) {
+    return /* @__PURE__ */ jsx("div", {
+      className: "flex min-h-screen items-center justify-center bg-background p-4",
+      children: /* @__PURE__ */ jsxs(Card, {
+        className: "w-full max-w-sm",
+        children: [/* @__PURE__ */ jsxs(CardHeader, {
+          className: "text-center",
+          children: [/* @__PURE__ */ jsx(CardTitle, {
+            className: "text-2xl",
+            children: "Account Created"
+          }), /* @__PURE__ */ jsx(CardDescription, {
+            children: "Your account has been created. An admin will review and activate your access."
+          })]
+        }), /* @__PURE__ */ jsx(CardContent, {
+          className: "text-center",
+          children: /* @__PURE__ */ jsx(Link, {
+            to: "/login",
+            children: /* @__PURE__ */ jsx(Button, {
+              className: "w-full",
+              children: "Sign in now"
+            })
+          })
+        })]
+      })
+    });
+  }
+  return /* @__PURE__ */ jsx("div", {
+    className: "flex min-h-screen items-center justify-center bg-background p-4",
+    children: /* @__PURE__ */ jsxs(Card, {
+      className: "w-full max-w-sm",
+      children: [/* @__PURE__ */ jsxs(CardHeader, {
+        className: "text-center",
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary",
+          children: /* @__PURE__ */ jsx("span", {
+            className: "text-xl font-bold text-primary-foreground",
+            children: "S"
+          })
+        }), /* @__PURE__ */ jsx(CardTitle, {
+          className: "text-2xl",
+          children: "Create Account"
+        }), /* @__PURE__ */ jsx(CardDescription, {
+          children: "Register as a team member to access the CRM"
+        })]
+      }), /* @__PURE__ */ jsxs(CardContent, {
+        children: [/* @__PURE__ */ jsxs(Form, {
+          method: "post",
+          className: "space-y-4",
+          children: [(actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+            className: "rounded-md bg-destructive/10 p-3 text-sm text-destructive",
+            children: actionData.error
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "name",
+              children: "Full Name"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "name",
+              name: "name",
+              type: "text",
+              placeholder: "Juan Dela Cruz"
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "email",
+              children: "Email"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "email",
+              name: "email",
+              type: "email",
+              placeholder: "you@company.com",
+              required: true
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "password",
+              children: "Password"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "password",
+              name: "password",
+              type: "password",
+              placeholder: "Min. 8 characters",
+              required: true,
+              minLength: 8
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "confirmPassword",
+              children: "Confirm Password"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "confirmPassword",
+              name: "confirmPassword",
+              type: "password",
+              placeholder: "Re-enter your password",
+              required: true,
+              minLength: 8
+            })]
+          }), /* @__PURE__ */ jsx(Button, {
+            type: "submit",
+            className: "w-full",
+            children: "Create Account"
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "mt-4 text-center text-sm text-muted-foreground",
+          children: ["Already have an account?", " ", /* @__PURE__ */ jsx(Link, {
+            to: "/login",
+            className: "text-primary underline-offset-4 hover:underline",
+            children: "Sign in"
+          })]
+        })]
+      })]
+    })
+  });
+});
+const route3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$d,
+  default: register,
+  loader: loader$h
+}, Symbol.toStringTag, { value: "Module" }));
+async function requireAuth(request) {
+  const session = await getSession(request);
+  const userId = session.get("userId");
+  if (!userId) {
+    throw redirect("/login");
+  }
+  return userId;
+}
+async function requireAdmin(request) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true }
+  });
+  if (!user || user.role !== "ADMIN") {
+    throw redirect("/dashboard");
+  }
+  return userId;
+}
+const navItems = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/leads/new", label: "Add Lead", icon: UserPlus, adminOnly: true },
+  { to: "/inbox", label: "Lead Inbox", icon: Inbox },
+  { to: "/pipeline", label: "Pipeline", icon: Kanban },
+  { to: "/emails", label: "Email Hub", icon: Mail },
+  { to: "/imports", label: "Import", icon: Upload, adminOnly: true },
+  { to: "/users", label: "Users", icon: Users, adminOnly: true },
+  { to: "/verification/criteria", label: "Criteria", icon: ShieldCheck, adminOnly: true },
+  { to: "/settings", label: "Settings", icon: Settings }
+];
+function AppShell({ user, children }) {
+  var _a, _b;
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  return /* @__PURE__ */ jsxs("div", { className: "flex h-screen overflow-hidden", children: [
+    sidebarOpen && /* @__PURE__ */ jsx(
+      "div",
+      {
+        className: "fixed inset-0 z-40 bg-black/50 lg:hidden",
+        onClick: () => setSidebarOpen(false)
+      }
+    ),
+    /* @__PURE__ */ jsxs(
+      "aside",
+      {
+        className: cn(
+          "fixed inset-y-0 left-0 z-50 w-64 border-r border-sidebar-border bg-sidebar-background transition-transform lg:static lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        ),
+        children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex h-16 items-center justify-between border-b border-sidebar-border px-6", children: [
+            /* @__PURE__ */ jsxs(Link, { to: "/dashboard", className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsx("div", { className: "flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary", children: /* @__PURE__ */ jsx("span", { className: "text-sm font-bold text-sidebar-primary-foreground", children: "S" }) }),
+              /* @__PURE__ */ jsx("span", { className: "text-lg font-semibold text-sidebar-foreground", children: "ScalePod" })
+            ] }),
+            /* @__PURE__ */ jsx(
+              Button,
+              {
+                variant: "ghost",
+                size: "icon",
+                className: "lg:hidden",
+                onClick: () => setSidebarOpen(false),
+                children: /* @__PURE__ */ jsx(X, { className: "h-5 w-5" })
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsx("nav", { className: "flex flex-col gap-1 p-4", children: navItems.filter((item) => !("adminOnly" in item && item.adminOnly) || user.role === "ADMIN").map((item) => {
+            const isActive = location.pathname === item.to || item.to !== "/dashboard" && location.pathname.startsWith(item.to);
+            return /* @__PURE__ */ jsxs(
+              Link,
+              {
+                to: item.to,
+                onClick: () => setSidebarOpen(false),
+                className: cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                ),
+                children: [
+                  /* @__PURE__ */ jsx(item.icon, { className: "h-4 w-4" }),
+                  item.label
+                ]
+              },
+              item.to
+            );
+          }) }),
+          /* @__PURE__ */ jsxs("div", { className: "absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-4", children: [
+            /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-3 px-3 py-2", children: [
+              /* @__PURE__ */ jsx("div", { className: "flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary/20", children: /* @__PURE__ */ jsx("span", { className: "text-xs font-semibold text-sidebar-primary", children: ((_b = (_a = user.name) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase()) || user.email[0].toUpperCase() }) }),
+              /* @__PURE__ */ jsxs("div", { className: "flex-1 truncate", children: [
+                /* @__PURE__ */ jsx("p", { className: "truncate text-sm font-medium text-sidebar-foreground", children: user.name || user.email }),
+                /* @__PURE__ */ jsx("p", { className: "truncate text-xs text-sidebar-foreground/50", children: user.role })
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxs(Form, { method: "post", action: "/login", className: "mt-2", children: [
+              /* @__PURE__ */ jsx("input", { type: "hidden", name: "intent", value: "logout" }),
+              /* @__PURE__ */ jsxs(
+                Button,
+                {
+                  variant: "ghost",
+                  size: "sm",
+                  className: "w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground",
+                  type: "submit",
+                  children: [
+                    /* @__PURE__ */ jsx(LogOut, { className: "mr-2 h-4 w-4" }),
+                    "Sign out"
+                  ]
+                }
+              )
+            ] })
+          ] })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxs("main", { className: "flex-1 overflow-auto", children: [
+      /* @__PURE__ */ jsxs("div", { className: "flex h-16 items-center gap-4 border-b bg-background px-6 lg:hidden", children: [
+        /* @__PURE__ */ jsx(
+          Button,
+          {
+            variant: "ghost",
+            size: "icon",
+            onClick: () => setSidebarOpen(true),
+            children: /* @__PURE__ */ jsx(Menu, { className: "h-5 w-5" })
+          }
+        ),
+        /* @__PURE__ */ jsx("span", { className: "text-lg font-semibold", children: "ScalePod CRM" })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: "p-6", children })
+    ] })
+  ] });
+}
+async function loader$g({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const [inboxCount, activeCount, emailCount, wonCount] = await Promise.all([prisma.lead.count({
+    where: {
+      status: "INBOX"
+    }
+  }), prisma.lead.count({
+    where: {
+      status: "ACTIVE"
+    }
+  }), prisma.emailThread.count(), prisma.lead.count({
+    where: {
+      stage: "CLOSED_WON"
+    }
+  })]);
+  return {
+    user,
+    stats: {
+      inboxCount,
+      activeCount,
+      emailCount,
+      wonCount
+    }
+  };
+}
+const dashboard = UNSAFE_withComponentProps(function Dashboard() {
+  const {
+    user,
+    stats
+  } = useLoaderData();
+  const statCards = [{
+    label: "Leads in Inbox",
+    value: stats.inboxCount,
+    icon: Inbox,
+    iconColor: "text-blue-400",
+    bgAccent: "bg-blue-500/10"
+  }, {
+    label: "Active Pipeline",
+    value: stats.activeCount,
+    icon: Kanban,
+    iconColor: "text-violet-400",
+    bgAccent: "bg-violet-500/10"
+  }, {
+    label: "Email Threads",
+    value: stats.emailCount,
+    icon: Mail,
+    iconColor: "text-amber-400",
+    bgAccent: "bg-amber-500/10"
+  }, {
+    label: "Deals Won",
+    value: stats.wonCount,
+    icon: TrendingUp,
+    iconColor: "text-emerald-400",
+    bgAccent: "bg-emerald-500/10"
+  }];
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-8",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx("h1", {
+          className: "text-3xl font-bold tracking-tight",
+          children: "Dashboard"
+        }), /* @__PURE__ */ jsxs("p", {
+          className: "text-muted-foreground",
+          children: ["Welcome back", (user == null ? void 0 : user.name) ? `, ${user.name}` : "", ". Here's your CRM overview."]
+        })]
+      }), /* @__PURE__ */ jsx("div", {
+        className: "grid gap-4 sm:grid-cols-2 lg:grid-cols-4",
+        children: statCards.map((stat) => /* @__PURE__ */ jsxs(Card, {
+          className: "relative overflow-hidden",
+          children: [/* @__PURE__ */ jsx("div", {
+            className: `absolute top-0 right-0 h-24 w-24 -translate-y-6 translate-x-6 rounded-full ${stat.bgAccent}`
+          }), /* @__PURE__ */ jsxs(CardHeader, {
+            className: "flex flex-row items-center justify-between pb-2",
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-medium text-muted-foreground",
+              children: stat.label
+            }), /* @__PURE__ */ jsx(stat.icon, {
+              className: `h-5 w-5 ${stat.iconColor}`
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx("div", {
+              className: "text-3xl font-bold",
+              children: stat.value
+            })
+          })]
+        }, stat.label))
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 lg:grid-cols-2",
+        children: [/* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              children: "Quick Actions"
+            })
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "grid gap-3",
+            children: [/* @__PURE__ */ jsxs(Link, {
+              to: "/inbox",
+              className: "flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-blue-500/5 hover:border-blue-500/30",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10",
+                children: /* @__PURE__ */ jsx(Inbox, {
+                  className: "h-5 w-5 text-blue-400"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "font-medium",
+                  children: "Review Leads"
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: [stats.inboxCount, " leads waiting in inbox"]
+                })]
+              })]
+            }), /* @__PURE__ */ jsxs(Link, {
+              to: "/pipeline",
+              className: "flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-violet-500/5 hover:border-violet-500/30",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10",
+                children: /* @__PURE__ */ jsx(Kanban, {
+                  className: "h-5 w-5 text-violet-400"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "font-medium",
+                  children: "Manage Pipeline"
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: [stats.activeCount, " active deals to track"]
+                })]
+              })]
+            }), /* @__PURE__ */ jsxs(Link, {
+              to: "/emails",
+              className: "flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-amber-500/5 hover:border-amber-500/30",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10",
+                children: /* @__PURE__ */ jsx(Mail, {
+                  className: "h-5 w-5 text-amber-400"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "font-medium",
+                  children: "Email Hub"
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: [stats.emailCount, " conversations tracked"]
+                })]
+              })]
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              children: "Pipeline Breakdown"
+            })
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx(PipelineBreakdown, {})
+          })]
+        })]
+      })]
+    })
+  });
+});
+function PipelineBreakdown() {
+  return /* @__PURE__ */ jsx("div", {
+    className: "space-y-3 text-sm",
+    children: [{
+      stage: "Sourced",
+      color: "bg-slate-400",
+      bar: "bg-slate-400/20"
+    }, {
+      stage: "Qualified",
+      color: "bg-blue-400",
+      bar: "bg-blue-400/20"
+    }, {
+      stage: "First Contact",
+      color: "bg-violet-400",
+      bar: "bg-violet-400/20"
+    }, {
+      stage: "Meeting Booked",
+      color: "bg-amber-400",
+      bar: "bg-amber-400/20"
+    }, {
+      stage: "Proposal Sent",
+      color: "bg-orange-400",
+      bar: "bg-orange-400/20"
+    }, {
+      stage: "Closed Won",
+      color: "bg-emerald-400",
+      bar: "bg-emerald-400/20"
+    }, {
+      stage: "Closed Lost",
+      color: "bg-red-400",
+      bar: "bg-red-400/20"
+    }].map((item) => /* @__PURE__ */ jsxs("div", {
+      className: "flex items-center gap-3",
+      children: [/* @__PURE__ */ jsx("div", {
+        className: `h-3 w-3 rounded-full ${item.color}`
+      }), /* @__PURE__ */ jsx("span", {
+        className: "flex-1",
+        children: item.stage
+      }), /* @__PURE__ */ jsx("div", {
+        className: `h-2 w-16 rounded-full ${item.bar}`,
+        children: /* @__PURE__ */ jsx("div", {
+          className: `h-2 w-1/3 rounded-full ${item.color}`
+        })
+      })]
+    }, item.stage))
+  });
+}
+const route4 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: dashboard,
+  loader: loader$g
+}, Symbol.toStringTag, { value: "Module" }));
+async function scoreLead(responses) {
+  const criteria = await prisma.verificationCriteria.findMany({
+    where: { active: true }
+  });
+  const criteriaMap = new Map(criteria.map((c) => [c.id, c]));
+  const config = await getScoreConfig();
+  const hotThreshold = (config == null ? void 0 : config.hotThreshold) ?? 80;
+  const warmThreshold = (config == null ? void 0 : config.warmThreshold) ?? 50;
+  let totalScore = 0;
+  let totalMax = 0;
+  const scored = [];
+  for (const r of responses) {
+    const c = criteriaMap.get(r.criteriaId);
+    if (!c) continue;
+    let points = 0;
+    let maxForThis = 0;
+    if (c.type === "YES_NO") {
+      maxForThis = c.weight;
+      points = r.response === "yes" ? c.weight : 0;
+    } else if (c.type === "SCORE") {
+      maxForThis = 5 * c.weight;
+      const val = parseFloat(r.response);
+      if (!isNaN(val) && val >= 1 && val <= 5) {
+        points = val * c.weight;
+      }
+    }
+    totalScore += points;
+    totalMax += maxForThis;
+    scored.push({ criteriaId: r.criteriaId, response: r.response, score: points });
+  }
+  const percentage = totalMax > 0 ? totalScore / totalMax * 100 : 0;
+  let temperature;
+  if (percentage >= hotThreshold) {
+    temperature = "HOT";
+  } else if (percentage >= warmThreshold) {
+    temperature = "WARM";
+  } else {
+    temperature = "COLD";
+  }
+  return { score: totalScore, maxScore: totalMax, percentage, temperature, responses: scored };
+}
+async function getScoreConfig() {
+  return prisma.scoreConfig.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" }
+  });
+}
+async function logActivity(input) {
+  return prisma.activityLog.create({
+    data: {
+      leadId: input.leadId,
+      userId: input.userId,
+      action: input.action,
+      description: input.description,
+      metadata: input.metadata
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+}
+function formatStage(stage) {
+  return stage.replace(/_/g, " ").split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+function getActivityStyle(action2) {
+  switch (action2) {
+    case "LEAD_CREATED":
+      return {
+        icon: "+",
+        bgColor: "bg-green-100",
+        textColor: "text-green-700"
+      };
+    case "LEAD_APPROVED":
+      return {
+        icon: "✓",
+        bgColor: "bg-green-100",
+        textColor: "text-green-700"
+      };
+    case "LEAD_REJECTED":
+      return {
+        icon: "✕",
+        bgColor: "bg-red-100",
+        textColor: "text-red-700"
+      };
+    case "STAGE_CHANGED":
+      return {
+        icon: "→",
+        bgColor: "bg-blue-100",
+        textColor: "text-blue-700"
+      };
+    case "LEAD_ASSIGNED":
+      return {
+        icon: "@",
+        bgColor: "bg-purple-100",
+        textColor: "text-purple-700"
+      };
+    case "LEAD_UNASSIGNED":
+      return {
+        icon: "@",
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-700"
+      };
+    case "LEAD_SCORED":
+      return {
+        icon: "★",
+        bgColor: "bg-yellow-100",
+        textColor: "text-yellow-700"
+      };
+    case "LEAD_EDITED":
+      return {
+        icon: "✎",
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-700"
+      };
+    case "NOTE_ADDED":
+      return {
+        icon: "💬",
+        bgColor: "bg-indigo-100",
+        textColor: "text-indigo-700"
+      };
+    default:
+      return {
+        icon: "•",
+        bgColor: "bg-gray-100",
+        textColor: "text-gray-700"
+      };
+  }
+}
+async function loader$f({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const url = new URL(request.url);
+  const search = url.searchParams.get("q") || "";
+  const status = url.searchParams.get("status") || "INBOX";
+  const tempFilter = url.searchParams.get("temp") || "";
+  const leads = await prisma.lead.findMany({
+    where: {
+      status,
+      ...tempFilter ? {
+        temperature: tempFilter
+      } : {},
+      ...search ? {
+        OR: [{
+          companyName: {
+            contains: search
+          }
+        }, {
+          email: {
+            contains: search
+          }
+        }, {
+          contactName: {
+            contains: search
+          }
+        }, {
+          industry: {
+            contains: search
+          }
+        }]
+      } : {}
+    },
+    orderBy: {
+      score: "desc"
+    },
+    include: {
+      criteriaResponses: {
+        include: {
+          criteria: true
+        }
+      }
+    }
+  });
+  const criteria = await prisma.verificationCriteria.findMany({
+    where: {
+      active: true
+    },
+    orderBy: {
+      sortOrder: "asc"
+    }
+  });
+  return {
+    user,
+    leads,
+    search,
+    status,
+    tempFilter,
+    criteria
+  };
+}
+async function action$c({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      role: true
+    }
+  });
+  if ((currentUser == null ? void 0 : currentUser.role) !== "ADMIN") {
+    throw new Response("Forbidden", {
+      status: 403
+    });
+  }
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "create") {
+    const email = formData.get("email");
+    const existing = await prisma.lead.findUnique({
+      where: {
+        email
+      }
+    });
+    if (existing) {
+      return {
+        error: "A lead with this email already exists."
+      };
+    }
+    const criteriaIds = formData.getAll("criteriaId");
+    const responses = [];
+    for (const cid of criteriaIds) {
+      const resp = formData.get(`response_${cid}`);
+      if (resp) responses.push({
+        criteriaId: cid,
+        response: resp
+      });
+    }
+    const result = await scoreLead(responses);
+    const lead = await prisma.lead.create({
+      data: {
+        companyName: formData.get("companyName"),
+        website: formData.get("website") || null,
+        contactName: formData.get("contactName") || null,
+        email,
+        industry: formData.get("industry") || null,
+        estimatedTraffic: formData.get("estimatedTraffic") || null,
+        techStack: formData.get("techStack") || null,
+        linkedin: formData.get("linkedin") || null,
+        facebook: formData.get("facebook") || null,
+        instagram: formData.get("instagram") || null,
+        twitter: formData.get("twitter") || null,
+        leadSource: formData.get("leadSource") || null,
+        notes: formData.get("notes") || null,
+        score: result.score,
+        maxScore: result.maxScore,
+        temperature: result.temperature,
+        createdById: userId
+      }
+    });
+    if (responses.length > 0) {
+      await prisma.$transaction(result.responses.map((r) => prisma.leadVerification.create({
+        data: {
+          leadId: lead.id,
+          criteriaId: r.criteriaId,
+          response: r.response,
+          score: r.score
+        }
+      })));
+    }
+    await logActivity({
+      leadId: lead.id,
+      userId,
+      action: "LEAD_CREATED",
+      description: `${currentUser.name || "Unknown"} added this lead`,
+      metadata: {
+        temperature: result.temperature,
+        score: result.score,
+        percentage: result.percentage
+      }
+    });
+    return {
+      success: true,
+      temperature: result.temperature,
+      score: result.score,
+      maxScore: result.maxScore
+    };
+  }
+  if (intent === "accept") {
+    const leadId = formData.get("leadId");
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      },
+      select: {
+        companyName: true
+      }
+    });
+    await prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        status: "ACTIVE",
+        approvedById: userId,
+        rejectedById: null
+      }
+    });
+    await logActivity({
+      leadId,
+      userId,
+      action: "LEAD_APPROVED",
+      description: `${currentUser.name || "Unknown"} approved this lead`
+    });
+    return {
+      success: true,
+      message: `${lead == null ? void 0 : lead.companyName} approved`
+    };
+  }
+  if (intent === "reject") {
+    const leadId = formData.get("leadId");
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      },
+      select: {
+        companyName: true
+      }
+    });
+    await prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        status: "REJECTED",
+        rejectedById: userId,
+        approvedById: null
+      }
+    });
+    await logActivity({
+      leadId,
+      userId,
+      action: "LEAD_REJECTED",
+      description: `${currentUser.name || "Unknown"} rejected this lead`
+    });
+    return {
+      success: true,
+      message: `${lead == null ? void 0 : lead.companyName} rejected`
+    };
+  }
+  return {};
+}
+const inbox = UNSAFE_withComponentProps(function Inbox2() {
+  const {
+    user,
+    leads,
+    search,
+    status,
+    tempFilter,
+    criteria
+  } = useLoaderData();
+  const actionData = useActionData();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isAdmin = (user == null ? void 0 : user.role) === "ADMIN";
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-3xl font-bold tracking-tight",
+            children: "Lead Inbox"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: isAdmin ? "Manage and review scored leads" : "View scored leads"
+          })]
+        }), isAdmin && /* @__PURE__ */ jsx(Link, {
+          to: "/leads/new",
+          children: /* @__PURE__ */ jsxs(Button, {
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(Plus, {
+              className: "mr-2 h-4 w-4"
+            }), "Add Lead"]
+          })
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "flex flex-col gap-4 sm:flex-row",
+        children: [/* @__PURE__ */ jsxs("div", {
+          className: "relative flex-1",
+          children: [/* @__PURE__ */ jsx(Search, {
+            className: "absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          }), /* @__PURE__ */ jsx(Input, {
+            placeholder: "Search leads...",
+            className: "pl-9",
+            value: search,
+            onChange: (e) => {
+              const params = new URLSearchParams(searchParams);
+              if (e.target.value) params.set("q", e.target.value);
+              else params.delete("q");
+              setSearchParams(params);
+            }
+          })]
+        }), /* @__PURE__ */ jsx("div", {
+          className: "flex flex-wrap gap-2",
+          children: [{
+            key: "INBOX",
+            label: "Inbox",
+            activeClass: "bg-blue-500/20 text-blue-400 border-blue-500/30"
+          }, {
+            key: "ACTIVE",
+            label: "Active",
+            activeClass: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+          }, {
+            key: "REJECTED",
+            label: "Rejected",
+            activeClass: "bg-red-500/20 text-red-400 border-red-500/30"
+          }].map((s) => /* @__PURE__ */ jsx(Button, {
+            variant: "outline",
+            size: "sm",
+            className: status === s.key ? s.activeClass : "",
+            onClick: () => {
+              const params = new URLSearchParams(searchParams);
+              params.set("status", s.key);
+              setSearchParams(params);
+            },
+            children: s.label
+          }, s.key))
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "flex gap-2",
+        children: [/* @__PURE__ */ jsx("span", {
+          className: "flex items-center text-sm text-muted-foreground",
+          children: "Temperature:"
+        }), [{
+          key: "",
+          label: "All",
+          activeClass: "bg-violet-500/20 text-violet-400 border-violet-500/30"
+        }, {
+          key: "HOT",
+          label: "Hot",
+          activeClass: "bg-red-500/20 text-red-400 border-red-500/30"
+        }, {
+          key: "WARM",
+          label: "Warm",
+          activeClass: "bg-amber-500/20 text-amber-400 border-amber-500/30"
+        }, {
+          key: "COLD",
+          label: "Cold",
+          activeClass: "bg-blue-500/20 text-blue-400 border-blue-500/30"
+        }].map((v) => /* @__PURE__ */ jsx(Button, {
+          variant: "outline",
+          size: "sm",
+          className: tempFilter === v.key ? v.activeClass : "",
+          onClick: () => {
+            const params = new URLSearchParams(searchParams);
+            if (v.key) params.set("temp", v.key);
+            else params.delete("temp");
+            setSearchParams(params);
+          },
+          children: v.label
+        }, v.key || "all"))]
+      }), (actionData == null ? void 0 : actionData.success) && (actionData == null ? void 0 : actionData.temperature) && /* @__PURE__ */ jsxs("div", {
+        className: `rounded-md p-3 text-sm border ${actionData.temperature === "HOT" ? "bg-red-500/10 text-red-400 border-red-500/20" : actionData.temperature === "WARM" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"}`,
+        children: ["Lead added! Score: ", actionData.score, "/", actionData.maxScore, " — ", /* @__PURE__ */ jsx("strong", {
+          children: actionData.temperature
+        })]
+      }), /* @__PURE__ */ jsx("div", {
+        className: "rounded-lg border",
+        children: /* @__PURE__ */ jsx("div", {
+          className: "overflow-x-auto",
+          children: /* @__PURE__ */ jsxs("table", {
+            className: "w-full text-sm",
+            children: [/* @__PURE__ */ jsx("thead", {
+              children: /* @__PURE__ */ jsxs("tr", {
+                className: "border-b bg-muted/50",
+                children: [/* @__PURE__ */ jsx("th", {
+                  className: "px-4 py-3 text-left font-medium text-muted-foreground",
+                  children: "Company"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "px-4 py-3 text-left font-medium text-muted-foreground",
+                  children: "Contact"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "hidden px-4 py-3 text-left font-medium text-muted-foreground md:table-cell",
+                  children: "Email"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "hidden px-4 py-3 text-left font-medium text-muted-foreground lg:table-cell",
+                  children: "Industry"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "px-4 py-3 text-left font-medium text-muted-foreground",
+                  children: "Score"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "px-4 py-3 text-left font-medium text-muted-foreground",
+                  children: "Temp"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "px-4 py-3 text-left font-medium text-muted-foreground",
+                  children: "Stage"
+                }), /* @__PURE__ */ jsx("th", {
+                  className: "px-4 py-3 text-right font-medium text-muted-foreground",
+                  children: "Actions"
+                })]
+              })
+            }), /* @__PURE__ */ jsx("tbody", {
+              children: leads.length === 0 ? /* @__PURE__ */ jsx("tr", {
+                children: /* @__PURE__ */ jsx("td", {
+                  colSpan: 8,
+                  className: "px-4 py-12 text-center text-muted-foreground",
+                  children: "No leads found. Add one to get started."
+                })
+              }) : leads.map((lead) => /* @__PURE__ */ jsxs("tr", {
+                className: "border-b transition-colors hover:bg-muted/30",
+                children: [/* @__PURE__ */ jsxs("td", {
+                  className: "px-4 py-3",
+                  children: [/* @__PURE__ */ jsx("div", {
+                    className: "font-medium",
+                    children: lead.companyName
+                  }), lead.website && /* @__PURE__ */ jsx("div", {
+                    className: "text-xs text-muted-foreground",
+                    children: lead.website
+                  })]
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "px-4 py-3",
+                  children: lead.contactName || "—"
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "hidden px-4 py-3 md:table-cell",
+                  children: lead.email
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "hidden px-4 py-3 lg:table-cell",
+                  children: lead.industry && /* @__PURE__ */ jsx("span", {
+                    className: "inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0 text-xs text-blue-400",
+                    children: lead.industry
+                  })
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "px-4 py-3",
+                  children: /* @__PURE__ */ jsxs("div", {
+                    className: "flex items-center gap-2",
+                    children: [/* @__PURE__ */ jsxs("span", {
+                      className: "font-mono text-sm font-bold",
+                      children: [Math.round(lead.score), "/", Math.round(lead.maxScore)]
+                    }), /* @__PURE__ */ jsx("div", {
+                      className: "h-2 w-16 rounded-full bg-muted overflow-hidden",
+                      children: /* @__PURE__ */ jsx("div", {
+                        className: `h-full rounded-full ${lead.maxScore > 0 && lead.score / lead.maxScore >= 0.8 ? "bg-red-400" : lead.maxScore > 0 && lead.score / lead.maxScore >= 0.5 ? "bg-amber-400" : "bg-blue-400"}`,
+                        style: {
+                          width: `${lead.maxScore > 0 ? lead.score / lead.maxScore * 100 : 0}%`
+                        }
+                      })
+                    })]
+                  })
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "px-4 py-3",
+                  children: /* @__PURE__ */ jsx(TemperatureBadge$1, {
+                    temperature: lead.temperature
+                  })
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "px-4 py-3",
+                  children: /* @__PURE__ */ jsx(StageBadge$1, {
+                    stage: lead.stage
+                  })
+                }), /* @__PURE__ */ jsx("td", {
+                  className: "px-4 py-3",
+                  children: /* @__PURE__ */ jsxs("div", {
+                    className: "flex items-center justify-end gap-1",
+                    children: [isAdmin && lead.status === "INBOX" && /* @__PURE__ */ jsxs(Fragment, {
+                      children: [/* @__PURE__ */ jsxs(Form, {
+                        method: "post",
+                        children: [/* @__PURE__ */ jsx("input", {
+                          type: "hidden",
+                          name: "intent",
+                          value: "accept"
+                        }), /* @__PURE__ */ jsx("input", {
+                          type: "hidden",
+                          name: "leadId",
+                          value: lead.id
+                        }), /* @__PURE__ */ jsx(Button, {
+                          type: "submit",
+                          size: "icon",
+                          variant: "ghost",
+                          title: "Accept lead",
+                          children: /* @__PURE__ */ jsx(CheckCircle2, {
+                            className: "h-4 w-4 text-emerald-400"
+                          })
+                        })]
+                      }), /* @__PURE__ */ jsxs(Form, {
+                        method: "post",
+                        children: [/* @__PURE__ */ jsx("input", {
+                          type: "hidden",
+                          name: "intent",
+                          value: "reject"
+                        }), /* @__PURE__ */ jsx("input", {
+                          type: "hidden",
+                          name: "leadId",
+                          value: lead.id
+                        }), /* @__PURE__ */ jsx(Button, {
+                          type: "submit",
+                          size: "icon",
+                          variant: "ghost",
+                          title: "Reject lead",
+                          children: /* @__PURE__ */ jsx(XCircle, {
+                            className: "h-4 w-4 text-red-400"
+                          })
+                        })]
+                      })]
+                    }), isAdmin && /* @__PURE__ */ jsx(Link, {
+                      to: `/verification/${lead.id}`,
+                      children: /* @__PURE__ */ jsx(Button, {
+                        size: "icon",
+                        variant: "ghost",
+                        title: "Re-score lead",
+                        children: /* @__PURE__ */ jsx(ShieldCheck, {
+                          className: "h-4 w-4 text-violet-400"
+                        })
+                      })
+                    }), /* @__PURE__ */ jsx(Link, {
+                      to: `/leads/${lead.id}/emails`,
+                      children: /* @__PURE__ */ jsx(Button, {
+                        size: "icon",
+                        variant: "ghost",
+                        title: "Email lead",
+                        children: /* @__PURE__ */ jsx(ExternalLink, {
+                          className: "h-4 w-4"
+                        })
+                      })
+                    })]
+                  })
+                })]
+              }, lead.id))
+            })]
+          })
+        })
+      })]
+    })
+  });
+});
+function StageBadge$1({
+  stage
+}) {
+  const config = {
+    SOURCED: {
+      classes: "bg-slate-500/15 text-slate-300 border-slate-500/20"
+    },
+    QUALIFIED: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20"
+    },
+    FIRST_CONTACT: {
+      classes: "bg-violet-500/15 text-violet-400 border-violet-500/20"
+    },
+    MEETING_BOOKED: {
+      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20"
+    },
+    PROPOSAL_SENT: {
+      classes: "bg-orange-500/15 text-orange-400 border-orange-500/20"
+    },
+    CLOSED_WON: {
+      classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+    },
+    CLOSED_LOST: {
+      classes: "bg-red-500/15 text-red-400 border-red-500/20"
+    }
+  };
+  const c = config[stage] || config.SOURCED;
+  return /* @__PURE__ */ jsx("span", {
+    className: `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`,
+    children: stage.replace(/_/g, " ")
+  });
+}
+function TemperatureBadge$1({
+  temperature
+}) {
+  const config = {
+    HOT: {
+      classes: "bg-red-500/15 text-red-400 border-red-500/20",
+      icon: Flame
+    },
+    WARM: {
+      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      icon: Sun
+    },
+    COLD: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      icon: Snowflake
+    }
+  };
+  const c = config[temperature] || config.COLD;
+  const Icon = c.icon;
+  return /* @__PURE__ */ jsxs("span", {
+    className: `inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`,
+    children: [/* @__PURE__ */ jsx(Icon, {
+      className: "h-3 w-3"
+    }), temperature]
+  });
+}
+const route5 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$c,
+  default: inbox,
+  loader: loader$f
+}, Symbol.toStringTag, { value: "Module" }));
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground shadow",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        destructive: "border-transparent bg-destructive text-destructive-foreground shadow",
+        outline: "text-foreground",
+        success: "border-transparent bg-emerald-500/20 text-emerald-400",
+        warning: "border-transparent bg-amber-500/20 text-amber-400"
+      }
+    },
+    defaultVariants: {
+      variant: "default"
+    }
+  }
+);
+function Badge({ className, variant, ...props }) {
+  return /* @__PURE__ */ jsx("div", { className: cn(badgeVariants({ variant }), className), ...props });
+}
+const Textarea = React.forwardRef(({ className, ...props }, ref) => {
+  return /* @__PURE__ */ jsx(
+    "textarea",
+    {
+      className: cn(
+        "flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      ),
+      ref,
+      ...props
+    }
+  );
+});
+Textarea.displayName = "Textarea";
+async function loader$e({
+  request,
+  params
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const lead = await prisma.lead.findUnique({
+    where: {
+      id: params.leadId
+    },
+    include: {
+      emails: true,
+      stageHistory: {
+        orderBy: {
+          changedAt: "desc"
+        },
+        include: {
+          changedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      },
+      activityLogs: {
+        orderBy: {
+          createdAt: "desc"
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        },
+        take: 50
+      },
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      approvedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      rejectedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+  if (!lead) {
+    throw new Response("Lead not found", {
+      status: 404
+    });
+  }
+  const users2 = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true
+    },
+    orderBy: {
+      name: "asc"
+    }
+  });
+  return {
+    user,
+    lead,
+    users: users2
+  };
+}
+async function action$b({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      role: true
+    }
+  });
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  const leadId = formData.get("leadId");
+  if (intent === "updateNotes") {
+    const notes = formData.get("notes");
+    await prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        notes
+      }
+    });
+    await logActivity({
+      leadId,
+      userId,
+      action: "NOTE_ADDED",
+      description: `${(currentUser == null ? void 0 : currentUser.name) || "Unknown"} updated notes`
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "assignLead") {
+    const assignedToId = formData.get("assignedToId") || null;
+    const assignedUser = assignedToId ? await prisma.user.findUnique({
+      where: {
+        id: assignedToId
+      },
+      select: {
+        name: true
+      }
+    }) : null;
+    await prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        assignedToId
+      }
+    });
+    if (assignedToId && assignedUser) {
+      await logActivity({
+        leadId,
+        userId,
+        action: "LEAD_ASSIGNED",
+        description: `${(currentUser == null ? void 0 : currentUser.name) || "Unknown"} assigned to ${assignedUser.name}`,
+        metadata: {
+          assignedToId,
+          assignedToName: assignedUser.name
+        }
+      });
+    } else {
+      await logActivity({
+        leadId,
+        userId,
+        action: "LEAD_UNASSIGNED",
+        description: `${(currentUser == null ? void 0 : currentUser.name) || "Unknown"} removed assignment`
+      });
+    }
+    return {
+      success: true
+    };
+  }
+  return {};
+}
+const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
+  var _a;
+  const {
+    user,
+    lead,
+    users: users2
+  } = useLoaderData();
+  useActionData();
+  const isAdmin = (user == null ? void 0 : user.role) === "ADMIN";
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/inbox",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-3",
+            children: [/* @__PURE__ */ jsx("h1", {
+              className: "text-2xl font-bold",
+              children: lead.companyName
+            }), /* @__PURE__ */ jsx(StatusBadge$2, {
+              status: lead.status
+            }), /* @__PURE__ */ jsx(StageBadge, {
+              stage: lead.stage
+            })]
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: lead.email
+          })]
+        })]
+      }), /* @__PURE__ */ jsx(Card, {
+        className: "border-l-4 border-l-violet-500",
+        children: /* @__PURE__ */ jsx(CardContent, {
+          className: "pt-4",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "grid gap-4 sm:grid-cols-2 lg:grid-cols-4",
+            children: [lead.createdBy && /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10",
+                children: /* @__PURE__ */ jsx(UserPlus, {
+                  className: "h-4 w-4 text-green-500"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: "Added by"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm font-medium",
+                  children: lead.createdBy.name || lead.createdBy.email
+                })]
+              })]
+            }), lead.approvedBy && /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10",
+                children: /* @__PURE__ */ jsx(CheckCircle, {
+                  className: "h-4 w-4 text-emerald-500"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: "Approved by"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm font-medium",
+                  children: lead.approvedBy.name || lead.approvedBy.email
+                })]
+              })]
+            }), lead.rejectedBy && /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-8 w-8 items-center justify-center rounded-full bg-red-500/10",
+                children: /* @__PURE__ */ jsx(XCircle, {
+                  className: "h-4 w-4 text-red-500"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: "Rejected by"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm font-medium",
+                  children: lead.rejectedBy.name || lead.rejectedBy.email
+                })]
+              })]
+            }), lead.assignedTo && /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-8 w-8 items-center justify-center rounded-full bg-purple-500/10",
+                children: /* @__PURE__ */ jsx(User, {
+                  className: "h-4 w-4 text-purple-500"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: "Assigned to"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm font-medium",
+                  children: lead.assignedTo.name || lead.assignedTo.email
+                })]
+              })]
+            })]
+          })
+        })
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 lg:grid-cols-3",
+        children: [/* @__PURE__ */ jsxs("div", {
+          className: "lg:col-span-2 space-y-6",
+          children: [/* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsx(CardTitle, {
+                children: "Lead Details"
+              })
+            }), /* @__PURE__ */ jsxs(CardContent, {
+              children: [/* @__PURE__ */ jsx("dl", {
+                className: "grid gap-4 sm:grid-cols-2",
+                children: [["Company", lead.companyName], ["Website", lead.website], ["Contact", lead.contactName], ["Email", lead.email], ["Industry", lead.industry], ["Est. Traffic", lead.estimatedTraffic], ["Tech Stack", lead.techStack], ["Lead Source", lead.leadSource], ["Status", lead.status], ["Stage", lead.stage.replace(/_/g, " ")]].map(([label, value]) => /* @__PURE__ */ jsxs("div", {
+                  children: [/* @__PURE__ */ jsx("dt", {
+                    className: "text-sm font-medium text-muted-foreground",
+                    children: label
+                  }), /* @__PURE__ */ jsx("dd", {
+                    className: "mt-1 text-sm",
+                    children: value || "—"
+                  })]
+                }, label))
+              }), (lead.linkedin || lead.facebook || lead.instagram || lead.twitter) && /* @__PURE__ */ jsxs("div", {
+                className: "mt-4 pt-4 border-t border-border",
+                children: [/* @__PURE__ */ jsx("dt", {
+                  className: "text-sm font-medium text-muted-foreground mb-2",
+                  children: "Social Profiles"
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "flex flex-wrap gap-2",
+                  children: [lead.linkedin && /* @__PURE__ */ jsxs("a", {
+                    href: lead.linkedin,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors",
+                    children: [/* @__PURE__ */ jsx(Linkedin, {
+                      className: "h-3.5 w-3.5"
+                    }), " LinkedIn"]
+                  }), lead.facebook && /* @__PURE__ */ jsxs("a", {
+                    href: lead.facebook,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors",
+                    children: [/* @__PURE__ */ jsx(Facebook, {
+                      className: "h-3.5 w-3.5"
+                    }), " Facebook"]
+                  }), lead.instagram && /* @__PURE__ */ jsxs("a", {
+                    href: lead.instagram,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "inline-flex items-center gap-1.5 rounded-md border border-pink-500/20 bg-pink-500/10 px-2.5 py-1 text-xs font-medium text-pink-400 hover:bg-pink-500/20 transition-colors",
+                    children: [/* @__PURE__ */ jsx(Instagram, {
+                      className: "h-3.5 w-3.5"
+                    }), " Instagram"]
+                  }), lead.twitter && /* @__PURE__ */ jsxs("a", {
+                    href: lead.twitter,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    className: "inline-flex items-center gap-1.5 rounded-md border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-400 hover:bg-sky-500/20 transition-colors",
+                    children: [/* @__PURE__ */ jsx(Twitter, {
+                      className: "h-3.5 w-3.5"
+                    }), " Twitter / X"]
+                  })]
+                })]
+              })]
+            })]
+          }), /* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsxs(CardTitle, {
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx(Activity, {
+                  className: "h-4 w-4"
+                }), "Activity Log"]
+              })
+            }), /* @__PURE__ */ jsx(CardContent, {
+              children: lead.activityLogs.length === 0 ? /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: "No activity recorded yet."
+              }) : /* @__PURE__ */ jsx("div", {
+                className: "space-y-3",
+                children: lead.activityLogs.map((log) => {
+                  const style = getActivityStyle(log.action);
+                  return /* @__PURE__ */ jsxs("div", {
+                    className: "flex items-start gap-3 rounded-lg border border-border/50 bg-muted/20 p-3",
+                    children: [/* @__PURE__ */ jsx("div", {
+                      className: `flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${style.bgColor}`,
+                      children: /* @__PURE__ */ jsx("span", {
+                        className: `text-sm font-bold ${style.textColor}`,
+                        children: style.icon
+                      })
+                    }), /* @__PURE__ */ jsxs("div", {
+                      className: "flex-1 min-w-0",
+                      children: [/* @__PURE__ */ jsx("p", {
+                        className: "text-sm",
+                        children: log.description
+                      }), /* @__PURE__ */ jsxs("div", {
+                        className: "mt-1 flex items-center gap-2 text-xs text-muted-foreground",
+                        children: [/* @__PURE__ */ jsx(Clock, {
+                          className: "h-3 w-3"
+                        }), new Date(log.createdAt).toLocaleString()]
+                      })]
+                    })]
+                  }, log.id);
+                })
+              })
+            })]
+          }), /* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsx(CardTitle, {
+                children: "Stage History"
+              })
+            }), /* @__PURE__ */ jsx(CardContent, {
+              children: lead.stageHistory.length === 0 ? /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: "No stage changes recorded."
+              }) : /* @__PURE__ */ jsx("div", {
+                className: "space-y-3",
+                children: lead.stageHistory.map((h) => {
+                  var _a2;
+                  return /* @__PURE__ */ jsxs("div", {
+                    className: "flex items-center gap-3 text-sm",
+                    children: [/* @__PURE__ */ jsx(Badge, {
+                      variant: "outline",
+                      className: "shrink-0",
+                      children: ((_a2 = h.fromStage) == null ? void 0 : _a2.replace(/_/g, " ")) || "New"
+                    }), /* @__PURE__ */ jsx("span", {
+                      className: "text-muted-foreground",
+                      children: "→"
+                    }), /* @__PURE__ */ jsx(Badge, {
+                      children: h.toStage.replace(/_/g, " ")
+                    }), h.changedBy && /* @__PURE__ */ jsxs("span", {
+                      className: "text-xs text-muted-foreground",
+                      children: ["by ", h.changedBy.name || h.changedBy.email]
+                    }), /* @__PURE__ */ jsx("span", {
+                      className: "ml-auto text-xs text-muted-foreground",
+                      children: new Date(h.changedAt).toLocaleDateString()
+                    })]
+                  }, h.id);
+                })
+              })
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "space-y-6",
+          children: [isAdmin && /* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsxs(CardTitle, {
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx(User, {
+                  className: "h-4 w-4"
+                }), "Assignment"]
+              })
+            }), /* @__PURE__ */ jsx(CardContent, {
+              children: /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "space-y-3",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "assignLead"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "leadId",
+                  value: lead.id
+                }), /* @__PURE__ */ jsxs("select", {
+                  name: "assignedToId",
+                  className: "w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
+                  defaultValue: ((_a = lead.assignedTo) == null ? void 0 : _a.id) || "",
+                  children: [/* @__PURE__ */ jsx("option", {
+                    value: "",
+                    children: "Unassigned"
+                  }), users2.map((u) => /* @__PURE__ */ jsxs("option", {
+                    value: u.id,
+                    children: [u.name || u.email, " (", u.role, ")"]
+                  }, u.id))]
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  size: "sm",
+                  className: "w-full",
+                  children: "Update Assignment"
+                })]
+              })
+            })]
+          }), /* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsx(CardTitle, {
+                children: "Notes"
+              })
+            }), /* @__PURE__ */ jsx(CardContent, {
+              children: isAdmin ? /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "space-y-3",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "updateNotes"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "leadId",
+                  value: lead.id
+                }), /* @__PURE__ */ jsx(Textarea, {
+                  name: "notes",
+                  rows: 6,
+                  defaultValue: lead.notes || "",
+                  placeholder: "Add notes about this lead..."
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  size: "sm",
+                  className: "w-full",
+                  children: "Save Notes"
+                })]
+              }) : /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground whitespace-pre-wrap",
+                children: lead.notes || "No notes."
+              })
+            })]
+          })]
+        })]
+      })]
+    })
+  });
+});
+function StatusBadge$2({
+  status
+}) {
+  const config = {
+    INBOX: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20"
+    },
+    ACTIVE: {
+      classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+    },
+    REJECTED: {
+      classes: "bg-red-500/15 text-red-400 border-red-500/20"
+    }
+  };
+  const c = config[status] || config.INBOX;
+  return /* @__PURE__ */ jsx("span", {
+    className: `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`,
+    children: status
+  });
+}
+function StageBadge({
+  stage
+}) {
+  const config = {
+    SOURCED: {
+      classes: "bg-slate-500/15 text-slate-300 border-slate-500/20"
+    },
+    QUALIFIED: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20"
+    },
+    FIRST_CONTACT: {
+      classes: "bg-violet-500/15 text-violet-400 border-violet-500/20"
+    },
+    MEETING_BOOKED: {
+      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20"
+    },
+    PROPOSAL_SENT: {
+      classes: "bg-orange-500/15 text-orange-400 border-orange-500/20"
+    },
+    CLOSED_WON: {
+      classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+    },
+    CLOSED_LOST: {
+      classes: "bg-red-500/15 text-red-400 border-red-500/20"
+    }
+  };
+  const c = config[stage] || config.SOURCED;
+  return /* @__PURE__ */ jsx("span", {
+    className: `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`,
+    children: stage.replace(/_/g, " ")
+  });
+}
+const route6 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$b,
+  default: inbox_$leadId,
+  loader: loader$e
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$d({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const criteria = await prisma.verificationCriteria.findMany({
+    where: {
+      active: true
+    },
+    orderBy: {
+      sortOrder: "asc"
+    }
+  });
+  return {
+    user,
+    criteria
+  };
+}
+async function action$a({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true
+    }
+  });
+  const formData = await request.formData();
+  const email = formData.get("email");
+  const existing = await prisma.lead.findUnique({
+    where: {
+      email
+    }
+  });
+  if (existing) {
+    return {
+      error: `A lead with this email already exists. (${existing.companyName})`
+    };
+  }
+  const criteriaIds = formData.getAll("criteriaId");
+  const responses = [];
+  for (const cid of criteriaIds) {
+    const resp = formData.get(`response_${cid}`);
+    if (resp) responses.push({
+      criteriaId: cid,
+      response: resp
+    });
+  }
+  const result = await scoreLead(responses);
+  const lead = await prisma.lead.create({
+    data: {
+      companyName: formData.get("companyName"),
+      website: formData.get("website") || null,
+      contactName: formData.get("contactName") || null,
+      email,
+      industry: formData.get("industry") || null,
+      estimatedTraffic: formData.get("estimatedTraffic") || null,
+      techStack: formData.get("techStack") || null,
+      linkedin: formData.get("linkedin") || null,
+      facebook: formData.get("facebook") || null,
+      instagram: formData.get("instagram") || null,
+      twitter: formData.get("twitter") || null,
+      leadSource: formData.get("leadSource") || null,
+      notes: formData.get("notes") || null,
+      score: result.score,
+      maxScore: result.maxScore,
+      temperature: result.temperature,
+      createdById: userId
+    }
+  });
+  if (responses.length > 0) {
+    await prisma.$transaction(result.responses.map((r) => prisma.leadVerification.create({
+      data: {
+        leadId: lead.id,
+        criteriaId: r.criteriaId,
+        response: r.response,
+        score: r.score
+      }
+    })));
+  }
+  await logActivity({
+    leadId: lead.id,
+    userId,
+    action: "LEAD_CREATED",
+    description: `${(user == null ? void 0 : user.name) || "Unknown"} added this lead`,
+    metadata: {
+      temperature: result.temperature,
+      score: result.score,
+      percentage: result.percentage
+    }
+  });
+  return {
+    success: true,
+    leadId: lead.id,
+    companyName: lead.companyName,
+    temperature: result.temperature,
+    score: result.score,
+    maxScore: result.maxScore,
+    percentage: result.percentage
+  };
+}
+const leads_new = UNSAFE_withComponentProps(function NewLead() {
+  const {
+    user,
+    criteria
+  } = useLoaderData();
+  const actionData = useActionData();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (actionData == null ? void 0 : actionData.success) {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+  }, [actionData]);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-3xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/inbox",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "Add New Lead"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Fill out the details and qualification scorecard"
+          })]
+        })]
+      }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx(Card, {
+        className: `border-2 ${actionData.temperature === "HOT" ? "border-red-500/40 bg-red-500/5" : actionData.temperature === "WARM" ? "border-amber-500/40 bg-amber-500/5" : "border-blue-500/40 bg-blue-500/5"}`,
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex items-center gap-4 p-5",
+          children: [/* @__PURE__ */ jsx(CheckCircle2, {
+            className: `h-8 w-8 shrink-0 ${actionData.temperature === "HOT" ? "text-red-400" : actionData.temperature === "WARM" ? "text-amber-400" : "text-blue-400"}`
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex-1",
+            children: [/* @__PURE__ */ jsxs("p", {
+              className: "font-semibold",
+              children: [actionData.companyName, " added successfully!"]
+            }), /* @__PURE__ */ jsxs("p", {
+              className: "text-sm text-muted-foreground",
+              children: ["Score: ", Math.round(actionData.score), "/", Math.round(actionData.maxScore), " (", Math.round(actionData.percentage), "%) —", " ", /* @__PURE__ */ jsx(TemperatureBadge, {
+                temperature: actionData.temperature
+              })]
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex gap-2",
+            children: [/* @__PURE__ */ jsx(Link, {
+              to: `/inbox/${actionData.leadId}`,
+              children: /* @__PURE__ */ jsx(Button, {
+                variant: "outline",
+                size: "sm",
+                children: "View Lead"
+              })
+            }), /* @__PURE__ */ jsx(Button, {
+              size: "sm",
+              onClick: () => navigate("/leads/new", {
+                replace: true
+              }),
+              children: "Add Another"
+            })]
+          })]
+        })
+      }), /* @__PURE__ */ jsxs(Form, {
+        method: "post",
+        className: "space-y-6",
+        children: [(actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+          className: "rounded-md bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20",
+          children: actionData.error
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Point of Contact"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Who are we reaching out to?"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "grid gap-4 sm:grid-cols-2",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "contactName",
+                  children: "Contact Name *"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "contactName",
+                  name: "contactName",
+                  placeholder: "John Smith",
+                  required: true
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "email",
+                  children: "Email *"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "email",
+                  name: "email",
+                  type: "email",
+                  placeholder: "john@company.com",
+                  required: true
+                })]
+              })]
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Company Info"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Business details and background"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "grid gap-4 sm:grid-cols-2",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "companyName",
+                  children: "Company Name *"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "companyName",
+                  name: "companyName",
+                  placeholder: "Acme Corp",
+                  required: true
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "industry",
+                  children: "Industry"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "industry",
+                  name: "industry",
+                  placeholder: "e.g. SaaS, E-commerce"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "website",
+                  children: "Website"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "website",
+                  name: "website",
+                  placeholder: "https://example.com"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "estimatedTraffic",
+                  children: "Est. Monthly Traffic"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "estimatedTraffic",
+                  name: "estimatedTraffic",
+                  placeholder: "e.g. 10K-50K"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "techStack",
+                  children: "Tech Stack"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "techStack",
+                  name: "techStack",
+                  placeholder: "e.g. WordPress, Shopify"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "leadSource",
+                  children: "Lead Source"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "leadSource",
+                  name: "leadSource",
+                  placeholder: "e.g. LinkedIn, Referral"
+                })]
+              })]
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Social Links"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Where to find them online"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "grid gap-4 sm:grid-cols-2",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsxs(Label, {
+                  htmlFor: "linkedin",
+                  className: "flex items-center gap-1.5",
+                  children: [/* @__PURE__ */ jsx(Linkedin, {
+                    className: "h-3.5 w-3.5 text-blue-400"
+                  }), " LinkedIn"]
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "linkedin",
+                  name: "linkedin",
+                  placeholder: "https://linkedin.com/in/..."
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsxs(Label, {
+                  htmlFor: "facebook",
+                  className: "flex items-center gap-1.5",
+                  children: [/* @__PURE__ */ jsx(Facebook, {
+                    className: "h-3.5 w-3.5 text-blue-500"
+                  }), " Facebook"]
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "facebook",
+                  name: "facebook",
+                  placeholder: "https://facebook.com/..."
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsxs(Label, {
+                  htmlFor: "instagram",
+                  className: "flex items-center gap-1.5",
+                  children: [/* @__PURE__ */ jsx(Instagram, {
+                    className: "h-3.5 w-3.5 text-pink-400"
+                  }), " Instagram"]
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "instagram",
+                  name: "instagram",
+                  placeholder: "https://instagram.com/..."
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-1.5",
+                children: [/* @__PURE__ */ jsxs(Label, {
+                  htmlFor: "twitter",
+                  className: "flex items-center gap-1.5",
+                  children: [/* @__PURE__ */ jsx(Twitter, {
+                    className: "h-3.5 w-3.5 text-sky-400"
+                  }), " Twitter / X"]
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "twitter",
+                  name: "twitter",
+                  placeholder: "https://x.com/..."
+                })]
+              })]
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Notes"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Any additional context about this lead"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx(Textarea, {
+              id: "notes",
+              name: "notes",
+              rows: 3,
+              placeholder: "Add notes about this lead..."
+            })
+          })]
+        }), criteria.length > 0 && /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Lead Qualification Scorecard"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Answer each criterion to calculate the lead score. Higher scores = hotter leads."
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            className: "space-y-4",
+            children: criteria.map((c, idx) => /* @__PURE__ */ jsxs("div", {
+              className: "rounded-lg border border-border/50 bg-muted/10 p-4 space-y-3",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "criteriaId",
+                value: c.id
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex items-start justify-between gap-2",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  children: [/* @__PURE__ */ jsxs("p", {
+                    className: "text-sm font-medium",
+                    children: [idx + 1, ". ", c.name, c.required && /* @__PURE__ */ jsx("span", {
+                      className: "ml-1 text-red-400",
+                      children: "*"
+                    })]
+                  }), c.description && /* @__PURE__ */ jsx("p", {
+                    className: "text-xs text-muted-foreground mt-0.5",
+                    children: c.description
+                  })]
+                }), /* @__PURE__ */ jsxs("span", {
+                  className: "shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 border border-violet-500/20",
+                  children: [c.weight, "pt", c.weight > 1 ? "s" : ""]
+                })]
+              }), c.type === "YES_NO" && /* @__PURE__ */ jsxs("div", {
+                className: "flex gap-3",
+                children: [/* @__PURE__ */ jsxs("label", {
+                  className: "flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-4 py-2 cursor-pointer has-[:checked]:bg-emerald-500/20 has-[:checked]:border-emerald-500/40 transition-colors",
+                  children: [/* @__PURE__ */ jsx("input", {
+                    type: "radio",
+                    name: `response_${c.id}`,
+                    value: "yes",
+                    required: c.required,
+                    className: "h-4 w-4 accent-emerald-500"
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "text-sm font-medium text-emerald-400",
+                    children: "Yes"
+                  })]
+                }), /* @__PURE__ */ jsxs("label", {
+                  className: "flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/5 px-4 py-2 cursor-pointer has-[:checked]:bg-red-500/20 has-[:checked]:border-red-500/40 transition-colors",
+                  children: [/* @__PURE__ */ jsx("input", {
+                    type: "radio",
+                    name: `response_${c.id}`,
+                    value: "no",
+                    required: c.required,
+                    className: "h-4 w-4 accent-red-500"
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "text-sm font-medium text-red-400",
+                    children: "No"
+                  })]
+                })]
+              }), c.type === "SCORE" && /* @__PURE__ */ jsx("div", {
+                className: "flex gap-2",
+                children: [1, 2, 3, 4, 5].map((score) => {
+                  const cls = score <= 2 ? "border-red-500/20 text-red-400 hover:bg-red-500/10 has-[:checked]:bg-red-500/20 has-[:checked]:border-red-500/40" : score === 3 ? "border-amber-500/20 text-amber-400 hover:bg-amber-500/10 has-[:checked]:bg-amber-500/20 has-[:checked]:border-amber-500/40" : "border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 has-[:checked]:bg-emerald-500/20 has-[:checked]:border-emerald-500/40";
+                  return /* @__PURE__ */ jsxs("label", {
+                    className: `flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border text-sm font-medium transition-colors ${cls}`,
+                    children: [/* @__PURE__ */ jsx("input", {
+                      type: "radio",
+                      name: `response_${c.id}`,
+                      value: String(score),
+                      required: c.required,
+                      className: "sr-only"
+                    }), score]
+                  }, score);
+                })
+              }), c.type === "TEXT" && /* @__PURE__ */ jsx(Textarea, {
+                name: `response_${c.id}`,
+                rows: 2,
+                placeholder: "Enter your evaluation...",
+                required: c.required
+              })]
+            }, c.id))
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex items-center justify-between rounded-lg border bg-muted/30 p-4",
+          children: [/* @__PURE__ */ jsx(Link, {
+            to: "/inbox",
+            children: /* @__PURE__ */ jsx(Button, {
+              variant: "outline",
+              children: "Cancel"
+            })
+          }), /* @__PURE__ */ jsxs(Button, {
+            type: "submit",
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(UserPlus, {
+              className: "mr-2 h-4 w-4"
+            }), "Score & Add Lead"]
+          })]
+        })]
+      })]
+    })
+  });
+});
+function TemperatureBadge({
+  temperature
+}) {
+  const config = {
+    HOT: {
+      classes: "bg-red-500/15 text-red-400 border-red-500/20",
+      icon: Flame
+    },
+    WARM: {
+      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      icon: Sun
+    },
+    COLD: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      icon: Snowflake
+    }
+  };
+  const c = config[temperature] || config.COLD;
+  const Icon = c.icon;
+  return /* @__PURE__ */ jsxs("strong", {
+    className: `inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`,
+    children: [/* @__PURE__ */ jsx(Icon, {
+      className: "h-3 w-3"
+    }), temperature]
+  });
+}
+const route7 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$a,
+  default: leads_new,
+  loader: loader$d
+}, Symbol.toStringTag, { value: "Module" }));
+const Select = React.forwardRef(
+  ({ className, children, ...props }, ref) => /* @__PURE__ */ jsx(
+    "select",
+    {
+      ref,
+      className: cn(
+        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      ),
+      ...props,
+      children
+    }
+  )
+);
+Select.displayName = "Select";
+async function loader$c({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const criteria = await prisma.verificationCriteria.findMany({
+    orderBy: {
+      sortOrder: "asc"
+    }
+  });
+  const scoreConfig = await getScoreConfig();
+  return {
+    user,
+    criteria,
+    scoreConfig
+  };
+}
+async function action$9({
+  request
+}) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "create") {
+    const name = formData.get("name");
+    const description = formData.get("description") || null;
+    const type = formData.get("type");
+    const weight = parseInt(formData.get("weight")) || 1;
+    const required = formData.get("required") === "on";
+    if (!name) return {
+      error: "Criterion name is required."
+    };
+    const maxOrder = await prisma.verificationCriteria.aggregate({
+      _max: {
+        sortOrder: true
+      }
+    });
+    await prisma.verificationCriteria.create({
+      data: {
+        name,
+        description,
+        type,
+        weight,
+        required,
+        sortOrder: (maxOrder._max.sortOrder || 0) + 1
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "update") {
+    const id = formData.get("id");
+    const name = formData.get("name");
+    const description = formData.get("description") || null;
+    const type = formData.get("type");
+    const weight = parseInt(formData.get("weight")) || 1;
+    const required = formData.get("required") === "on";
+    const active = formData.get("active") === "on";
+    await prisma.verificationCriteria.update({
+      where: {
+        id
+      },
+      data: {
+        name,
+        description,
+        type,
+        weight,
+        required,
+        active
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "delete") {
+    await prisma.verificationCriteria.delete({
+      where: {
+        id: formData.get("id")
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "reorder") {
+    const id = formData.get("id");
+    const direction = formData.get("direction");
+    const criteria = await prisma.verificationCriteria.findMany({
+      orderBy: {
+        sortOrder: "asc"
+      }
+    });
+    const idx = criteria.findIndex((c) => c.id === id);
+    if (idx < 0) return {};
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= criteria.length) return {};
+    const [a, b] = [criteria[idx], criteria[swapIdx]];
+    await prisma.$transaction([prisma.verificationCriteria.update({
+      where: {
+        id: a.id
+      },
+      data: {
+        sortOrder: b.sortOrder
+      }
+    }), prisma.verificationCriteria.update({
+      where: {
+        id: b.id
+      },
+      data: {
+        sortOrder: a.sortOrder
+      }
+    })]);
+    return {
+      success: true
+    };
+  }
+  if (intent === "updateScoreConfig") {
+    const hotThreshold = parseFloat(formData.get("hotThreshold"));
+    const warmThreshold = parseFloat(formData.get("warmThreshold"));
+    if (isNaN(hotThreshold) || isNaN(warmThreshold)) {
+      return {
+        error: "Thresholds must be valid numbers."
+      };
+    }
+    if (hotThreshold <= warmThreshold) {
+      return {
+        error: "Hot threshold must be higher than warm threshold."
+      };
+    }
+    await prisma.scoreConfig.upsert({
+      where: {
+        id: "default"
+      },
+      update: {
+        hotThreshold,
+        warmThreshold
+      },
+      create: {
+        id: "default",
+        hotThreshold,
+        warmThreshold
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  return {};
+}
+const verification_criteria = UNSAFE_withComponentProps(function VerificationCriteria() {
+  const {
+    user,
+    criteria,
+    scoreConfig
+  } = useLoaderData();
+  const actionData = useActionData();
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const isAdmin = (user == null ? void 0 : user.role) === "ADMIN";
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-3xl font-bold tracking-tight",
+            children: "Verification Criteria"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: "Define the criteria admins use to evaluate and verify leads"
+          })]
+        }), isAdmin && /* @__PURE__ */ jsxs(Button, {
+          onClick: () => {
+            setShowForm(true);
+            setEditingId(null);
+          },
+          children: [/* @__PURE__ */ jsx(Plus, {
+            className: "mr-2 h-4 w-4"
+          }), "Add Criterion"]
+        })]
+      }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400 border border-emerald-500/20",
+        children: "Saved successfully."
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20",
+        children: actionData.error
+      }), isAdmin && scoreConfig && /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsxs(CardHeader, {
+          className: "pb-3",
+          children: [/* @__PURE__ */ jsx(CardTitle, {
+            className: "text-base",
+            children: "Score Thresholds"
+          }), /* @__PURE__ */ jsx(CardDescription, {
+            children: "Leads scoring at or above the hot threshold are marked HOT. Below warm threshold = COLD. In between = WARM."
+          })]
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            className: "flex items-end gap-4",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "updateScoreConfig"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "hotThreshold",
+                className: "text-xs text-red-400",
+                children: "Hot Threshold (%)"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "hotThreshold",
+                name: "hotThreshold",
+                type: "number",
+                min: 1,
+                max: 100,
+                defaultValue: scoreConfig.hotThreshold,
+                className: "w-24"
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "warmThreshold",
+                className: "text-xs text-amber-400",
+                children: "Warm Threshold (%)"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "warmThreshold",
+                name: "warmThreshold",
+                type: "number",
+                min: 0,
+                max: 99,
+                defaultValue: scoreConfig.warmThreshold,
+                className: "w-24"
+              })]
+            }), /* @__PURE__ */ jsx(Button, {
+              type: "submit",
+              size: "sm",
+              children: "Update Thresholds"
+            })]
+          })
+        })]
+      }), showForm && /* @__PURE__ */ jsx(CriteriaForm, {
+        onSubmit: () => {
+          setShowForm(false);
+          setEditingId(null);
+        },
+        existing: editingId ? criteria.find((c) => c.id === editingId) : void 0
+      }), /* @__PURE__ */ jsx("div", {
+        className: "space-y-3",
+        children: criteria.length === 0 ? /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex flex-col items-center justify-center py-16",
+            children: [/* @__PURE__ */ jsx(ShieldCheck, {
+              className: "h-12 w-12 text-muted-foreground/50"
+            }), /* @__PURE__ */ jsx("p", {
+              className: "mt-4 text-lg font-medium text-muted-foreground",
+              children: "No criteria defined yet"
+            }), /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-muted-foreground",
+              children: "Create verification criteria to standardize how leads are evaluated."
+            })]
+          })
+        }) : criteria.map((c, idx) => /* @__PURE__ */ jsx(Card, {
+          className: !c.active ? "opacity-50" : "",
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex items-center gap-4 p-4",
+            children: [isAdmin && /* @__PURE__ */ jsxs("div", {
+              className: "flex flex-col gap-0.5",
+              children: [/* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "reorder"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "id",
+                  value: c.id
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "direction",
+                  value: "up"
+                }), /* @__PURE__ */ jsx("button", {
+                  type: "submit",
+                  className: "text-muted-foreground hover:text-foreground",
+                  disabled: idx === 0,
+                  children: /* @__PURE__ */ jsx(ArrowUp, {
+                    className: "h-3.5 w-3.5"
+                  })
+                })]
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "reorder"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "id",
+                  value: c.id
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "direction",
+                  value: "down"
+                }), /* @__PURE__ */ jsx("button", {
+                  type: "submit",
+                  className: "text-muted-foreground hover:text-foreground",
+                  disabled: idx === criteria.length - 1,
+                  children: /* @__PURE__ */ jsx(ArrowDown, {
+                    className: "h-3.5 w-3.5"
+                  })
+                })]
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex-1",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "font-medium",
+                  children: c.name
+                }), /* @__PURE__ */ jsx(Badge, {
+                  className: `text-[10px] ${c.type === "YES_NO" ? "bg-blue-500/15 text-blue-400 border-blue-500/20" : c.type === "SCORE" ? "bg-violet-500/15 text-violet-400 border-violet-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`,
+                  children: c.type === "YES_NO" ? "Yes / No" : c.type === "SCORE" ? "Score (1-5)" : "Text"
+                }), c.required && /* @__PURE__ */ jsx("span", {
+                  className: "inline-flex items-center rounded-md border border-emerald-500/20 bg-emerald-500/15 px-1.5 py-0 text-[10px] font-semibold text-emerald-400",
+                  children: "Required"
+                }), !c.active && /* @__PURE__ */ jsx("span", {
+                  className: "inline-flex items-center rounded-md border border-red-500/20 bg-red-500/15 px-1.5 py-0 text-[10px] font-semibold text-red-400",
+                  children: "Inactive"
+                })]
+              }), c.description && /* @__PURE__ */ jsx("p", {
+                className: "mt-1 text-sm text-muted-foreground",
+                children: c.description
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "text-sm text-muted-foreground",
+              children: ["Weight: ", c.weight]
+            }), isAdmin && /* @__PURE__ */ jsxs("div", {
+              className: "flex gap-1",
+              children: [/* @__PURE__ */ jsx(Button, {
+                variant: "ghost",
+                size: "sm",
+                onClick: () => {
+                  setEditingId(c.id);
+                  setShowForm(true);
+                },
+                children: "Edit"
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "delete"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "id",
+                  value: c.id
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  variant: "ghost",
+                  size: "sm",
+                  children: /* @__PURE__ */ jsx(Trash2, {
+                    className: "h-4 w-4 text-destructive"
+                  })
+                })]
+              })]
+            })]
+          })
+        }, c.id))
+      })]
+    })
+  });
+});
+function CriteriaForm({
+  onSubmit,
+  existing
+}) {
+  return /* @__PURE__ */ jsxs(Card, {
+    children: [/* @__PURE__ */ jsxs(CardHeader, {
+      children: [/* @__PURE__ */ jsx(CardTitle, {
+        children: existing ? "Edit Criterion" : "New Criterion"
+      }), /* @__PURE__ */ jsx(CardDescription, {
+        children: "Define how this criterion evaluates a lead"
+      })]
+    }), /* @__PURE__ */ jsx(CardContent, {
+      children: /* @__PURE__ */ jsxs(Form, {
+        method: "post",
+        className: "space-y-4",
+        onSubmit,
+        children: [/* @__PURE__ */ jsx("input", {
+          type: "hidden",
+          name: "intent",
+          value: existing ? "update" : "create"
+        }), existing && /* @__PURE__ */ jsx("input", {
+          type: "hidden",
+          name: "id",
+          value: existing.id
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "grid gap-4 sm:grid-cols-2",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "name",
+              children: "Criterion Name *"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "name",
+              name: "name",
+              placeholder: "e.g. Has valid website",
+              required: true,
+              defaultValue: existing == null ? void 0 : existing.name
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "type",
+              children: "Response Type"
+            }), /* @__PURE__ */ jsxs(Select, {
+              name: "type",
+              defaultValue: (existing == null ? void 0 : existing.type) || "YES_NO",
+              children: [/* @__PURE__ */ jsx("option", {
+                value: "YES_NO",
+                children: "Yes / No"
+              }), /* @__PURE__ */ jsx("option", {
+                value: "SCORE",
+                children: "Score (1-5)"
+              }), /* @__PURE__ */ jsx("option", {
+                value: "TEXT",
+                children: "Free Text"
+              })]
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "space-y-2",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "weight",
+              children: "Weight (importance)"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "weight",
+              name: "weight",
+              type: "number",
+              min: 1,
+              max: 10,
+              defaultValue: (existing == null ? void 0 : existing.weight) || 1
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex items-end gap-4",
+            children: [/* @__PURE__ */ jsxs("label", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "checkbox",
+                name: "required",
+                defaultChecked: (existing == null ? void 0 : existing.required) ?? true,
+                className: "h-4 w-4 rounded"
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm",
+                children: "Required"
+              })]
+            }), existing && /* @__PURE__ */ jsxs("label", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "checkbox",
+                name: "active",
+                defaultChecked: existing.active,
+                className: "h-4 w-4 rounded"
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm",
+                children: "Active"
+              })]
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "space-y-2",
+          children: [/* @__PURE__ */ jsx(Label, {
+            htmlFor: "description",
+            children: "Description / Instructions"
+          }), /* @__PURE__ */ jsx(Textarea, {
+            id: "description",
+            name: "description",
+            rows: 2,
+            placeholder: "What the verifier should look for...",
+            defaultValue: (existing == null ? void 0 : existing.description) || ""
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex justify-end gap-2",
+          children: [/* @__PURE__ */ jsx(Button, {
+            type: "button",
+            variant: "outline",
+            onClick: onSubmit,
+            children: "Cancel"
+          }), /* @__PURE__ */ jsxs(Button, {
+            type: "submit",
+            children: [existing ? "Update" : "Create", " Criterion"]
+          })]
+        })]
+      })
+    })]
+  });
+}
+const route8 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$9,
+  default: verification_criteria,
+  loader: loader$c
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$b({
+  request,
+  params
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const lead = await prisma.lead.findUnique({
+    where: {
+      id: params.leadId
+    },
+    include: {
+      criteriaResponses: {
+        include: {
+          criteria: true,
+          verifier: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      }
+    }
+  });
+  if (!lead) {
+    throw new Response("Lead not found", {
+      status: 404
+    });
+  }
+  const criteria = await prisma.verificationCriteria.findMany({
+    where: {
+      active: true
+    },
+    orderBy: {
+      sortOrder: "asc"
+    }
+  });
+  const existingResponses = new Map(lead.criteriaResponses.map((v) => [v.criteriaId, v]));
+  return {
+    user,
+    lead,
+    criteria,
+    existingResponses
+  };
+}
+async function action$8({
+  request,
+  params
+}) {
+  const userId = await requireAdmin(request);
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true
+    }
+  });
+  const leadId = params.leadId;
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "rescore") {
+    const criteriaIds = formData.getAll("criteriaId");
+    const responses = [];
+    for (const cid of criteriaIds) {
+      const response = formData.get(`response_${cid}`);
+      const notes = formData.get(`notes_${cid}`) || "";
+      if (response) responses.push({
+        criteriaId: cid,
+        response,
+        notes
+      });
+    }
+    if (responses.length === 0) {
+      return {
+        error: "Please respond to at least one criterion."
+      };
+    }
+    const previousLead = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      },
+      select: {
+        temperature: true,
+        score: true,
+        maxScore: true
+      }
+    });
+    await prisma.$transaction(responses.map((r) => prisma.leadVerification.upsert({
+      where: {
+        leadId_criteriaId: {
+          leadId,
+          criteriaId: r.criteriaId
+        }
+      },
+      create: {
+        leadId,
+        criteriaId: r.criteriaId,
+        verifiedBy: userId,
+        response: r.response,
+        notes: r.notes,
+        score: 0
+        // will be recalculated by scoreLead
+      },
+      update: {
+        verifiedBy: userId,
+        response: r.response,
+        notes: r.notes
+      }
+    })));
+    const scoredResponses = responses.map((r) => ({
+      criteriaId: r.criteriaId,
+      response: r.response
+    }));
+    const result = await scoreLead(scoredResponses);
+    await prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        score: result.score,
+        maxScore: result.maxScore,
+        temperature: result.temperature
+      }
+    });
+    for (const sr of result.responses) {
+      await prisma.leadVerification.updateMany({
+        where: {
+          leadId,
+          criteriaId: sr.criteriaId
+        },
+        data: {
+          score: sr.score
+        }
+      });
+    }
+    await logActivity({
+      leadId,
+      userId,
+      action: "LEAD_SCORED",
+      description: `${(currentUser == null ? void 0 : currentUser.name) || "Unknown"} re-scored this lead (${result.temperature})`,
+      metadata: {
+        score: result.score,
+        maxScore: result.maxScore,
+        temperature: result.temperature,
+        previousTemperature: previousLead == null ? void 0 : previousLead.temperature,
+        percentage: result.percentage
+      }
+    });
+    return {
+      success: true,
+      temperature: result.temperature,
+      score: result.score,
+      maxScore: result.maxScore
+    };
+  }
+  return {};
+}
+const verification_$leadId = UNSAFE_withComponentProps(function VerifyLead() {
+  const {
+    user,
+    lead,
+    criteria,
+    existingResponses
+  } = useLoaderData();
+  const actionData = useActionData();
+  const tempConfig = {
+    HOT: {
+      classes: "bg-red-500/15 text-red-400 border-red-500/20",
+      icon: Flame
+    },
+    WARM: {
+      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      icon: Sun
+    },
+    COLD: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      icon: Snowflake
+    }
+  };
+  const temp = tempConfig[lead.temperature] || tempConfig.COLD;
+  const TempIcon = temp.icon;
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/inbox",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-3",
+            children: [/* @__PURE__ */ jsx("h1", {
+              className: "text-2xl font-bold tracking-tight",
+              children: "Re-Score Lead"
+            }), /* @__PURE__ */ jsxs("span", {
+              className: `inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold ${temp.classes}`,
+              children: [/* @__PURE__ */ jsx(TempIcon, {
+                className: "h-3 w-3"
+              }), lead.temperature]
+            })]
+          }), /* @__PURE__ */ jsxs("p", {
+            className: "text-muted-foreground",
+            children: [lead.companyName, " · ", lead.email, " · Score: ", Math.round(lead.score), "/", Math.round(lead.maxScore)]
+          })]
+        })]
+      }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("div", {
+        className: `rounded-md p-4 text-sm border ${actionData.temperature === "HOT" ? "bg-red-500/10 text-red-400 border-red-500/20" : actionData.temperature === "WARM" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"}`,
+        children: /* @__PURE__ */ jsxs("div", {
+          className: "flex items-center gap-2",
+          children: [/* @__PURE__ */ jsx(CheckCircle2, {
+            className: "h-5 w-5"
+          }), /* @__PURE__ */ jsxs("span", {
+            className: "font-medium",
+            children: ["Re-scored: ", actionData.score, "/", actionData.maxScore, " — ", actionData.temperature]
+          })]
+        })
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20",
+        children: actionData.error
+      }), /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          children: /* @__PURE__ */ jsx(CardTitle, {
+            className: "text-base",
+            children: "Lead Summary"
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsx("dl", {
+            className: "grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3",
+            children: [["Company", lead.companyName], ["Contact", lead.contactName], ["Email", lead.email], ["Website", lead.website], ["Industry", lead.industry], ["Est. Traffic", lead.estimatedTraffic]].map(([label, value]) => /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("dt", {
+                className: "text-muted-foreground",
+                children: label
+              }), /* @__PURE__ */ jsx("dd", {
+                className: "font-medium",
+                children: value || "—"
+              })]
+            }, label))
+          })
+        })]
+      }), criteria.length === 0 ? /* @__PURE__ */ jsx(Card, {
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex flex-col items-center py-12",
+          children: [/* @__PURE__ */ jsx(ShieldCheck, {
+            className: "h-10 w-10 text-muted-foreground/50"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "mt-3 text-muted-foreground",
+            children: "No active criteria defined."
+          }), /* @__PURE__ */ jsx(Link, {
+            to: "/verification/criteria",
+            children: /* @__PURE__ */ jsx(Button, {
+              variant: "outline",
+              className: "mt-3",
+              children: "Define Criteria"
+            })
+          })]
+        })
+      }) : /* @__PURE__ */ jsxs(Form, {
+        method: "post",
+        children: [/* @__PURE__ */ jsx("input", {
+          type: "hidden",
+          name: "intent",
+          value: "rescore"
+        }), /* @__PURE__ */ jsx("div", {
+          className: "space-y-4",
+          children: criteria.map((c) => {
+            const existing = existingResponses.get(c.id);
+            return /* @__PURE__ */ jsx(Card, {
+              children: /* @__PURE__ */ jsxs(CardContent, {
+                className: "p-5 space-y-3",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "criteriaId",
+                  value: c.id
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "flex items-start justify-between gap-2",
+                  children: [/* @__PURE__ */ jsxs("div", {
+                    children: [/* @__PURE__ */ jsx("p", {
+                      className: "text-sm font-medium",
+                      children: c.name
+                    }), c.description && /* @__PURE__ */ jsx("p", {
+                      className: "text-xs text-muted-foreground mt-0.5",
+                      children: c.description
+                    })]
+                  }), /* @__PURE__ */ jsxs("span", {
+                    className: "shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 border border-violet-500/20",
+                    children: [c.weight, "pt", c.weight > 1 ? "s" : ""]
+                  })]
+                }), c.type === "YES_NO" && /* @__PURE__ */ jsxs("div", {
+                  className: "flex gap-3",
+                  children: [/* @__PURE__ */ jsxs("label", {
+                    className: "flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-4 py-2 cursor-pointer has-[:checked]:bg-emerald-500/20 has-[:checked]:border-emerald-500/40 transition-colors",
+                    children: [/* @__PURE__ */ jsx("input", {
+                      type: "radio",
+                      name: `response_${c.id}`,
+                      value: "yes",
+                      defaultChecked: (existing == null ? void 0 : existing.response) === "yes",
+                      className: "h-4 w-4 accent-emerald-500"
+                    }), /* @__PURE__ */ jsx("span", {
+                      className: "text-sm font-medium text-emerald-400",
+                      children: "Yes"
+                    })]
+                  }), /* @__PURE__ */ jsxs("label", {
+                    className: "flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/5 px-4 py-2 cursor-pointer has-[:checked]:bg-red-500/20 has-[:checked]:border-red-500/40 transition-colors",
+                    children: [/* @__PURE__ */ jsx("input", {
+                      type: "radio",
+                      name: `response_${c.id}`,
+                      value: "no",
+                      defaultChecked: (existing == null ? void 0 : existing.response) === "no",
+                      className: "h-4 w-4 accent-red-500"
+                    }), /* @__PURE__ */ jsx("span", {
+                      className: "text-sm font-medium text-red-400",
+                      children: "No"
+                    })]
+                  })]
+                }), c.type === "SCORE" && /* @__PURE__ */ jsx("div", {
+                  className: "flex gap-2",
+                  children: [1, 2, 3, 4, 5].map((score) => {
+                    const cls = score <= 2 ? "border-red-500/20 text-red-400 hover:bg-red-500/10 has-[:checked]:bg-red-500/20 has-[:checked]:border-red-500/40" : score === 3 ? "border-amber-500/20 text-amber-400 hover:bg-amber-500/10 has-[:checked]:bg-amber-500/20 has-[:checked]:border-amber-500/40" : "border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 has-[:checked]:bg-emerald-500/20 has-[:checked]:border-emerald-500/40";
+                    return /* @__PURE__ */ jsxs("label", {
+                      className: `flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border text-sm font-medium transition-colors ${cls}`,
+                      children: [/* @__PURE__ */ jsx("input", {
+                        type: "radio",
+                        name: `response_${c.id}`,
+                        value: String(score),
+                        defaultChecked: (existing == null ? void 0 : existing.response) === String(score),
+                        className: "sr-only"
+                      }), score]
+                    }, score);
+                  })
+                }), c.type === "TEXT" && /* @__PURE__ */ jsx(Textarea, {
+                  name: `response_${c.id}`,
+                  rows: 2,
+                  placeholder: "Enter your evaluation...",
+                  defaultValue: (existing == null ? void 0 : existing.response) || ""
+                }), /* @__PURE__ */ jsx(Textarea, {
+                  name: `notes_${c.id}`,
+                  rows: 1,
+                  placeholder: "Optional notes...",
+                  defaultValue: (existing == null ? void 0 : existing.notes) || "",
+                  className: "text-xs"
+                })]
+              })
+            }, c.id);
+          })
+        }), /* @__PURE__ */ jsx("div", {
+          className: "mt-6 flex gap-3",
+          children: /* @__PURE__ */ jsxs(Button, {
+            type: "submit",
+            size: "lg",
+            className: "bg-violet-500/15 text-violet-400 border border-violet-500/20 hover:bg-violet-500/25",
+            children: [/* @__PURE__ */ jsx(ShieldCheck, {
+              className: "mr-2 h-4 w-4"
+            }), "Re-Score Lead"]
+          })
+        })]
+      }), lead.criteriaResponses.length > 0 && /* @__PURE__ */ jsxs("div", {
+        className: "space-y-3",
+        children: [/* @__PURE__ */ jsx("h3", {
+          className: "text-lg font-semibold",
+          children: "Scoring History"
+        }), lead.criteriaResponses.map((v) => /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "p-4",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center justify-between",
+              children: [/* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "font-medium",
+                  children: v.criteria.name
+                }), v.verifier && /* @__PURE__ */ jsxs("span", {
+                  className: "ml-2 text-sm text-muted-foreground",
+                  children: ["by ", v.verifier.name || v.verifier.email]
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "text-sm font-mono",
+                  children: v.response
+                }), /* @__PURE__ */ jsxs("span", {
+                  className: "text-xs text-muted-foreground",
+                  children: [v.score, "pts"]
+                })]
+              })]
+            }), v.notes && /* @__PURE__ */ jsx("p", {
+              className: "mt-1 text-sm text-muted-foreground",
+              children: v.notes
+            }), /* @__PURE__ */ jsx("p", {
+              className: "mt-1 text-xs text-muted-foreground",
+              children: new Date(v.createdAt).toLocaleString()
+            })]
+          })
+        }, v.id))]
+      })]
+    })
+  });
+});
+const route9 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$8,
+  default: verification_$leadId,
+  loader: loader$b
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$a({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const usersRaw = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true,
+      _count: {
+        select: {
+          activityLogs: true,
+          createdLeads: true,
+          assignedLeads: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  const users2 = usersRaw.map((u) => ({
+    ...u,
+    activityCount: u._count.activityLogs,
+    leadsCreated: u._count.createdLeads,
+    leadsAssigned: u._count.assignedLeads
+  }));
+  return {
+    user,
+    users: users2
+  };
+}
+async function action$7({
+  request
+}) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "updateRole") {
+    const targetUserId = formData.get("userId");
+    const newRole = formData.get("role");
+    await prisma.user.update({
+      where: {
+        id: targetUserId
+      },
+      data: {
+        role: newRole
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "delete") {
+    const targetUserId = formData.get("userId");
+    const currentUserId = formData.get("currentUserId");
+    if (targetUserId === currentUserId) {
+      return {
+        error: "You cannot delete your own account."
+      };
+    }
+    const assignedLeads = await prisma.lead.count({
+      where: {
+        assignedToId: targetUserId
+      }
+    });
+    if (assignedLeads > 0) {
+      await prisma.lead.updateMany({
+        where: {
+          assignedToId: targetUserId
+        },
+        data: {
+          assignedToId: null
+        }
+      });
+    }
+    await prisma.user.delete({
+      where: {
+        id: targetUserId
+      }
+    });
+    return {
+      success: true,
+      deleted: true
+    };
+  }
+  return {};
+}
+const users = UNSAFE_withComponentProps(function UserList() {
+  const {
+    user,
+    users: users2
+  } = useLoaderData();
+  const actionData = useActionData();
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-3xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsxs("div", {
+          className: "flex-1",
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "User Management"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Create accounts and manage roles for your team"
+          })]
+        }), /* @__PURE__ */ jsx(Link, {
+          to: "/users/new",
+          children: /* @__PURE__ */ jsxs(Button, {
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(UserPlus, {
+              className: "mr-2 h-4 w-4"
+            }), "Add User"]
+          })
+        })]
+      }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400 border border-emerald-500/20",
+        children: actionData.deleted ? "User deleted successfully." : "Updated successfully."
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20",
+        children: actionData.error
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid grid-cols-3 gap-4",
+        children: [/* @__PURE__ */ jsx(Card, {
+          className: "bg-muted/30",
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex items-center gap-3 p-4",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: "flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10",
+              children: /* @__PURE__ */ jsx(Users, {
+                className: "h-5 w-5 text-blue-500"
+              })
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-2xl font-bold",
+                children: users2.length
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-xs text-muted-foreground",
+                children: "Total Users"
+              })]
+            })]
+          })
+        }), /* @__PURE__ */ jsx(Card, {
+          className: "bg-muted/30",
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex items-center gap-3 p-4",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: "flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10",
+              children: /* @__PURE__ */ jsx(ShieldCheck, {
+                className: "h-5 w-5 text-emerald-500"
+              })
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-2xl font-bold",
+                children: users2.filter((u) => u.role === "ADMIN").length
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-xs text-muted-foreground",
+                children: "Admins"
+              })]
+            })]
+          })
+        }), /* @__PURE__ */ jsx(Card, {
+          className: "bg-muted/30",
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex items-center gap-3 p-4",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: "flex h-10 w-10 items-center justify-center rounded-full bg-violet-500/10",
+              children: /* @__PURE__ */ jsx(User, {
+                className: "h-5 w-5 text-violet-500"
+              })
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-2xl font-bold",
+                children: users2.filter((u) => u.role === "AGENT").length
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-xs text-muted-foreground",
+                children: "Agents"
+              })]
+            })]
+          })
+        })]
+      }), users2.length === 0 ? /* @__PURE__ */ jsx(Card, {
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex flex-col items-center justify-center py-16",
+          children: [/* @__PURE__ */ jsx(Users, {
+            className: "h-12 w-12 text-muted-foreground/50"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "mt-4 text-lg font-medium text-muted-foreground",
+            children: "No users yet"
+          })]
+        })
+      }) : /* @__PURE__ */ jsx("div", {
+        className: "space-y-3",
+        children: users2.map((u) => {
+          var _a, _b;
+          return /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex items-center gap-4 p-4",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-12 w-12 items-center justify-center rounded-full bg-primary/10",
+                children: /* @__PURE__ */ jsx("span", {
+                  className: "text-lg font-semibold",
+                  children: ((_b = (_a = u.name) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase()) || u.email[0].toUpperCase()
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex-1 min-w-0",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2",
+                  children: [/* @__PURE__ */ jsx("span", {
+                    className: "font-medium truncate",
+                    children: u.name || u.email
+                  }), /* @__PURE__ */ jsx(Badge, {
+                    variant: u.role === "ADMIN" ? "default" : "secondary",
+                    children: u.role === "ADMIN" ? "Admin" : "Agent"
+                  })]
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm text-muted-foreground truncate",
+                  children: u.email
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "mt-1 flex items-center gap-4 text-xs text-muted-foreground",
+                  children: [/* @__PURE__ */ jsxs("span", {
+                    className: "flex items-center gap-1",
+                    children: [/* @__PURE__ */ jsx(Activity, {
+                      className: "h-3 w-3"
+                    }), u.activityCount, " actions"]
+                  }), /* @__PURE__ */ jsxs("span", {
+                    className: "flex items-center gap-1",
+                    children: [/* @__PURE__ */ jsx(FileCheck, {
+                      className: "h-3 w-3"
+                    }), u.leadsCreated, " created"]
+                  }), /* @__PURE__ */ jsxs("span", {
+                    className: "flex items-center gap-1",
+                    children: [/* @__PURE__ */ jsx(Target, {
+                      className: "h-3 w-3"
+                    }), u.leadsAssigned, " assigned"]
+                  })]
+                })]
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "updateRole"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "userId",
+                  value: u.id
+                }), /* @__PURE__ */ jsxs(Select, {
+                  name: "role",
+                  defaultValue: u.role,
+                  className: "w-28",
+                  onChange: (e) => {
+                    e.target.closest("form").submit();
+                  },
+                  children: [/* @__PURE__ */ jsx("option", {
+                    value: "AGENT",
+                    children: "Agent"
+                  }), /* @__PURE__ */ jsx("option", {
+                    value: "ADMIN",
+                    children: "Admin"
+                  })]
+                })]
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "delete"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "userId",
+                  value: u.id
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "currentUserId",
+                  value: user.id
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  variant: "ghost",
+                  size: "icon",
+                  title: "Delete user",
+                  children: /* @__PURE__ */ jsx(Trash2, {
+                    className: "h-4 w-4 text-destructive"
+                  })
+                })]
+              })]
+            })
+          }, u.id);
+        })
+      })]
+    })
+  });
+});
+const route10 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$7,
+  default: users,
+  loader: loader$a
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$9({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  return {
+    user
+  };
+}
+async function action$6({
+  request
+}) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const name = formData.get("name") || null;
+  const email = formData.get("email");
+  const password = formData.get("password");
+  const role = formData.get("role");
+  if (!email || !password) return {
+    error: "Email and password are required."
+  };
+  if (password.length < 8) return {
+    error: "Password must be at least 8 characters."
+  };
+  const existing = await prisma.user.findUnique({
+    where: {
+      email
+    }
+  });
+  if (existing) return {
+    error: "A user with this email already exists."
+  };
+  const passwordHash = await hashPassword(password);
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      name,
+      role
+    }
+  });
+  return {
+    success: true,
+    userName: name || email,
+    role
+  };
+}
+const users_new = UNSAFE_withComponentProps(function NewUser() {
+  const {
+    user
+  } = useLoaderData();
+  const actionData = useActionData();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (actionData == null ? void 0 : actionData.success) {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+  }, [actionData]);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/users",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "Add New User"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Create a login account for a team member"
+          })]
+        })]
+      }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx(Card, {
+        className: "border-2 border-emerald-500/40 bg-emerald-500/5",
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex items-center gap-4 p-5",
+          children: [/* @__PURE__ */ jsx(CheckCircle2, {
+            className: "h-8 w-8 shrink-0 text-emerald-400"
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex-1",
+            children: [/* @__PURE__ */ jsxs("p", {
+              className: "font-semibold",
+              children: [actionData.userName, " created!"]
+            }), /* @__PURE__ */ jsxs("p", {
+              className: "text-sm text-muted-foreground",
+              children: ["Role: ", /* @__PURE__ */ jsx("strong", {
+                children: actionData.role === "ADMIN" ? "Admin" : "Agent"
+              }), " — they can now log in."]
+            })]
+          }), /* @__PURE__ */ jsx(Button, {
+            size: "sm",
+            onClick: () => navigate("/users/new", {
+              replace: true
+            }),
+            children: "Add Another"
+          })]
+        })
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20",
+        children: actionData.error
+      }), /* @__PURE__ */ jsxs(Form, {
+        method: "post",
+        children: [/* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Account Details"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "This person will use these credentials to log in"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "space-y-1.5",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "name",
+                children: "Full Name"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "name",
+                name: "name",
+                placeholder: "Juan Dela Cruz"
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1.5",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "email",
+                children: "Email *"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "email",
+                name: "email",
+                type: "email",
+                required: true,
+                placeholder: "user@company.com"
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1.5",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "password",
+                children: "Password *"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "password",
+                name: "password",
+                type: "password",
+                required: true,
+                placeholder: "Min. 8 characters",
+                minLength: 8
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1.5",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "role",
+                children: "Role"
+              }), /* @__PURE__ */ jsxs(Select, {
+                id: "role",
+                name: "role",
+                defaultValue: "AGENT",
+                children: [/* @__PURE__ */ jsx("option", {
+                  value: "AGENT",
+                  children: "Agent (View Only)"
+                }), /* @__PURE__ */ jsx("option", {
+                  value: "ADMIN",
+                  children: "Admin (Full Access)"
+                })]
+              })]
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "mt-6 flex items-center justify-between",
+          children: [/* @__PURE__ */ jsx(Link, {
+            to: "/users",
+            children: /* @__PURE__ */ jsx(Button, {
+              variant: "outline",
+              children: "Cancel"
+            })
+          }), /* @__PURE__ */ jsxs(Button, {
+            type: "submit",
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(UserPlus, {
+              className: "mr-2 h-4 w-4"
+            }), "Create User"]
+          })]
+        })]
+      })]
+    })
+  });
+});
+const route11 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$6,
+  default: users_new,
+  loader: loader$9
+}, Symbol.toStringTag, { value: "Module" }));
+function LeadCard({ lead, index, draggable = true }) {
+  return /* @__PURE__ */ jsx(Draggable, { draggableId: lead.id, index, isDragDisabled: !draggable, children: (provided, snapshot) => /* @__PURE__ */ jsx(
+    "div",
+    {
+      ref: provided.innerRef,
+      ...provided.draggableProps,
+      className: `${snapshot.isDragging ? "opacity-90 shadow-lg" : ""}`,
+      children: /* @__PURE__ */ jsx(Card, { className: "cursor-default p-3 transition-shadow hover:shadow-md", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2", children: [
+        draggable && /* @__PURE__ */ jsx(
+          "div",
+          {
+            ...provided.dragHandleProps,
+            className: "mt-1 cursor-grab text-muted-foreground hover:text-foreground",
+            children: /* @__PURE__ */ jsx(GripVertical, { className: "h-4 w-4" })
+          }
+        ),
+        /* @__PURE__ */ jsxs("div", { className: "flex-1 min-w-0", children: [
+          /* @__PURE__ */ jsx("div", { className: "flex items-center justify-between gap-2", children: /* @__PURE__ */ jsx(
+            Link,
+            {
+              to: `/inbox/${lead.id}`,
+              className: "truncate text-sm font-medium hover:underline",
+              children: lead.companyName
+            }
+          ) }),
+          lead.contactName && /* @__PURE__ */ jsx("p", { className: "mt-0.5 truncate text-xs text-muted-foreground", children: lead.contactName }),
+          /* @__PURE__ */ jsxs("div", { className: "mt-2 flex items-center gap-2", children: [
+            lead.industry && /* @__PURE__ */ jsx(Badge, { variant: "secondary", className: "text-[10px] px-1.5 py-0", children: lead.industry }),
+            /* @__PURE__ */ jsx("div", { className: "ml-auto flex gap-1", children: /* @__PURE__ */ jsx(Link, { to: `/leads/${lead.id}/emails`, children: /* @__PURE__ */ jsx(Button, { variant: "ghost", size: "icon", className: "h-6 w-6", children: /* @__PURE__ */ jsx(Mail, { className: "h-3 w-3" }) }) }) })
+          ] })
+        ] })
+      ] }) })
+    }
+  ) });
+}
+const STAGES = [{
+  id: "SOURCED",
+  label: "Sourced",
+  color: "border-t-slate-400",
+  bg: "bg-slate-500/10",
+  dot: "bg-slate-400"
+}, {
+  id: "QUALIFIED",
+  label: "Qualified",
+  color: "border-t-blue-400",
+  bg: "bg-blue-500/10",
+  dot: "bg-blue-400"
+}, {
+  id: "FIRST_CONTACT",
+  label: "First Contact",
+  color: "border-t-violet-400",
+  bg: "bg-violet-500/10",
+  dot: "bg-violet-400"
+}, {
+  id: "MEETING_BOOKED",
+  label: "Meeting Booked",
+  color: "border-t-amber-400",
+  bg: "bg-amber-500/10",
+  dot: "bg-amber-400"
+}, {
+  id: "PROPOSAL_SENT",
+  label: "Proposal Sent",
+  color: "border-t-orange-400",
+  bg: "bg-orange-500/10",
+  dot: "bg-orange-400"
+}, {
+  id: "CLOSED_WON",
+  label: "Closed Won",
+  color: "border-t-emerald-400",
+  bg: "bg-emerald-500/10",
+  dot: "bg-emerald-400"
+}, {
+  id: "CLOSED_LOST",
+  label: "Closed Lost",
+  color: "border-t-red-400",
+  bg: "bg-red-500/10",
+  dot: "bg-red-400"
+}];
+async function loader$8({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const leads = await prisma.lead.findMany({
+    where: {
+      status: "ACTIVE"
+    },
+    orderBy: {
+      updatedAt: "desc"
+    }
+  });
+  const grouped = STAGES.map((stage) => ({
+    ...stage,
+    leads: leads.filter((l) => l.stage === stage.id)
+  }));
+  return {
+    user,
+    stages: grouped
+  };
+}
+async function action$5({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const currentUser = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      role: true
+    }
+  });
+  if ((currentUser == null ? void 0 : currentUser.role) !== "ADMIN") {
+    throw new Response("Forbidden", {
+      status: 403
+    });
+  }
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "moveStage") {
+    const leadId = formData.get("leadId");
+    const newStage = formData.get("newStage");
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      }
+    });
+    if (!lead) return {
+      success: false
+    };
+    if (lead.stage === newStage) {
+      return {
+        success: true
+      };
+    }
+    await prisma.$transaction([prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        stage: newStage
+      }
+    }), prisma.stageHistory.create({
+      data: {
+        leadId,
+        fromStage: lead.stage,
+        toStage: newStage,
+        changedById: userId
+      }
+    })]);
+    await logActivity({
+      leadId,
+      userId,
+      action: "STAGE_CHANGED",
+      description: `${currentUser.name || "Unknown"} moved from ${formatStage(lead.stage)} to ${formatStage(newStage)}`,
+      metadata: {
+        fromStage: lead.stage,
+        toStage: newStage
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  return {};
+}
+const pipeline = UNSAFE_withComponentProps(function Pipeline() {
+  const {
+    user,
+    stages
+  } = useLoaderData();
+  const [localStages, setLocalStages] = useState(stages);
+  useEffect(() => {
+    setLocalStages(stages);
+  }, [stages]);
+  const onDragEnd = useCallback(async (result) => {
+    if ((user == null ? void 0 : user.role) !== "ADMIN") return;
+    if (!result.destination) return;
+    const leadId = result.draggableId;
+    const newStage = result.destination.droppableId;
+    setLocalStages((prev) => {
+      const lead = prev.flatMap((s) => s.leads).find((l) => l.id === leadId);
+      if (!lead) return prev;
+      return prev.map((stage) => ({
+        ...stage,
+        leads: stage.leads.filter((l) => l.id !== leadId).concat(stage.id === newStage ? [{
+          ...lead,
+          stage: newStage
+        }] : [])
+      }));
+    });
+    const formData = new FormData();
+    formData.set("intent", "moveStage");
+    formData.set("leadId", leadId);
+    formData.set("newStage", newStage);
+    await fetch("/pipeline", {
+      method: "POST",
+      body: formData
+    });
+  }, [user == null ? void 0 : user.role]);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx("h1", {
+          className: "text-3xl font-bold tracking-tight",
+          children: "Pipeline"
+        }), /* @__PURE__ */ jsx("p", {
+          className: "text-muted-foreground",
+          children: "Drag and drop leads between stages to track progress"
+        })]
+      }), /* @__PURE__ */ jsx(DragDropContext, {
+        onDragEnd,
+        children: /* @__PURE__ */ jsx("div", {
+          className: "flex gap-4 overflow-x-auto pb-4",
+          children: localStages.map((stage) => /* @__PURE__ */ jsxs("div", {
+            className: "flex w-72 shrink-0 flex-col",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: `rounded-t-lg border border-b-0 p-3 ${stage.color} ${stage.bg}`,
+              children: /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center justify-between",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2",
+                  children: [/* @__PURE__ */ jsx("div", {
+                    className: `h-2 w-2 rounded-full ${stage.dot}`
+                  }), /* @__PURE__ */ jsx("h3", {
+                    className: "text-sm font-semibold text-card-foreground",
+                    children: stage.label
+                  })]
+                }), /* @__PURE__ */ jsx(Badge, {
+                  variant: "secondary",
+                  className: "text-xs text-secondary-foreground",
+                  children: stage.leads.length
+                })]
+              })
+            }), /* @__PURE__ */ jsx(Droppable, {
+              droppableId: stage.id,
+              children: (provided, snapshot) => /* @__PURE__ */ jsxs("div", {
+                ref: provided.innerRef,
+                ...provided.droppableProps,
+                className: `flex-1 space-y-2 rounded-b-lg border border-t-0 bg-muted/30 p-2 transition-colors min-h-[200px] ${snapshot.isDraggingOver ? "bg-muted/60" : ""}`,
+                children: [stage.leads.map((lead, index) => /* @__PURE__ */ jsx(LeadCard, {
+                  lead,
+                  index,
+                  draggable: (user == null ? void 0 : user.role) === "ADMIN"
+                }, lead.id)), provided.placeholder]
+              })
+            })]
+          }, stage.id))
+        })
+      })]
+    })
+  });
+});
+const route12 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$5,
+  default: pipeline,
+  loader: loader$8
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$7({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true,
+      gmailTokens: true
+    }
+  });
+  const threads = await prisma.emailThread.findMany({
+    include: {
+      lead: {
+        select: {
+          companyName: true,
+          contactName: true,
+          email: true
+        }
+      }
+    },
+    orderBy: {
+      lastMessage: "desc"
+    }
+  });
+  const gmailConnected = !!(user == null ? void 0 : user.gmailTokens);
+  return {
+    user,
+    threads,
+    gmailConnected
+  };
+}
+function StatusBadge$1({
+  status
+}) {
+  const config = {
+    SENT: {
+      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      icon: Send
+    },
+    REPLIED: {
+      classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+      icon: MessageSquare
+    },
+    WAITING: {
+      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      icon: Clock
+    }
+  };
+  const c = config[status] || config.SENT;
+  const Icon = c.icon;
+  return /* @__PURE__ */ jsxs("span", {
+    className: `inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`,
+    children: [/* @__PURE__ */ jsx(Icon, {
+      className: "h-3 w-3"
+    }), status]
+  });
+}
+const emails = UNSAFE_withComponentProps(function EmailHub() {
+  const {
+    user,
+    threads,
+    gmailConnected
+  } = useLoaderData();
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-3xl font-bold tracking-tight",
+            children: "Email Hub"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: "Track email conversations and outreach"
+          })]
+        }), /* @__PURE__ */ jsx("div", {
+          className: "flex gap-2",
+          children: /* @__PURE__ */ jsx(Link, {
+            to: "/emails/templates",
+            children: /* @__PURE__ */ jsxs(Button, {
+              className: "bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25",
+              children: [/* @__PURE__ */ jsx(FileText, {
+                className: "mr-2 h-4 w-4"
+              }), "Templates"]
+            })
+          })
+        })]
+      }), /* @__PURE__ */ jsx(Card, {
+        className: `border-l-4 ${gmailConnected ? "border-l-emerald-500" : "border-l-amber-500"}`,
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex items-center justify-between p-4",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-3",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: `flex h-10 w-10 items-center justify-center rounded-lg ${gmailConnected ? "bg-emerald-500/10" : "bg-amber-500/10"}`,
+              children: /* @__PURE__ */ jsx(Mail, {
+                className: `h-5 w-5 ${gmailConnected ? "text-emerald-400" : "text-amber-400"}`
+              })
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "font-medium",
+                children: "Gmail Integration"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: gmailConnected ? "Connected and ready to send emails" : "Connect your Gmail account to send emails"
+              })]
+            })]
+          }), /* @__PURE__ */ jsx("span", {
+            className: `inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold ${gmailConnected ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`,
+            children: gmailConnected ? "Connected" : "Not Connected"
+          })]
+        })
+      }), /* @__PURE__ */ jsx("div", {
+        className: "space-y-3",
+        children: threads.length === 0 ? /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex flex-col items-center justify-center py-12",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: "flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10",
+              children: /* @__PURE__ */ jsx(Mail, {
+                className: "h-8 w-8 text-blue-400"
+              })
+            }), /* @__PURE__ */ jsx("p", {
+              className: "mt-4 font-medium",
+              children: "No email threads yet"
+            }), /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-muted-foreground",
+              children: "Send an email from a lead's profile to get started."
+            })]
+          })
+        }) : threads.map((thread) => /* @__PURE__ */ jsx(Card, {
+          className: "transition-colors hover:bg-muted/30",
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex items-center gap-4 p-4",
+            children: [/* @__PURE__ */ jsx("div", {
+              className: "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10",
+              children: /* @__PURE__ */ jsx(Mail, {
+                className: "h-5 w-5 text-violet-400"
+              })
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex-1 min-w-0",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx(Link, {
+                  to: `/leads/${thread.leadId}/emails`,
+                  className: "font-medium hover:underline",
+                  children: thread.lead.companyName
+                }), /* @__PURE__ */ jsx(StatusBadge$1, {
+                  status: thread.status
+                })]
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm font-medium text-foreground/80",
+                children: thread.subject
+              }), thread.snippet && /* @__PURE__ */ jsx("p", {
+                className: "mt-1 truncate text-sm text-muted-foreground",
+                children: thread.snippet
+              })]
+            }), /* @__PURE__ */ jsx("div", {
+              className: "shrink-0 text-right text-xs text-muted-foreground",
+              children: new Date(thread.lastMessage).toLocaleDateString()
+            })]
+          })
+        }, thread.id))
+      })]
+    })
+  });
+});
+const route13 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: emails,
+  loader: loader$7
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$6({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const templates = await prisma.emailTemplate.findMany({
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  return {
+    user,
+    templates
+  };
+}
+async function action$4({
+  request
+}) {
+  await requireAuth(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "create") {
+    await prisma.emailTemplate.create({
+      data: {
+        name: formData.get("name"),
+        subject: formData.get("subject"),
+        body: formData.get("body")
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "delete") {
+    await prisma.emailTemplate.delete({
+      where: {
+        id: formData.get("templateId")
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  return {};
+}
+const emails_templates = UNSAFE_withComponentProps(function EmailTemplates() {
+  const {
+    user,
+    templates
+  } = useLoaderData();
+  useActionData();
+  const [showForm, setShowForm] = useState(false);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/emails",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1",
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "Email Templates"
+          }), /* @__PURE__ */ jsxs("p", {
+            className: "text-muted-foreground",
+            children: ["Use ", /* @__PURE__ */ jsx("code", {
+              className: "text-xs bg-muted px-1 py-0.5 rounded",
+              children: "{{variable}}"
+            }), " for dynamic placeholders like ", /* @__PURE__ */ jsx("code", {
+              className: "text-xs bg-muted px-1 py-0.5 rounded",
+              children: "{{company_name}}"
+            }), ",", " ", /* @__PURE__ */ jsx("code", {
+              className: "text-xs bg-muted px-1 py-0.5 rounded",
+              children: "{{contact_name}}"
+            }), ",", " ", /* @__PURE__ */ jsx("code", {
+              className: "text-xs bg-muted px-1 py-0.5 rounded",
+              children: "{{industry}}"
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs(Button, {
+          onClick: () => setShowForm(!showForm),
+          children: [/* @__PURE__ */ jsx(Plus, {
+            className: "mr-2 h-4 w-4"
+          }), "New Template"]
+        })]
+      }), showForm && /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          children: /* @__PURE__ */ jsx(CardTitle, {
+            children: "Create Template"
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "create"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "grid gap-4 sm:grid-cols-2",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "space-y-2",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "name",
+                  children: "Template Name"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "name",
+                  name: "name",
+                  placeholder: "e.g. Cold Outreach",
+                  required: true
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-2",
+                children: [/* @__PURE__ */ jsx(Label, {
+                  htmlFor: "subject",
+                  children: "Subject Line"
+                }), /* @__PURE__ */ jsx(Input, {
+                  id: "subject",
+                  name: "subject",
+                  placeholder: "e.g. Helping {{company_name}} grow",
+                  required: true
+                })]
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-2",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "body",
+                children: "Email Body"
+              }), /* @__PURE__ */ jsx(Textarea, {
+                id: "body",
+                name: "body",
+                rows: 8,
+                placeholder: "Hi {{contact_name}}...",
+                required: true
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex justify-end gap-2",
+              children: [/* @__PURE__ */ jsx(Button, {
+                type: "button",
+                variant: "outline",
+                onClick: () => setShowForm(false),
+                children: "Cancel"
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                children: "Create Template"
+              })]
+            })]
+          })
+        })]
+      }), /* @__PURE__ */ jsx("div", {
+        className: "space-y-4",
+        children: templates.map((template) => /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsx(CardContent, {
+            className: "p-4",
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-start justify-between",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex-1",
+                children: [/* @__PURE__ */ jsx("h3", {
+                  className: "font-medium",
+                  children: template.name
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: ["Subject: ", template.subject]
+                }), /* @__PURE__ */ jsx("pre", {
+                  className: "mt-2 whitespace-pre-wrap text-sm text-muted-foreground line-clamp-3",
+                  children: template.body
+                })]
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "delete"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "templateId",
+                  value: template.id
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  variant: "ghost",
+                  size: "icon",
+                  children: /* @__PURE__ */ jsx(Trash2, {
+                    className: "h-4 w-4 text-destructive"
+                  })
+                })]
+              })]
+            })
+          })
+        }, template.id))
+      })]
+    })
+  });
+});
+const route14 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$4,
+  default: emails_templates,
+  loader: loader$6
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$5({
+  request,
+  params
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true,
+      gmailTokens: true
+    }
+  });
+  const lead = await prisma.lead.findUnique({
+    where: {
+      id: params.leadId
+    },
+    include: {
+      emails: {
+        orderBy: {
+          lastMessage: "desc"
+        }
+      }
+    }
+  });
+  if (!lead) {
+    throw new Response("Lead not found", {
+      status: 404
+    });
+  }
+  const templates = await prisma.emailTemplate.findMany({
+    orderBy: {
+      name: "asc"
+    }
+  });
+  return {
+    user,
+    lead,
+    templates,
+    gmailConnected: !!(user == null ? void 0 : user.gmailTokens)
+  };
+}
+async function action$3({
+  request,
+  params
+}) {
+  await requireAuth(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "sendEmail") {
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: params.leadId
+      }
+    });
+    const template = await prisma.emailTemplate.findUnique({
+      where: {
+        id: formData.get("templateId")
+      }
+    });
+    if (!lead || !template) {
+      return {
+        error: "Lead or template not found."
+      };
+    }
+    const replacements = {
+      company_name: lead.companyName,
+      contact_name: lead.contactName || "",
+      email: lead.email,
+      industry: lead.industry || "",
+      website: lead.website || ""
+    };
+    const parseTemplate = (text) => text.replace(/\{\{(\w+)\}\}/g, (_, key) => replacements[key] || `{{${key}}}`);
+    const subject = parseTemplate(template.subject);
+    const body = parseTemplate(template.body);
+    const gmailThreadId = `local-${Date.now()}`;
+    await prisma.emailThread.create({
+      data: {
+        leadId: lead.id,
+        gmailThreadId,
+        subject,
+        snippet: body.substring(0, 200),
+        status: "SENT"
+      }
+    });
+    return {
+      success: true,
+      sent: {
+        subject,
+        snippet: body.substring(0, 100)
+      }
+    };
+  }
+  return {};
+}
+const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
+  const {
+    user,
+    lead,
+    templates,
+    gmailConnected
+  } = useLoaderData();
+  const actionData = useActionData();
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/inbox",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsxs("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: ["Email: ", lead.companyName]
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: lead.contactName || lead.email
+          })]
+        })]
+      }), !gmailConnected && /* @__PURE__ */ jsx(Card, {
+        className: "border-amber-500/50",
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex items-center gap-3 p-4",
+          children: [/* @__PURE__ */ jsx(Badge, {
+            variant: "warning",
+            children: "Gmail Not Connected"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Connect your Gmail account in Settings to send emails. Thread tracking still works."
+          })]
+        })
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 lg:grid-cols-3",
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "lg:col-span-1",
+          children: /* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsx(CardTitle, {
+                className: "text-lg",
+                children: "Send Email"
+              })
+            }), /* @__PURE__ */ jsx(CardContent, {
+              children: /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "space-y-4",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "sendEmail"
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-2",
+                  children: [/* @__PURE__ */ jsx(Label, {
+                    children: "Select Template"
+                  }), /* @__PURE__ */ jsxs(Select, {
+                    name: "templateId",
+                    value: selectedTemplate,
+                    onChange: (e) => setSelectedTemplate(e.target.value),
+                    required: true,
+                    children: [/* @__PURE__ */ jsx("option", {
+                      value: "",
+                      children: "Choose a template..."
+                    }), templates.map((t) => /* @__PURE__ */ jsx("option", {
+                      value: t.id,
+                      children: t.name
+                    }, t.id))]
+                  })]
+                }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("div", {
+                  className: "rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400",
+                  children: "Email sent successfully!"
+                }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+                  className: "rounded-md bg-destructive/10 p-3 text-sm text-destructive",
+                  children: actionData.error
+                }), /* @__PURE__ */ jsxs(Button, {
+                  type: "submit",
+                  className: "w-full",
+                  disabled: !gmailConnected,
+                  children: [/* @__PURE__ */ jsx(Send, {
+                    className: "mr-2 h-4 w-4"
+                  }), "Send Email"]
+                })]
+              })
+            })]
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "lg:col-span-2 space-y-3",
+          children: [/* @__PURE__ */ jsx("h3", {
+            className: "text-lg font-semibold",
+            children: "Email History"
+          }), lead.emails.length === 0 ? /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx(Send, {
+                className: "h-12 w-12 text-muted-foreground/50"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 text-muted-foreground",
+                children: "No emails sent yet."
+              })]
+            })
+          }) : lead.emails.map((thread) => /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsx(CardContent, {
+              className: "p-4",
+              children: /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center justify-between",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  children: [/* @__PURE__ */ jsx("p", {
+                    className: "font-medium",
+                    children: thread.subject
+                  }), thread.snippet && /* @__PURE__ */ jsx("p", {
+                    className: "mt-1 text-sm text-muted-foreground line-clamp-2",
+                    children: thread.snippet
+                  })]
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2",
+                  children: [/* @__PURE__ */ jsx(Badge, {
+                    variant: thread.status === "REPLIED" ? "success" : thread.status === "WAITING" ? "warning" : "secondary",
+                    children: thread.status
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "text-xs text-muted-foreground",
+                    children: new Date(thread.lastMessage).toLocaleDateString()
+                  })]
+                })]
+              })
+            })
+          }, thread.id))]
+        })]
+      })]
+    })
+  });
+});
+const route15 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$3,
+  default: leads_$leadId_emails,
+  loader: loader$5
+}, Symbol.toStringTag, { value: "Module" }));
+function validateApiKey(request) {
+  const apiKey = request.headers.get("X-API-Key");
+  return !!apiKey && apiKey.length > 0;
+}
+const LeadPayloadSchema = z.object({
+  companyName: z.string().min(1, "Company name is required"),
+  website: z.string().optional(),
+  contactName: z.string().optional(),
+  email: z.string().email("Invalid email format"),
+  industry: z.string().optional(),
+  estimatedTraffic: z.string().optional(),
+  techStack: z.string().optional(),
+  leadSource: z.string().optional().default("SCRAPER"),
+  notes: z.string().optional()
+});
+async function loader$4({
+  request
+}) {
+  if (!validateApiKey(request)) {
+    throw data({
+      error: "Unauthorized. Provide X-API-Key header."
+    }, {
+      status: 401
+    });
+  }
+  const url = new URL(request.url);
+  const status = url.searchParams.get("status") || void 0;
+  const limit = parseInt(url.searchParams.get("limit") || "50");
+  const offset = parseInt(url.searchParams.get("offset") || "0");
+  const leads = await prisma.lead.findMany({
+    where: status ? {
+      status
+    } : void 0,
+    take: Math.min(limit, 100),
+    skip: offset,
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true,
+      companyName: true,
+      website: true,
+      contactName: true,
+      email: true,
+      industry: true,
+      estimatedTraffic: true,
+      techStack: true,
+      status: true,
+      stage: true,
+      leadSource: true,
+      createdAt: true
+    }
+  });
+  const total = await prisma.lead.count({
+    where: status ? {
+      status
+    } : void 0
+  });
+  return data({
+    leads,
+    total,
+    limit,
+    offset
+  });
+}
+async function action$2({
+  request
+}) {
+  if (!validateApiKey(request)) {
+    throw data({
+      error: "Unauthorized. Provide X-API-Key header."
+    }, {
+      status: 401
+    });
+  }
+  if (request.method !== "POST") {
+    throw data({
+      error: "Method not allowed"
+    }, {
+      status: 405
+    });
+  }
+  try {
+    const body = await request.json();
+    const payload = LeadPayloadSchema.parse(body);
+    const existing = await prisma.lead.findUnique({
+      where: {
+        email: payload.email
+      }
+    });
+    if (existing) {
+      const updated = await prisma.lead.update({
+        where: {
+          id: existing.id
+        },
+        data: {
+          companyName: payload.companyName,
+          website: payload.website ?? existing.website,
+          contactName: payload.contactName ?? existing.contactName,
+          industry: payload.industry ?? existing.industry,
+          estimatedTraffic: payload.estimatedTraffic ?? existing.estimatedTraffic,
+          techStack: payload.techStack ?? existing.techStack,
+          leadSource: payload.leadSource,
+          notes: payload.notes ? `${existing.notes || ""}
+[Updated]: ${payload.notes}`.trim() : existing.notes
+        }
+      });
+      await logActivity({
+        leadId: existing.id,
+        action: "LEAD_EDITED",
+        description: `External API updated lead data (${payload.leadSource})`,
+        metadata: {
+          source: payload.leadSource,
+          merged: true
+        }
+      });
+      return data({
+        lead: updated,
+        merged: true
+      }, {
+        status: 200
+      });
+    }
+    const lead = await prisma.lead.create({
+      data: {
+        ...payload,
+        status: "INBOX",
+        stage: "SOURCED"
+      }
+    });
+    await logActivity({
+      leadId: lead.id,
+      action: "LEAD_CREATED",
+      description: `Added via external API (${payload.leadSource})`,
+      metadata: {
+        source: payload.leadSource
+      }
+    });
+    return data({
+      lead,
+      merged: false
+    }, {
+      status: 201
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw data({
+        error: "Validation failed",
+        issues: error.issues
+      }, {
+        status: 400
+      });
+    }
+    throw data({
+      error: "Internal server error"
+    }, {
+      status: 500
+    });
+  }
+}
+const route16 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$2,
+  loader: loader$4
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$3({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const imports2 = await prisma.leadImport.findMany({
+    orderBy: {
+      createdAt: "desc"
+    },
+    include: {
+      user: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+  return {
+    user,
+    imports: imports2
+  };
+}
+const imports = UNSAFE_withComponentProps(function ImportList() {
+  const {
+    user,
+    imports: imports2
+  } = useLoaderData();
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-3xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "Lead Imports"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Import leads from CSV files"
+          })]
+        }), /* @__PURE__ */ jsx(Link, {
+          to: "/imports/new",
+          children: /* @__PURE__ */ jsxs(Button, {
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(Upload, {
+              className: "mr-2 h-4 w-4"
+            }), "New Import"]
+          })
+        })]
+      }), imports2.length === 0 ? /* @__PURE__ */ jsx(Card, {
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex flex-col items-center justify-center py-16",
+          children: [/* @__PURE__ */ jsx(FileSpreadsheet, {
+            className: "h-12 w-12 text-muted-foreground/50"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "mt-4 text-lg font-medium text-muted-foreground",
+            children: "No imports yet"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Upload a CSV file to bulk import leads"
+          })]
+        })
+      }) : /* @__PURE__ */ jsx("div", {
+        className: "space-y-3",
+        children: imports2.map((imp) => /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex items-center gap-4 p-4",
+            children: [/* @__PURE__ */ jsx(FileSpreadsheet, {
+              className: "h-8 w-8 text-muted-foreground shrink-0"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex-1 min-w-0",
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "font-medium truncate",
+                children: imp.fileName
+              }), /* @__PURE__ */ jsxs("p", {
+                className: "text-sm text-muted-foreground",
+                children: ["by ", imp.user.name || imp.user.email, " — ", new Date(imp.createdAt).toLocaleDateString()]
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-3",
+              children: [/* @__PURE__ */ jsx(StatusBadge, {
+                status: imp.status
+              }), /* @__PURE__ */ jsxs("span", {
+                className: "text-sm text-muted-foreground",
+                children: [imp.importedRows, "/", imp.totalRows, " imported"]
+              }), imp.skippedRows > 0 && /* @__PURE__ */ jsxs(Badge, {
+                variant: "outline",
+                className: "text-amber-400",
+                children: [imp.skippedRows, " skipped"]
+              })]
+            })]
+          })
+        }, imp.id))
+      })]
+    })
+  });
+});
+function StatusBadge({
+  status
+}) {
+  const config = {
+    PENDING: "bg-slate-500/15 text-slate-400",
+    MAPPING: "bg-blue-500/15 text-blue-400",
+    IMPORTING: "bg-amber-500/15 text-amber-400",
+    COMPLETED: "bg-emerald-500/15 text-emerald-400",
+    FAILED: "bg-red-500/15 text-red-400"
+  };
+  return /* @__PURE__ */ jsx(Badge, {
+    className: config[status] || config.PENDING,
+    children: status
+  });
+}
+const route17 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: imports,
+  loader: loader$3
+}, Symbol.toStringTag, { value: "Module" }));
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const headers = parseCSVLine(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]);
+    if (values.length === 0) continue;
+    const row = {};
+    headers.forEach((h, idx) => {
+      var _a;
+      row[h] = ((_a = values[idx]) == null ? void 0 : _a.trim()) || "";
+    });
+    rows.push(row);
+  }
+  return { headers, rows };
+}
+function parseCSVLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ",") {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+const LEAD_FIELDS = [
+  { value: "companyName", label: "Company Name", required: true },
+  { value: "contactName", label: "Contact Name" },
+  { value: "email", label: "Email", required: true },
+  { value: "industry", label: "Industry" },
+  { value: "website", label: "Website" },
+  { value: "estimatedTraffic", label: "Est. Traffic" },
+  { value: "techStack", label: "Tech Stack" },
+  { value: "leadSource", label: "Lead Source" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "facebook", label: "Facebook" },
+  { value: "instagram", label: "Instagram" },
+  { value: "twitter", label: "Twitter / X" },
+  { value: "notes", label: "Notes" }
+];
+function mapRowToLead(row, mapping) {
+  const lead = {};
+  for (const [csvCol, leadField] of Object.entries(mapping)) {
+    const value = row[csvCol];
+    if (value) lead[leadField] = value;
+  }
+  return lead;
+}
+async function processImport(importId) {
+  var _a;
+  const importJob = await prisma.leadImport.findUnique({
+    where: { id: importId },
+    include: { user: { select: { name: true } } }
+  });
+  if (!importJob || !importJob.csvData || !importJob.columnMapping) {
+    throw new Error("Import job not found or missing data");
+  }
+  await prisma.leadImport.update({
+    where: { id: importId },
+    data: { status: "IMPORTING" }
+  });
+  const { rows } = parseCSV(importJob.csvData);
+  const mapping = importJob.columnMapping;
+  let imported = 0;
+  let skipped = 0;
+  const errors = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const leadData = mapRowToLead(row, mapping);
+    if (!leadData.email) {
+      skipped++;
+      errors.push({ row: i + 1, error: "Missing email" });
+      continue;
+    }
+    if (!leadData.companyName) {
+      skipped++;
+      errors.push({ row: i + 1, error: "Missing company name" });
+      continue;
+    }
+    try {
+      const existing = await prisma.lead.findUnique({
+        where: { email: leadData.email }
+      });
+      if (existing) {
+        skipped++;
+        errors.push({ row: i + 1, error: `Duplicate email (${existing.companyName})` });
+        continue;
+      }
+      const lead = await prisma.lead.create({
+        data: {
+          companyName: leadData.companyName,
+          contactName: leadData.contactName || null,
+          email: leadData.email,
+          industry: leadData.industry || null,
+          website: leadData.website || null,
+          estimatedTraffic: leadData.estimatedTraffic || null,
+          techStack: leadData.techStack || null,
+          leadSource: leadData.leadSource || "CSV Import",
+          linkedin: leadData.linkedin || null,
+          facebook: leadData.facebook || null,
+          instagram: leadData.instagram || null,
+          twitter: leadData.twitter || null,
+          notes: leadData.notes || null,
+          importId,
+          createdById: importJob.userId
+        }
+      });
+      await logActivity({
+        leadId: lead.id,
+        userId: importJob.userId,
+        action: "LEAD_CREATED",
+        description: `${((_a = importJob.user) == null ? void 0 : _a.name) || "Unknown"} imported this lead`,
+        metadata: { source: "CSV Import", fileName: importJob.fileName }
+      });
+      imported++;
+    } catch (err) {
+      skipped++;
+      errors.push({ row: i + 1, error: String(err) });
+    }
+  }
+  await prisma.leadImport.update({
+    where: { id: importId },
+    data: {
+      status: "COMPLETED",
+      totalRows: rows.length,
+      importedRows: imported,
+      skippedRows: skipped,
+      errors: errors.length > 0 ? errors : null
+    }
+  });
+  return { imported, skipped, errors };
+}
+async function loader$2({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  return {
+    user
+  };
+}
+async function action$1({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "upload") {
+    const file = formData.get("file");
+    if (!file) return {
+      error: "Please select a CSV file."
+    };
+    const text = await file.text();
+    const {
+      headers,
+      rows
+    } = parseCSV(text);
+    if (headers.length === 0) return {
+      error: "CSV file appears to be empty."
+    };
+    if (rows.length === 0) return {
+      error: "CSV has headers but no data rows."
+    };
+    const importJob = await prisma.leadImport.create({
+      data: {
+        fileName: file.name,
+        totalRows: rows.length,
+        status: "MAPPING",
+        csvData: text,
+        userId
+      }
+    });
+    return {
+      uploaded: true,
+      importId: importJob.id,
+      headers,
+      previewRows: rows.slice(0, 5),
+      totalRows: rows.length
+    };
+  }
+  if (intent === "import") {
+    const importId = formData.get("importId");
+    const mappingStr = formData.get("mapping");
+    if (!importId || !mappingStr) return {
+      error: "Missing import data."
+    };
+    const mapping = JSON.parse(mappingStr);
+    await prisma.leadImport.update({
+      where: {
+        id: importId
+      },
+      data: {
+        columnMapping: mapping
+      }
+    });
+    const result = await processImport(importId);
+    return {
+      done: true,
+      ...result
+    };
+  }
+  return {};
+}
+const imports_new = UNSAFE_withComponentProps(function NewImport() {
+  const {
+    user
+  } = useLoaderData();
+  const actionData = useActionData();
+  const navigate = useNavigate();
+  const [mapping, setMapping] = useState({});
+  const isUploaded = actionData == null ? void 0 : actionData.uploaded;
+  const isDone = actionData == null ? void 0 : actionData.done;
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-3xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/imports",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "Import Leads"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Upload a CSV file to bulk import leads"
+          })]
+        })]
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20",
+        children: actionData.error
+      }), isDone && /* @__PURE__ */ jsx(Card, {
+        className: "border-2 border-emerald-500/40 bg-emerald-500/5",
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex items-center gap-4 p-5",
+          children: [/* @__PURE__ */ jsx(CheckCircle2, {
+            className: "h-8 w-8 shrink-0 text-emerald-400"
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex-1",
+            children: [/* @__PURE__ */ jsx("p", {
+              className: "font-semibold",
+              children: "Import complete!"
+            }), /* @__PURE__ */ jsxs("p", {
+              className: "text-sm text-muted-foreground",
+              children: [actionData.imported, " imported, ", actionData.skipped, " skipped"]
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex gap-2",
+            children: [/* @__PURE__ */ jsx(Link, {
+              to: "/inbox",
+              children: /* @__PURE__ */ jsx(Button, {
+                variant: "outline",
+                size: "sm",
+                children: "View Inbox"
+              })
+            }), /* @__PURE__ */ jsx(Button, {
+              size: "sm",
+              onClick: () => navigate("/imports/new", {
+                replace: true
+              }),
+              children: "Import More"
+            })]
+          })]
+        })
+      }), !isUploaded && !isDone && /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsxs(CardHeader, {
+          children: [/* @__PURE__ */ jsx(CardTitle, {
+            className: "text-base",
+            children: "Step 1: Upload CSV"
+          }), /* @__PURE__ */ jsx(CardDescription, {
+            children: "CSV must have a header row. Required fields: Company Name and Email."
+          })]
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            encType: "multipart/form-data",
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "upload"
+            }), /* @__PURE__ */ jsx("div", {
+              className: "flex items-center justify-center w-full",
+              children: /* @__PURE__ */ jsxs("label", {
+                className: "flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer border-border hover:bg-muted/30 transition-colors",
+                children: [/* @__PURE__ */ jsx(Upload, {
+                  className: "h-10 w-10 text-muted-foreground mb-2"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: "Click to select a CSV file"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "file",
+                  name: "file",
+                  accept: ".csv",
+                  className: "hidden",
+                  required: true
+                })]
+              })
+            }), /* @__PURE__ */ jsx("div", {
+              className: "flex justify-end",
+              children: /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                children: "Upload & Preview"
+              })
+            })]
+          })
+        })]
+      }), isUploaded && !isDone && actionData.headers && /* @__PURE__ */ jsxs(Fragment, {
+        children: [/* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Step 2: Map Columns"
+            }), /* @__PURE__ */ jsxs(CardDescription, {
+              children: ["Match your CSV columns to lead fields. ", actionData.totalRows, " rows found."]
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx("div", {
+              className: "space-y-3",
+              children: actionData.headers.map((header) => /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-4",
+                children: [/* @__PURE__ */ jsx("div", {
+                  className: "w-48 shrink-0",
+                  children: /* @__PURE__ */ jsx("code", {
+                    className: "text-sm bg-muted px-2 py-1 rounded",
+                    children: header
+                  })
+                }), /* @__PURE__ */ jsxs(Select, {
+                  className: "flex-1",
+                  defaultValue: autoMap(header),
+                  onChange: (e) => {
+                    setMapping((prev) => ({
+                      ...prev,
+                      [header]: e.target.value
+                    }));
+                  },
+                  children: [/* @__PURE__ */ jsx("option", {
+                    value: "",
+                    children: "— Skip this column —"
+                  }), LEAD_FIELDS.map((f) => /* @__PURE__ */ jsxs("option", {
+                    value: f.value,
+                    children: [f.label, " ", f.required ? "*" : ""]
+                  }, f.value))]
+                })]
+              }, header))
+            })
+          })]
+        }), actionData.previewRows && actionData.previewRows.length > 0 && /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              className: "text-base",
+              children: "Step 3: Preview (first 5 rows)"
+            })
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx("div", {
+              className: "overflow-x-auto",
+              children: /* @__PURE__ */ jsxs("table", {
+                className: "w-full text-xs",
+                children: [/* @__PURE__ */ jsx("thead", {
+                  children: /* @__PURE__ */ jsx("tr", {
+                    className: "border-b bg-muted/50",
+                    children: actionData.headers.map((h) => /* @__PURE__ */ jsx("th", {
+                      className: "px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap",
+                      children: h
+                    }, h))
+                  })
+                }), /* @__PURE__ */ jsx("tbody", {
+                  children: actionData.previewRows.map((row, i) => /* @__PURE__ */ jsx("tr", {
+                    className: "border-b",
+                    children: actionData.headers.map((h) => /* @__PURE__ */ jsx("td", {
+                      className: "px-2 py-1.5 whitespace-nowrap max-w-[200px] truncate",
+                      children: row[h]
+                    }, h))
+                  }, i))
+                })]
+              })
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Form, {
+          method: "post",
+          className: "flex items-center justify-between",
+          children: [/* @__PURE__ */ jsx("input", {
+            type: "hidden",
+            name: "intent",
+            value: "import"
+          }), /* @__PURE__ */ jsx("input", {
+            type: "hidden",
+            name: "importId",
+            value: actionData.importId
+          }), /* @__PURE__ */ jsx("input", {
+            type: "hidden",
+            name: "mapping",
+            value: JSON.stringify(mapping)
+          }), /* @__PURE__ */ jsx(Link, {
+            to: "/imports",
+            children: /* @__PURE__ */ jsx(Button, {
+              variant: "outline",
+              children: "Cancel"
+            })
+          }), /* @__PURE__ */ jsxs(Button, {
+            type: "submit",
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(Upload, {
+              className: "mr-2 h-4 w-4"
+            }), "Import ", actionData.totalRows, " Leads"]
+          })]
+        })]
+      })]
+    })
+  });
+});
+function autoMap(header) {
+  const lower = header.toLowerCase().replace(/[^a-z]/g, "");
+  const map = {
+    companyname: "companyName",
+    company: "companyName",
+    contactname: "contactName",
+    name: "contactName",
+    fullname: "contactName",
+    email: "email",
+    industry: "industry",
+    website: "website",
+    url: "website",
+    traffic: "estimatedTraffic",
+    estimatedtraffic: "estimatedTraffic",
+    techstack: "techStack",
+    technology: "techStack",
+    leadsource: "leadSource",
+    source: "leadSource",
+    linkedin: "linkedin",
+    facebook: "facebook",
+    instagram: "instagram",
+    twitter: "twitter",
+    notes: "notes"
+  };
+  return map[lower] || "";
+}
+const route18 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$1,
+  default: imports_new,
+  loader: loader$2
+}, Symbol.toStringTag, { value: "Module" }));
+function useTheme() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    return localStorage.getItem("theme") || "dark";
+  });
+  useEffect(() => {
+    const root2 = document.documentElement;
+    root2.classList.remove("dark", "light");
+    root2.classList.add(theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  const toggleTheme = () => {
+    setTheme((prev) => prev === "dark" ? "light" : "dark");
+  };
+  return { theme, toggleTheme };
+}
+async function loader$1({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true,
+      gmailTokens: true
+    }
+  });
+  return {
+    user
+  };
+}
+const settings = UNSAFE_withComponentProps(function Settings2() {
+  const {
+    user
+  } = useLoaderData();
+  const {
+    theme,
+    toggleTheme
+  } = useTheme();
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx("h1", {
+          className: "text-3xl font-bold tracking-tight",
+          children: "Settings"
+        }), /* @__PURE__ */ jsx("p", {
+          className: "text-muted-foreground",
+          children: "Manage your account and integrations"
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 lg:grid-cols-2",
+        children: [/* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsxs(CardTitle, {
+              className: "flex items-center gap-2",
+              children: [theme === "dark" ? /* @__PURE__ */ jsx(Moon, {
+                className: "h-4 w-4"
+              }) : /* @__PURE__ */ jsx(Sun, {
+                className: "h-4 w-4"
+              }), "Appearance"]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Toggle between light and dark mode"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center justify-between rounded-lg border p-4",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-3",
+                children: [theme === "dark" ? /* @__PURE__ */ jsx(Moon, {
+                  className: "h-5 w-5 text-violet-400"
+                }) : /* @__PURE__ */ jsx(Sun, {
+                  className: "h-5 w-5 text-amber-500"
+                }), /* @__PURE__ */ jsxs("div", {
+                  children: [/* @__PURE__ */ jsxs("p", {
+                    className: "font-medium capitalize",
+                    children: [theme, " Mode"]
+                  }), /* @__PURE__ */ jsx("p", {
+                    className: "text-sm text-muted-foreground",
+                    children: theme === "dark" ? "Dark background with light text" : "Light background with dark text"
+                  })]
+                })]
+              }), /* @__PURE__ */ jsxs(Button, {
+                variant: "outline",
+                onClick: toggleTheme,
+                children: ["Switch to ", theme === "dark" ? "Light" : "Dark"]
+              })]
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              children: "Profile"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Your account information"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-sm font-medium text-muted-foreground",
+                children: "Name"
+              }), /* @__PURE__ */ jsx("p", {
+                children: (user == null ? void 0 : user.name) || "Not set"
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-sm font-medium text-muted-foreground",
+                children: "Email"
+              }), /* @__PURE__ */ jsx("p", {
+                children: user == null ? void 0 : user.email
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-sm font-medium text-muted-foreground",
+                children: "Role"
+              }), /* @__PURE__ */ jsx(Badge, {
+                variant: "secondary",
+                children: user == null ? void 0 : user.role
+              })]
+            })]
+          })]
+        }), (user == null ? void 0 : user.role) === "ADMIN" && /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsxs(CardTitle, {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(Users, {
+                className: "h-4 w-4"
+              }), "User Management"]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Create and manage team accounts"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx(Link, {
+              to: "/settings/users",
+              children: /* @__PURE__ */ jsxs(Button, {
+                variant: "outline",
+                className: "w-full",
+                children: [/* @__PURE__ */ jsx(Users, {
+                  className: "mr-2 h-4 w-4"
+                }), "Manage Users"]
+              })
+            })
+          })]
+        }), (user == null ? void 0 : user.role) === "ADMIN" && /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsxs(CardTitle, {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(ShieldCheck, {
+                className: "h-4 w-4"
+              }), "Verification Criteria"]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Customize how leads are evaluated"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx(Link, {
+              to: "/verification/criteria",
+              children: /* @__PURE__ */ jsxs(Button, {
+                variant: "outline",
+                className: "w-full",
+                children: [/* @__PURE__ */ jsx(ShieldCheck, {
+                  className: "mr-2 h-4 w-4"
+                }), "Manage Criteria"]
+              })
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              children: "Gmail Integration"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Connect your Gmail account for email outreach"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center justify-between",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-3",
+                children: [/* @__PURE__ */ jsx("div", {
+                  className: "flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10",
+                  children: /* @__PURE__ */ jsx("svg", {
+                    className: "h-5 w-5 text-red-400",
+                    viewBox: "0 0 24 24",
+                    fill: "currentColor",
+                    children: /* @__PURE__ */ jsx("path", {
+                      d: "M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+                    })
+                  })
+                }), /* @__PURE__ */ jsxs("div", {
+                  children: [/* @__PURE__ */ jsx("p", {
+                    className: "font-medium",
+                    children: "Google OAuth"
+                  }), /* @__PURE__ */ jsx("p", {
+                    className: "text-sm text-muted-foreground",
+                    children: (user == null ? void 0 : user.gmailTokens) ? "Gmail account connected" : "No Gmail account connected"
+                  })]
+                })]
+              }), /* @__PURE__ */ jsx(Badge, {
+                variant: (user == null ? void 0 : user.gmailTokens) ? "success" : "secondary",
+                children: (user == null ? void 0 : user.gmailTokens) ? "Connected" : "Disconnected"
+              })]
+            }), /* @__PURE__ */ jsx(Button, {
+              className: "w-full",
+              variant: (user == null ? void 0 : user.gmailTokens) ? "outline" : "default",
+              onClick: () => {
+                alert("Google OAuth will be configured with GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars");
+              },
+              children: (user == null ? void 0 : user.gmailTokens) ? "Reconnect Gmail" : "Connect Gmail"
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          className: "lg:col-span-2",
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              children: "API Access"
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Use the API endpoint to ingest leads from external scrapers"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "rounded-lg bg-muted p-4",
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "mb-2 text-sm font-medium",
+                children: "POST /api/leads"
+              }), /* @__PURE__ */ jsx("pre", {
+                className: "overflow-x-auto text-xs",
+                children: `curl -X POST https://your-domain.com/api/leads \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: your-api-key" \\
+  -d '{
+    "companyName": "Acme Corp",
+    "email": "hello@acme.com",
+    "website": "https://acme.com",
+    "industry": "SaaS",
+    "leadSource": "scraper-bot"
+  }'`
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "rounded-lg bg-muted p-4",
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "mb-2 text-sm font-medium",
+                children: "GET /api/leads?status=INBOX&limit=50"
+              }), /* @__PURE__ */ jsx("pre", {
+                className: "overflow-x-auto text-xs",
+                children: `curl https://your-domain.com/api/leads \\
+  -H "X-API-Key: your-api-key"`
+              })]
+            })]
+          })]
+        })]
+      })]
+    })
+  });
+});
+const route19 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: settings,
+  loader: loader$1
+}, Symbol.toStringTag, { value: "Module" }));
+function Dialog({ open, onOpenChange, children }) {
+  const childArray = React.Children.toArray(children);
+  const trigger = childArray.find(
+    (c) => React.isValidElement(c) && c.type === DialogTrigger
+  );
+  const content = childArray.filter(
+    (c) => !(React.isValidElement(c) && c.type === DialogTrigger)
+  );
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    trigger,
+    open && /* @__PURE__ */ jsxs("div", { className: "fixed inset-0 z-50", children: [
+      /* @__PURE__ */ jsx(
+        "div",
+        {
+          className: "fixed inset-0 bg-black/80",
+          onClick: () => onOpenChange == null ? void 0 : onOpenChange(false)
+        }
+      ),
+      /* @__PURE__ */ jsx("div", { className: "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2", children: content })
+    ] })
+  ] });
+}
+const DialogContent = React.forwardRef(
+  ({ className, children, ...props }, ref) => /* @__PURE__ */ jsx(
+    "div",
+    {
+      ref,
+      className: cn(
+        "grid w-full gap-4 rounded-lg border bg-background p-6 shadow-lg animate-in",
+        className
+      ),
+      ...props,
+      children
+    }
+  )
+);
+DialogContent.displayName = "DialogContent";
+function DialogHeader({ className, ...props }) {
+  return /* @__PURE__ */ jsx("div", { className: cn("flex flex-col space-y-1.5 text-center sm:text-left", className), ...props });
+}
+function DialogTitle({ className, ...props }) {
+  return /* @__PURE__ */ jsx(
+    "h2",
+    {
+      className: cn("text-lg font-semibold leading-none tracking-tight", className),
+      ...props
+    }
+  );
+}
+function DialogTrigger({ children, asChild, ...props }) {
+  return /* @__PURE__ */ jsx("button", { ...props, children });
+}
+async function loader({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const users2 = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  return {
+    user,
+    users: users2
+  };
+}
+async function action({
+  request
+}) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "create") {
+    const email = formData.get("email");
+    const password = formData.get("password");
+    const name = formData.get("name") || null;
+    const role = formData.get("role");
+    if (!email || !password) return {
+      error: "Email and password required."
+    };
+    const existing = await prisma.user.findUnique({
+      where: {
+        email
+      }
+    });
+    if (existing) return {
+      error: "Email already in use."
+    };
+    const passwordHash = await hashPassword(password);
+    await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name,
+        role
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "updateRole") {
+    const targetUserId = formData.get("userId");
+    const newRole = formData.get("role");
+    await prisma.user.update({
+      where: {
+        id: targetUserId
+      },
+      data: {
+        role: newRole
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  if (intent === "delete") {
+    const targetUserId = formData.get("userId");
+    const currentUserId = formData.get("currentUserId");
+    if (targetUserId === currentUserId) {
+      return {
+        error: "You cannot delete your own account."
+      };
+    }
+    await prisma.user.delete({
+      where: {
+        id: targetUserId
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  return {};
+}
+const settings_users = UNSAFE_withComponentProps(function UserManagement() {
+  const {
+    user,
+    users: users2
+  } = useLoaderData();
+  const actionData = useActionData();
+  const [showCreate, setShowCreate] = useState(false);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/settings",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1",
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "User Management"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: "Create accounts and manage roles for your team"
+          })]
+        }), /* @__PURE__ */ jsxs(Button, {
+          onClick: () => setShowCreate(true),
+          children: [/* @__PURE__ */ jsx(Plus, {
+            className: "mr-2 h-4 w-4"
+          }), "Add User"]
+        })]
+      }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400",
+        children: "Updated successfully."
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("div", {
+        className: "rounded-md bg-destructive/10 p-3 text-sm text-destructive",
+        children: actionData.error
+      }), /* @__PURE__ */ jsx(Dialog, {
+        open: showCreate,
+        onOpenChange: setShowCreate,
+        children: /* @__PURE__ */ jsxs(DialogContent, {
+          className: "max-w-md",
+          children: [/* @__PURE__ */ jsx(DialogHeader, {
+            children: /* @__PURE__ */ jsx(DialogTitle, {
+              children: "Create New User"
+            })
+          }), /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "create"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-2",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "name",
+                children: "Full Name"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "name",
+                name: "name",
+                placeholder: "Juan Dela Cruz"
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-2",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "email",
+                children: "Email *"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "email",
+                name: "email",
+                type: "email",
+                required: true,
+                placeholder: "user@company.com"
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-2",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "password",
+                children: "Password *"
+              }), /* @__PURE__ */ jsx(Input, {
+                id: "password",
+                name: "password",
+                type: "password",
+                required: true,
+                placeholder: "Min. 8 characters",
+                minLength: 8
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-2",
+              children: [/* @__PURE__ */ jsx(Label, {
+                htmlFor: "role",
+                children: "Role"
+              }), /* @__PURE__ */ jsxs(Select, {
+                id: "role",
+                name: "role",
+                defaultValue: "AGENT",
+                children: [/* @__PURE__ */ jsx("option", {
+                  value: "AGENT",
+                  children: "Agent"
+                }), /* @__PURE__ */ jsx("option", {
+                  value: "ADMIN",
+                  children: "Admin"
+                })]
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex justify-end gap-2",
+              children: [/* @__PURE__ */ jsx(Button, {
+                type: "button",
+                variant: "outline",
+                onClick: () => setShowCreate(false),
+                children: "Cancel"
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                children: "Create User"
+              })]
+            })]
+          })]
+        })
+      }), /* @__PURE__ */ jsx("div", {
+        className: "space-y-3",
+        children: users2.map((u) => {
+          var _a, _b;
+          return /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex items-center gap-4 p-4",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-10 w-10 items-center justify-center rounded-full bg-primary/10",
+                children: /* @__PURE__ */ jsx("span", {
+                  className: "text-sm font-semibold",
+                  children: ((_b = (_a = u.name) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase()) || u.email[0].toUpperCase()
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex-1 min-w-0",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2",
+                  children: [/* @__PURE__ */ jsx("span", {
+                    className: "font-medium truncate",
+                    children: u.name || u.email
+                  }), /* @__PURE__ */ jsx(Badge, {
+                    variant: u.role === "ADMIN" ? "default" : "secondary",
+                    children: u.role
+                  })]
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm text-muted-foreground truncate",
+                  children: u.email
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: ["Joined ", new Date(u.createdAt).toLocaleDateString()]
+                })]
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "updateRole"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "userId",
+                  value: u.id
+                }), /* @__PURE__ */ jsxs(Select, {
+                  name: "role",
+                  defaultValue: u.role,
+                  className: "w-24",
+                  onChange: (e) => {
+                    e.target.closest("form").submit();
+                  },
+                  children: [/* @__PURE__ */ jsx("option", {
+                    value: "AGENT",
+                    children: "Agent"
+                  }), /* @__PURE__ */ jsx("option", {
+                    value: "ADMIN",
+                    children: "Admin"
+                  })]
+                })]
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "delete"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "userId",
+                  value: u.id
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "currentUserId",
+                  value: user.email
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  variant: "ghost",
+                  size: "icon",
+                  title: "Delete user",
+                  children: /* @__PURE__ */ jsx(Trash2, {
+                    className: "h-4 w-4 text-destructive"
+                  })
+                })]
+              })]
+            })
+          }, u.id);
+        })
+      })]
+    })
+  });
+});
+const route20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action,
+  default: settings_users,
+  loader
+}, Symbol.toStringTag, { value: "Module" }));
+const serverManifest = { "entry": { "module": "/assets/entry.client-CayAyXiM.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/index-CdVSHfAt.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-CczfAQvG.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/index-CdVSHfAt.js"], "css": ["/assets/root-DpQ6o81C.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bihsk4a_.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-C6Zmz6jf.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/card-BYsPMh0P.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-FLbe1B_s.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/card-BYsPMh0P.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-YFAtwjgj.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/card-BYsPMh0P.js", "/assets/button-CVJ0SyBJ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-SYOiJcvm.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/plus-B42_Zges.js", "/assets/circle-check-P6GF7ho6.js", "/assets/circle-x-T-Igsiyy.js", "/assets/snowflake-BxrU2OUm.js", "/assets/sun-Dfk2vtMj.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-D5V1VE2v.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js", "/assets/textarea-C2xfnNCo.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-x-T-Igsiyy.js", "/assets/user-BjhOiaY9.js", "/assets/twitter-Clh6UsOd.js", "/assets/clock-B7K2-0ZU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-DWxmgGpg.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/textarea-C2xfnNCo.js", "/assets/card-BYsPMh0P.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js", "/assets/twitter-Clh6UsOd.js", "/assets/snowflake-BxrU2OUm.js", "/assets/sun-Dfk2vtMj.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-6vAvU_je.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/textarea-C2xfnNCo.js", "/assets/select-DhiNWvvh.js", "/assets/badge-DWl9s17V.js", "/assets/card-BYsPMh0P.js", "/assets/plus-B42_Zges.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-CUlVcXZn.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/textarea-C2xfnNCo.js", "/assets/card-BYsPMh0P.js", "/assets/snowflake-BxrU2OUm.js", "/assets/sun-Dfk2vtMj.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-Bpw20EOu.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/badge-DWl9s17V.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/user-BjhOiaY9.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-DgS9NViU.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-CcXaHWM6.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/badge-DWl9s17V.js", "/assets/index-CdVSHfAt.js", "/assets/card-BYsPMh0P.js", "/assets/button-CVJ0SyBJ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-BrJFu9pV.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/card-BYsPMh0P.js", "/assets/button-CVJ0SyBJ.js", "/assets/clock-B7K2-0ZU.js", "/assets/send-MuU5421_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-BwIxTOKa.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/textarea-C2xfnNCo.js", "/assets/card-BYsPMh0P.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/plus-B42_Zges.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-DzZkxmsE.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js", "/assets/select-DhiNWvvh.js", "/assets/label-BoDIw1Eu.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/send-MuU5421_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-BxXhOTSd.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-BXdkmEc4.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-DAvHdPgr.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js", "/assets/sun-Dfk2vtMj.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-d9z9VhWX.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/badge-DWl9s17V.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/plus-B42_Zges.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-23b51592.js", "version": "23b51592", "sri": void 0 };
+const assetsBuildDirectory = "build\\client";
+const basename = "/";
+const future = { "unstable_optimizeDeps": false, "unstable_passThroughRequests": false, "unstable_subResourceIntegrity": false, "unstable_trailingSlashAwareDataRequests": false, "unstable_previewServerPrerendering": false, "v8_middleware": false, "v8_splitRouteModules": false, "v8_viteEnvironmentApi": false };
+const ssr = true;
+const isSpaMode = false;
+const prerender = [];
+const routeDiscovery = { "mode": "lazy", "manifestPath": "/__manifest" };
+const publicPath = "/";
+const entry = { module: entryServer };
+const routes = {
+  "root": {
+    id: "root",
+    parentId: void 0,
+    path: "",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route0
+  },
+  "routes/home": {
+    id: "routes/home",
+    parentId: "root",
+    path: void 0,
+    index: true,
+    caseSensitive: void 0,
+    module: route1
+  },
+  "routes/login": {
+    id: "routes/login",
+    parentId: "root",
+    path: "login",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route2
+  },
+  "routes/register": {
+    id: "routes/register",
+    parentId: "root",
+    path: "register",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route3
+  },
+  "routes/dashboard": {
+    id: "routes/dashboard",
+    parentId: "root",
+    path: "dashboard",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route4
+  },
+  "routes/inbox": {
+    id: "routes/inbox",
+    parentId: "root",
+    path: "inbox",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route5
+  },
+  "routes/inbox.$leadId": {
+    id: "routes/inbox.$leadId",
+    parentId: "root",
+    path: "inbox/:leadId",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route6
+  },
+  "routes/leads.new": {
+    id: "routes/leads.new",
+    parentId: "root",
+    path: "leads/new",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route7
+  },
+  "routes/verification.criteria": {
+    id: "routes/verification.criteria",
+    parentId: "root",
+    path: "verification/criteria",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route8
+  },
+  "routes/verification.$leadId": {
+    id: "routes/verification.$leadId",
+    parentId: "root",
+    path: "verification/:leadId",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route9
+  },
+  "routes/users": {
+    id: "routes/users",
+    parentId: "root",
+    path: "users",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route10
+  },
+  "routes/users.new": {
+    id: "routes/users.new",
+    parentId: "root",
+    path: "users/new",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route11
+  },
+  "routes/pipeline": {
+    id: "routes/pipeline",
+    parentId: "root",
+    path: "pipeline",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route12
+  },
+  "routes/emails": {
+    id: "routes/emails",
+    parentId: "root",
+    path: "emails",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route13
+  },
+  "routes/emails.templates": {
+    id: "routes/emails.templates",
+    parentId: "root",
+    path: "emails/templates",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route14
+  },
+  "routes/leads.$leadId.emails": {
+    id: "routes/leads.$leadId.emails",
+    parentId: "root",
+    path: "leads/:leadId/emails",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route15
+  },
+  "routes/api.leads": {
+    id: "routes/api.leads",
+    parentId: "root",
+    path: "api/leads",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route16
+  },
+  "routes/imports": {
+    id: "routes/imports",
+    parentId: "root",
+    path: "imports",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route17
+  },
+  "routes/imports.new": {
+    id: "routes/imports.new",
+    parentId: "root",
+    path: "imports/new",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route18
+  },
+  "routes/settings": {
+    id: "routes/settings",
+    parentId: "root",
+    path: "settings",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route19
+  },
+  "routes/settings.users": {
+    id: "routes/settings.users",
+    parentId: "root",
+    path: "settings/users",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route20
+  }
+};
+const allowedActionOrigins = false;
+export {
+  allowedActionOrigins,
+  serverManifest as assets,
+  assetsBuildDirectory,
+  basename,
+  entry,
+  future,
+  isSpaMode,
+  prerender,
+  publicPath,
+  routeDiscovery,
+  routes,
+  ssr
+};

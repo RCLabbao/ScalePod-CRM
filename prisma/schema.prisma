@@ -1,0 +1,328 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         String   @default("AGENT") // AGENT, ADMIN
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  gmailTokens   GmailToken?
+  verifications LeadVerification[]
+  leadImports   LeadImport[]
+
+  // Accountability relations
+  createdLeads    Lead[]         @relation("LeadCreator")
+  approvedLeads   Lead[]         @relation("LeadApprover")
+  rejectedLeads   Lead[]         @relation("LeadRejector")
+  assignedLeads   Lead[]         @relation("LeadAssignee")
+  stageChanges    StageHistory[]
+  activityLogs    ActivityLog[]
+}
+
+model GmailToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String
+  accessToken  String?
+  expiryDate   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Lead {
+  id               String              @id @default(cuid())
+  companyName      String
+  website          String?
+  contactName      String?
+  email            String              @unique
+  industry         String?
+  estimatedTraffic String?
+  techStack        String?
+  linkedin         String?
+  facebook         String?
+  instagram        String?
+  twitter          String?
+  leadSource       String?
+  status           String              @default("INBOX") // INBOX, REJECTED, ACTIVE
+  stage            String              @default("SOURCED") // SOURCED, QUALIFIED, FIRST_CONTACT, MEETING_BOOKED, PROPOSAL_SENT, CLOSED_WON, CLOSED_LOST
+  temperature      String              @default("COLD") // HOT, WARM, COLD
+  score            Float               @default(0)
+  maxScore         Float               @default(0)
+  notes            String?             @db.Text
+  referralPartnerId String?            // FK to ReferralPartner
+  importId         String?             // FK to LeadImport
+
+  // Accountability fields
+  createdById      String?
+  approvedById     String?
+  rejectedById     String?
+  assignedToId     String?
+
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  emails           EmailThread[]
+  stageHistory     StageHistory[]
+  criteriaResponses LeadVerification[]
+  formSubmissions  CaptureFormSubmission[]
+  chatConversations ChatbotConversation[]
+  webhookLogs      WebhookLog[]
+  referralPartner  ReferralPartner?    @relation(fields: [referralPartnerId], references: [id])
+  import           LeadImport?         @relation(fields: [importId], references: [id])
+
+  // Accountability relations
+  createdBy        User?               @relation("LeadCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy      User?               @relation("LeadApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectedBy      User?               @relation("LeadRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+  assignedTo      User?               @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  // Activity log for this lead
+  activityLogs     ActivityLog[]
+}
+
+model StageHistory {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromStage  String?
+  toStage    String
+  changedById String?
+  changedBy  User?    @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  changedAt  DateTime @default(now())
+}
+
+// ── Activity Log for Accountability ───────────────────────
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String   // LEAD_CREATED, LEAD_APPROVED, LEAD_REJECTED, STAGE_CHANGED, LEAD_ASSIGNED, LEAD_SCORED, LEAD_EDITED
+  description String   @db.Text
+  metadata    Json?    // Additional context (e.g., { fromStage, toStage }, { assignedToName })
+  createdAt   DateTime @default(now())
+
+  @@index([leadId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model EmailThread {
+  id             String   @id @default(cuid())
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  gmailThreadId  String   @unique
+  subject        String
+  snippet        String?  @db.Text
+  lastMessage    DateTime @default(now())
+  status         String   @default("SENT") // SENT, REPLIED, WAITING
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  subject   String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Criteria System (Intake Questionnaire) ──────────────
+
+model VerificationCriteria {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  type        String   @default("YES_NO") // YES_NO, TEXT, SCORE
+  weight      Int      @default(1)
+  required    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  responses LeadVerification[]
+}
+
+model LeadVerification {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  criteriaId  String
+  criteria    VerificationCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  verifiedBy  String?  // null for auto-scored (manual intake / scraper), set when admin re-scores
+  verifier    User?    @relation(fields: [verifiedBy], references: [id])
+  response    String   @db.Text // "yes", "no", free text, or "1"-"5" for score
+  score       Float    @default(0) // points earned for this criterion
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@unique([leadId, criteriaId])
+}
+
+// ── Score Thresholds ─────────────────────────────────────
+
+model ScoreConfig {
+  id        String   @id @default("default")
+  hotThreshold  Float @default(80) // percentage >= this = HOT
+  warmThreshold Float @default(50) // percentage >= this = WARM
+  // below warmThreshold = COLD
+  updatedAt DateTime @updatedAt
+}
+
+// ── Feature 1: Web Forms / Lead Capture Forms ──────────
+
+model CaptureForm {
+  id            String   @id @default(cuid())
+  name          String
+  token         String   @unique @default(cuid())
+  fields        Json     // array of { name, label, type, required }
+  redirectUrl   String?
+  autoScore     Boolean  @default(false)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  submissions CaptureFormSubmission[]
+}
+
+model CaptureFormSubmission {
+  id        String   @id @default(cuid())
+  formId    String
+  form      CaptureForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      Lead?       @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  data      Json        // raw form submission data
+  ip        String?
+  createdAt DateTime @default(now())
+}
+
+// ── Feature 2: Chatbots / Guided Chat ─────────────────
+
+model ChatbotConfig {
+  id              String   @id @default(cuid())
+  name            String
+  token           String   @unique @default(cuid())
+  welcomeMessage  String   @default("Hi! How can we help you?")
+  questions       Json     // array of { field, label, type, required }
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  conversations ChatbotConversation[]
+}
+
+model ChatbotConversation {
+  id              String   @id @default(cuid())
+  chatbotId       String
+  chatbot         ChatbotConfig @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  answers         Json     // array of { field, value }
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+}
+
+// ── Feature 3: Web Visitor Tracking ───────────────────
+
+model TrackingSite {
+  id        String   @id @default(cuid())
+  name      String
+  token     String   @unique @default(cuid())
+  domain    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visits TrackingVisit[]
+}
+
+model TrackingVisit {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      TrackingSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  pageUrl   String
+  pageTitle String?
+  referrer  String?
+  ip        String?
+  userAgent String?
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([siteId, createdAt])
+}
+
+// ── Feature 4: Social Media Lead Capture (Webhooks) ───
+
+model WebhookConfig {
+  id            String   @id @default(cuid())
+  name          String
+  token         String   @unique @default(cuid())
+  platform      String   @default("GENERIC") // FACEBOOK, LINKEDIN, GENERIC
+  fieldMapping  Json     // map incoming fields to Lead fields
+  active        Boolean  @default(true)
+  secret        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  logs WebhookLog[]
+}
+
+model WebhookLog {
+  id          String   @id @default(cuid())
+  webhookId   String
+  webhook     WebhookConfig @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  leadId      String?
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  payload     Json
+  status      String    @default("RECEIVED") // RECEIVED, PROCESSED, FAILED
+  error       String?
+  createdAt   DateTime  @default(now())
+}
+
+// ── Feature 5: Lead Import / Bulk CSV ─────────────────
+
+model LeadImport {
+  id            String   @id @default(cuid())
+  fileName      String
+  totalRows     Int      @default(0)
+  importedRows  Int      @default(0)
+  skippedRows   Int      @default(0)
+  status        String   @default("PENDING") // PENDING, MAPPING, IMPORTING, COMPLETED, FAILED
+  columnMapping Json?
+  errors        Json?
+  csvData       String?  @db.LongText // raw CSV content stored temporarily
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  leads Lead[]
+}
+
+// ── Feature 6: Referral / Partner Tracking ────────────
+
+model ReferralPartner {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  code      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referrals Lead[]
+}
