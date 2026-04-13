@@ -32,8 +32,7 @@ app.use(express.static("public", { maxAge: "1h" }));
 
 // ── React Router Request Handler ──────────────────────────────────────
 // Dynamically import the server build so Prisma can be initialized at runtime
-app.all(
-  "*",
+app.use(
   createRequestHandler({
     build: () => import("./build/server/index.js"),
   })
