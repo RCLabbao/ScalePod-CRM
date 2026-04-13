@@ -1,30 +1,19 @@
 import { PrismaClient } from "@prisma/client";
 
-// Build connection URL from separate env vars to avoid URL parsing issues
-const dbHost = process.env.DB_HOST || "localhost";
-const dbPort = process.env.DB_PORT || "3306";
-const dbUser = process.env.DB_USER;
-const dbPass = process.env.DB_PASSWORD;
-const dbName = process.env.DB_NAME;
+// Build DATABASE_URL from separate env vars if not already set
+if (!process.env.DATABASE_URL && process.env.DB_USER) {
+  const host = process.env.DB_HOST || "localhost";
+  const port = process.env.DB_PORT || "3306";
+  const user = process.env.DB_USER;
+  const pass = process.env.DB_PASSWORD;
+  const name = process.env.DB_NAME;
 
-let datasourceUrl: string | undefined;
-
-if (dbUser && dbPass && dbName) {
-  datasourceUrl = `mysql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
-  console.log(`[DB] Connecting as ${dbUser}@${dbHost}:${dbPort}/${dbName}`);
-} else {
-  console.log("[DB] Using DATABASE_URL from env");
+  process.env.DATABASE_URL = `mysql://${user}:${pass}@${host}:${port}/${name}`;
+  console.log(`[DB] Built from separate vars: ${user}@${host}:${port}/${name}`);
 }
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    ...(datasourceUrl ? { datasourceUrl } : {}),
-    log: [
-      { emit: "stdout", level: "error" },
-    ],
-  });
+export const prisma = globalForPrisma.prisma || new PrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
