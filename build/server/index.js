@@ -1,7 +1,7 @@
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
-import { ServerRouter, UNSAFE_withComponentProps, Outlet, UNSAFE_withErrorBoundaryProps, isRouteErrorResponse, Meta, Links, ScrollRestoration, Scripts, redirect, createCookieSessionStorage, useActionData, Form, Link, useLocation, useLoaderData, useSearchParams, useNavigate, data } from "react-router";
+import { ServerRouter, UNSAFE_withComponentProps, Outlet, UNSAFE_withErrorBoundaryProps, isRouteErrorResponse, Meta, Links, ScrollRestoration, Scripts, redirect, createCookieSessionStorage, useActionData, Form, Link, useLocation, useLoaderData, useSearchParams, useNavigate, useFetcher, data } from "react-router";
 import { Authenticator } from "remix-auth";
 import { FormStrategy } from "remix-auth-form";
 import pkg from "bcryptjs";
@@ -12,7 +12,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, Upload, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, Plus, Search, CheckCircle2, XCircle, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, ArrowUp, ArrowDown, Trash2, FileCheck, Target, GripVertical, FileText, MessageSquare, Send, FileSpreadsheet, Moon } from "lucide-react";
+import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, Upload, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, Plus, Search, CheckCircle2, XCircle, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, ArrowUp, ArrowDown, Trash2, FileCheck, Target, CheckSquare, Square, GripVertical, Building2, Pencil, Save, Globe, BarChart3, Link as Link$1, ArrowRight, FileText, MessageSquare, Send, FileSpreadsheet, Moon } from "lucide-react";
 import { Draggable, DragDropContext, Droppable } from "@hello-pangea/dnd";
 import { z } from "zod";
 async function handleRequest(request, responseStatusCode, responseHeaders, routerContext) {
@@ -115,18 +115,21 @@ const route1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   default: home,
   loader: loader$j
 }, Symbol.toStringTag, { value: "Module" }));
-if (!process.env.DATABASE_URL && process.env.DB_USER) {
-  const host = process.env.DB_HOST || "localhost";
-  const port = process.env.DB_PORT || "3306";
-  const user = process.env.DB_USER;
-  const pass = process.env.DB_PASSWORD;
-  const name = process.env.DB_NAME;
-  process.env.DATABASE_URL = `mysql://${user}:${pass}@${host}:${port}/${name}`;
-  console.log(`[DB] Built from separate vars: ${user}@${host}:${port}/${name}`);
-}
 const globalForPrisma = globalThis;
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+const prisma = typeof window === "undefined" ? globalForPrisma.prisma ?? (globalForPrisma.prisma = (() => {
+  if (!process.env.DATABASE_URL && process.env.DB_USER) {
+    const host = process.env.DB_HOST || "localhost";
+    const port = process.env.DB_PORT || "3306";
+    const user = process.env.DB_USER;
+    const pass = process.env.DB_PASSWORD;
+    const name = process.env.DB_NAME;
+    process.env.DATABASE_URL = `mysql://${user}:${pass}@${host}:${port}/${name}`;
+    console.log(`[DB] Built from separate vars: ${user}@${host}:${port}/${name}`);
+  }
+  const client = new PrismaClient();
+  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+  return client;
+})()) : null;
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
   throw new Error("SESSION_SECRET must be set");
@@ -4242,14 +4245,25 @@ const route11 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: users_new,
   loader: loader$9
 }, Symbol.toStringTag, { value: "Module" }));
-function LeadCard({ lead, index, draggable = true }) {
+function LeadCard({ lead, index, draggable = true, onClick, selected = false, onSelect }) {
   return /* @__PURE__ */ jsx(Draggable, { draggableId: lead.id, index, isDragDisabled: !draggable, children: (provided, snapshot) => /* @__PURE__ */ jsx(
     "div",
     {
       ref: provided.innerRef,
       ...provided.draggableProps,
       className: `${snapshot.isDragging ? "opacity-90 shadow-lg" : ""}`,
-      children: /* @__PURE__ */ jsx(Card, { className: "cursor-default p-3 transition-shadow hover:shadow-md", children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2", children: [
+      children: /* @__PURE__ */ jsx(Card, { className: `cursor-default p-3 transition-all hover:shadow-md ${selected ? "ring-2 ring-primary bg-primary/5" : ""}`, children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2", children: [
+        draggable && /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => onSelect == null ? void 0 : onSelect(lead.id),
+            onMouseDown: (e) => e.stopPropagation(),
+            className: "mt-0.5 text-muted-foreground hover:text-primary shrink-0",
+            title: selected ? "Deselect" : "Select for bulk move",
+            children: selected ? /* @__PURE__ */ jsx(CheckSquare, { className: "h-4 w-4 text-primary" }) : /* @__PURE__ */ jsx(Square, { className: "h-4 w-4" })
+          }
+        ),
         draggable && /* @__PURE__ */ jsx(
           "div",
           {
@@ -4260,22 +4274,424 @@ function LeadCard({ lead, index, draggable = true }) {
         ),
         /* @__PURE__ */ jsxs("div", { className: "flex-1 min-w-0", children: [
           /* @__PURE__ */ jsx("div", { className: "flex items-center justify-between gap-2", children: /* @__PURE__ */ jsx(
-            Link,
+            "button",
             {
-              to: `/inbox/${lead.id}`,
-              className: "truncate text-sm font-medium hover:underline",
+              type: "button",
+              onClick: () => onClick == null ? void 0 : onClick(lead.id),
+              onMouseDown: (e) => e.stopPropagation(),
+              className: "truncate text-sm font-medium hover:underline text-left",
               children: lead.companyName
             }
           ) }),
           lead.contactName && /* @__PURE__ */ jsx("p", { className: "mt-0.5 truncate text-xs text-muted-foreground", children: lead.contactName }),
           /* @__PURE__ */ jsxs("div", { className: "mt-2 flex items-center gap-2", children: [
             lead.industry && /* @__PURE__ */ jsx(Badge, { variant: "secondary", className: "text-[10px] px-1.5 py-0", children: lead.industry }),
-            /* @__PURE__ */ jsx("div", { className: "ml-auto flex gap-1", children: /* @__PURE__ */ jsx(Link, { to: `/leads/${lead.id}/emails`, children: /* @__PURE__ */ jsx(Button, { variant: "ghost", size: "icon", className: "h-6 w-6", children: /* @__PURE__ */ jsx(Mail, { className: "h-3 w-3" }) }) }) })
+            /* @__PURE__ */ jsx("div", { className: "ml-auto flex gap-1", children: /* @__PURE__ */ jsx(Link, { to: `/leads/${lead.id}/emails`, onClick: (e) => e.stopPropagation(), onMouseDown: (e) => e.stopPropagation(), children: /* @__PURE__ */ jsx(Button, { variant: "ghost", size: "icon", className: "h-6 w-6", children: /* @__PURE__ */ jsx(Mail, { className: "h-3 w-3" }) }) }) })
           ] })
         ] })
       ] }) })
     }
   ) });
+}
+function Dialog({ open, onOpenChange, children, className }) {
+  const childArray = React.Children.toArray(children);
+  const trigger = childArray.find(
+    (c) => React.isValidElement(c) && c.type === DialogTrigger
+  );
+  const content = childArray.filter(
+    (c) => !(React.isValidElement(c) && c.type === DialogTrigger)
+  );
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    trigger,
+    open && /* @__PURE__ */ jsxs("div", { className: "fixed inset-0 z-50", children: [
+      /* @__PURE__ */ jsx(
+        "div",
+        {
+          className: "fixed inset-0 bg-black/90",
+          onClick: () => onOpenChange == null ? void 0 : onOpenChange(false)
+        }
+      ),
+      /* @__PURE__ */ jsx("div", { className: cn("fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2", className), children: content })
+    ] })
+  ] });
+}
+const DialogContent = React.forwardRef(
+  ({ className, children, ...props }, ref) => /* @__PURE__ */ jsx(
+    "div",
+    {
+      ref,
+      className: cn(
+        "grid w-full gap-4 rounded-lg border bg-background p-6 shadow-lg animate-in",
+        className
+      ),
+      ...props,
+      children
+    }
+  )
+);
+DialogContent.displayName = "DialogContent";
+function DialogHeader({ className, ...props }) {
+  return /* @__PURE__ */ jsx("div", { className: cn("flex flex-col space-y-1.5 text-center sm:text-left", className), ...props });
+}
+function DialogTitle({ className, ...props }) {
+  return /* @__PURE__ */ jsx(
+    "h2",
+    {
+      className: cn("text-lg font-semibold leading-none tracking-tight", className),
+      ...props
+    }
+  );
+}
+function DialogTrigger({ children, asChild, ...props }) {
+  return /* @__PURE__ */ jsx("button", { ...props, children });
+}
+function formatDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+const TEMP_COLORS = {
+  HOT: "bg-red-500/20 text-red-400 border-red-500/30",
+  WARM: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  COLD: "bg-blue-500/20 text-blue-400 border-blue-500/30"
+};
+const STAGE_COLORS = {
+  SOURCED: "bg-slate-500/20 text-slate-300",
+  QUALIFIED: "bg-blue-500/20 text-blue-300",
+  FIRST_CONTACT: "bg-violet-500/20 text-violet-300",
+  MEETING_BOOKED: "bg-amber-500/20 text-amber-300",
+  PROPOSAL_SENT: "bg-orange-500/20 text-orange-300",
+  CLOSED_WON: "bg-emerald-500/20 text-emerald-300",
+  CLOSED_LOST: "bg-red-500/20 text-red-300"
+};
+function LeadDetailModal({
+  lead,
+  open,
+  onOpenChange,
+  onSave,
+  saving
+}) {
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    setEditing(false);
+  }, [lead == null ? void 0 : lead.id]);
+  if (!lead) return null;
+  const mergedTimeline = [
+    ...lead.stageHistory.map((s) => ({
+      type: "stage",
+      id: s.id,
+      date: new Date(s.changedAt),
+      entry: s
+    })),
+    ...lead.activityLogs.map((a) => ({
+      type: "activity",
+      id: a.id,
+      date: new Date(a.createdAt),
+      entry: a
+    }))
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
+  const scorePercent = lead.maxScore > 0 ? Math.round(lead.score / lead.maxScore * 100) : 0;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    fd.set("intent", "editLead");
+    fd.set("leadId", lead.id);
+    onSave == null ? void 0 : onSave(fd);
+    setEditing(false);
+  };
+  return /* @__PURE__ */ jsx(Dialog, { open, onOpenChange, className: "max-w-2xl", children: /* @__PURE__ */ jsxs(DialogContent, { className: "max-h-[85vh] overflow-y-auto", children: [
+    /* @__PURE__ */ jsx(DialogHeader, { children: /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxs(DialogTitle, { className: "flex items-center gap-3", children: [
+        /* @__PURE__ */ jsx(Building2, { className: "h-5 w-5 text-muted-foreground" }),
+        editing ? "Edit Lead" : lead.companyName,
+        !editing && /* @__PURE__ */ jsx(
+          Badge,
+          {
+            className: `${TEMP_COLORS[lead.temperature] || ""} text-[10px]`,
+            children: lead.temperature
+          }
+        )
+      ] }),
+      onSave && /* @__PURE__ */ jsx(
+        Button,
+        {
+          variant: editing ? "default" : "outline",
+          size: "sm",
+          onClick: () => setEditing(!editing),
+          className: "h-7 gap-1.5",
+          children: editing ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(X, { className: "h-3.5 w-3.5" }),
+            " Cancel"
+          ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(Pencil, { className: "h-3.5 w-3.5" }),
+            " Edit"
+          ] })
+        }
+      )
+    ] }) }),
+    editing ? /* @__PURE__ */ jsxs("form", { onSubmit: handleSubmit, className: "space-y-4", children: [
+      /* @__PURE__ */ jsx("input", { type: "hidden", name: "leadId", value: lead.id }),
+      /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-2 gap-3", children: [
+        /* @__PURE__ */ jsx(Field, { label: "Company Name", name: "companyName", defaultValue: lead.companyName, required: true }),
+        /* @__PURE__ */ jsx(Field, { label: "Contact Name", name: "contactName", defaultValue: lead.contactName || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Email", name: "email", type: "email", defaultValue: lead.email, required: true }),
+        /* @__PURE__ */ jsx(Field, { label: "Website", name: "website", defaultValue: lead.website || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Industry", name: "industry", defaultValue: lead.industry || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Est. Traffic", name: "estimatedTraffic", defaultValue: lead.estimatedTraffic || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Tech Stack", name: "techStack", defaultValue: lead.techStack || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Lead Source", name: "leadSource", defaultValue: lead.leadSource || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "LinkedIn", name: "linkedin", defaultValue: lead.linkedin || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Facebook", name: "facebook", defaultValue: lead.facebook || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Instagram", name: "instagram", defaultValue: lead.instagram || "" }),
+        /* @__PURE__ */ jsx(Field, { label: "Twitter / X", name: "twitter", defaultValue: lead.twitter || "" })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "space-y-1.5", children: [
+        /* @__PURE__ */ jsx(Label, { className: "text-xs text-muted-foreground", children: "Notes" }),
+        /* @__PURE__ */ jsx(Textarea, { name: "notes", rows: 3, defaultValue: lead.notes || "" })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "flex justify-end gap-2 pt-1", children: [
+        /* @__PURE__ */ jsx(
+          Button,
+          {
+            type: "button",
+            variant: "outline",
+            size: "sm",
+            onClick: () => setEditing(false),
+            children: "Cancel"
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          Button,
+          {
+            type: "submit",
+            size: "sm",
+            disabled: saving,
+            className: "gap-1.5",
+            children: [
+              /* @__PURE__ */ jsx(Save, { className: "h-3.5 w-3.5" }),
+              saving ? "Saving..." : "Save Changes"
+            ]
+          }
+        )
+      ] })
+    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-2 gap-3 text-sm", children: [
+        lead.contactName && /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(User, { className: "h-3.5 w-3.5" }),
+            label: "Contact",
+            value: lead.contactName
+          }
+        ),
+        /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(Mail, { className: "h-3.5 w-3.5" }),
+            label: "Email",
+            value: lead.email
+          }
+        ),
+        lead.website && /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(Globe, { className: "h-3.5 w-3.5" }),
+            label: "Website",
+            value: lead.website
+          }
+        ),
+        lead.industry && /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(Building2, { className: "h-3.5 w-3.5" }),
+            label: "Industry",
+            value: lead.industry
+          }
+        ),
+        lead.estimatedTraffic && /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(BarChart3, { className: "h-3.5 w-3.5" }),
+            label: "Est. Traffic",
+            value: lead.estimatedTraffic
+          }
+        ),
+        lead.leadSource && /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(Link$1, { className: "h-3.5 w-3.5" }),
+            label: "Source",
+            value: lead.leadSource
+          }
+        ),
+        lead.techStack && /* @__PURE__ */ jsx(
+          DetailRow,
+          {
+            icon: /* @__PURE__ */ jsx(BarChart3, { className: "h-3.5 w-3.5" }),
+            label: "Tech Stack",
+            value: lead.techStack
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-4 rounded-md border p-3", children: [
+        /* @__PURE__ */ jsxs("div", { className: "flex-1", children: [
+          /* @__PURE__ */ jsx("p", { className: "text-xs text-muted-foreground", children: "Current Stage" }),
+          /* @__PURE__ */ jsx(
+            Badge,
+            {
+              className: `mt-1 ${STAGE_COLORS[lead.stage] || "bg-muted text-muted-foreground"}`,
+              children: formatStage(lead.stage)
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "flex-1", children: [
+          /* @__PURE__ */ jsxs("p", { className: "text-xs text-muted-foreground", children: [
+            "Score (",
+            lead.score,
+            "/",
+            lead.maxScore,
+            ")"
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "mt-1 h-2 w-full overflow-hidden rounded-full bg-muted", children: /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "h-full rounded-full bg-primary transition-all",
+              style: { width: `${scorePercent}%` }
+            }
+          ) })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "rounded-md border p-3 space-y-2", children: [
+        /* @__PURE__ */ jsx("h4", { className: "text-xs font-semibold text-muted-foreground uppercase tracking-wider", children: "Accountability" }),
+        /* @__PURE__ */ jsxs("div", { className: "grid grid-cols-2 gap-2 text-xs", children: [
+          lead.createdBy && /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsx("span", { className: "text-muted-foreground", children: "Created by: " }),
+            /* @__PURE__ */ jsx("span", { className: "font-medium", children: lead.createdBy.name || lead.createdBy.email })
+          ] }),
+          lead.approvedBy && /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsx("span", { className: "text-muted-foreground", children: "Approved by: " }),
+            /* @__PURE__ */ jsx("span", { className: "font-medium text-emerald-400", children: lead.approvedBy.name || lead.approvedBy.email })
+          ] }),
+          lead.assignedTo && /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsx("span", { className: "text-muted-foreground", children: "Assigned to: " }),
+            /* @__PURE__ */ jsx("span", { className: "font-medium", children: lead.assignedTo.name || lead.assignedTo.email })
+          ] }),
+          lead.rejectedBy && /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsx("span", { className: "text-muted-foreground", children: "Rejected by: " }),
+            /* @__PURE__ */ jsx("span", { className: "font-medium text-red-400", children: lead.rejectedBy.name || lead.rejectedBy.email })
+          ] })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "space-y-1", children: [
+        /* @__PURE__ */ jsx("h4", { className: "text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2", children: "Activity Timeline" }),
+        /* @__PURE__ */ jsxs("div", { className: "relative space-y-0", children: [
+          mergedTimeline.map((item) => {
+            var _a, _b;
+            if (item.type === "stage") {
+              const s = item.entry;
+              return /* @__PURE__ */ jsxs(
+                TimelineItem,
+                {
+                  icon: /* @__PURE__ */ jsx(ArrowRight, { className: "h-3 w-3" }),
+                  bgColor: "bg-blue-100",
+                  textColor: "text-blue-700",
+                  date: s.changedAt,
+                  children: [
+                    /* @__PURE__ */ jsx("span", { className: "font-medium", children: ((_a = s.changedBy) == null ? void 0 : _a.name) || ((_b = s.changedBy) == null ? void 0 : _b.email) || "Unknown" }),
+                    " ",
+                    "moved from",
+                    " ",
+                    /* @__PURE__ */ jsx("span", { className: "font-medium", children: s.fromStage ? formatStage(s.fromStage) : "—" }),
+                    " ",
+                    "to",
+                    " ",
+                    /* @__PURE__ */ jsx("span", { className: "font-medium", children: formatStage(s.toStage) })
+                  ]
+                },
+                `stage-${s.id}`
+              );
+            }
+            const a = item.entry;
+            const style = getActivityStyle(a.action);
+            return /* @__PURE__ */ jsx(
+              TimelineItem,
+              {
+                icon: /* @__PURE__ */ jsx("span", { className: "text-xs", children: style.icon }),
+                bgColor: style.bgColor,
+                textColor: style.textColor,
+                date: a.createdAt,
+                children: a.description
+              },
+              `activity-${a.id}`
+            );
+          }),
+          mergedTimeline.length === 0 && /* @__PURE__ */ jsx("p", { className: "text-xs text-muted-foreground py-2", children: "No activity recorded yet." })
+        ] })
+      ] })
+    ] })
+  ] }) });
+}
+function Field({
+  label,
+  name,
+  type = "text",
+  defaultValue,
+  required
+}) {
+  return /* @__PURE__ */ jsxs("div", { className: "space-y-1.5", children: [
+    /* @__PURE__ */ jsx(Label, { className: "text-xs text-muted-foreground", children: label }),
+    /* @__PURE__ */ jsx(
+      Input,
+      {
+        name,
+        type,
+        defaultValue,
+        required,
+        className: "h-8 text-sm"
+      }
+    )
+  ] });
+}
+function DetailRow({
+  icon,
+  label,
+  value
+}) {
+  return /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2", children: [
+    /* @__PURE__ */ jsx("span", { className: "mt-0.5 text-muted-foreground", children: icon }),
+    /* @__PURE__ */ jsxs("div", { className: "min-w-0", children: [
+      /* @__PURE__ */ jsx("p", { className: "text-[10px] text-muted-foreground uppercase tracking-wider", children: label }),
+      /* @__PURE__ */ jsx("p", { className: "truncate text-foreground", children: value })
+    ] })
+  ] });
+}
+function TimelineItem({
+  icon,
+  bgColor,
+  textColor,
+  date,
+  children
+}) {
+  return /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2.5 py-1.5 text-xs", children: [
+    /* @__PURE__ */ jsx(
+      "div",
+      {
+        className: `mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${bgColor} ${textColor}`,
+        children: icon
+      }
+    ),
+    /* @__PURE__ */ jsxs("div", { className: "flex-1 min-w-0", children: [
+      /* @__PURE__ */ jsx("div", { className: "text-foreground leading-relaxed", children }),
+      /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-1 text-muted-foreground", children: [
+        /* @__PURE__ */ jsx(Clock, { className: "h-2.5 w-2.5" }),
+        formatDate(date)
+      ] })
+    ] })
+  ] });
 }
 const STAGES = [{
   id: "SOURCED",
@@ -4371,6 +4787,176 @@ async function action$5({
   }
   const formData = await request.formData();
   const intent = formData.get("intent");
+  if (intent === "getLeadDetail") {
+    const leadId = formData.get("leadId");
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        approvedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        rejectedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        stageHistory: {
+          include: {
+            changedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            changedAt: "desc"
+          }
+        },
+        activityLogs: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: "desc"
+          }
+        }
+      }
+    });
+    return {
+      lead
+    };
+  }
+  if (intent === "editLead") {
+    const leadId = formData.get("leadId");
+    await prisma.lead.update({
+      where: {
+        id: leadId
+      },
+      data: {
+        companyName: formData.get("companyName"),
+        contactName: formData.get("contactName") || null,
+        email: formData.get("email"),
+        website: formData.get("website") || null,
+        industry: formData.get("industry") || null,
+        estimatedTraffic: formData.get("estimatedTraffic") || null,
+        techStack: formData.get("techStack") || null,
+        leadSource: formData.get("leadSource") || null,
+        linkedin: formData.get("linkedin") || null,
+        facebook: formData.get("facebook") || null,
+        instagram: formData.get("instagram") || null,
+        twitter: formData.get("twitter") || null,
+        notes: formData.get("notes") || null
+      }
+    });
+    await logActivity({
+      leadId,
+      userId,
+      action: "LEAD_EDITED",
+      description: `${(currentUser == null ? void 0 : currentUser.name) || "Unknown"} edited lead details`
+    });
+    const updated = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        approvedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        rejectedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        stageHistory: {
+          include: {
+            changedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            changedAt: "desc"
+          }
+        },
+        activityLogs: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: "desc"
+          }
+        }
+      }
+    });
+    return {
+      lead: updated,
+      edited: true
+    };
+  }
+  if ((currentUser == null ? void 0 : currentUser.role) !== "ADMIN") {
+    throw new Response("Forbidden", {
+      status: 403
+    });
+  }
   if (intent === "moveStage") {
     const leadId = formData.get("leadId");
     const newStage = formData.get("newStage");
@@ -4416,6 +5002,50 @@ async function action$5({
       success: true
     };
   }
+  if (intent === "bulkMoveStage") {
+    const leadIdsJson = formData.get("leadIds");
+    const newStage = formData.get("newStage");
+    const leadIds = JSON.parse(leadIdsJson);
+    const leads = await prisma.lead.findMany({
+      where: {
+        id: {
+          in: leadIds
+        }
+      }
+    });
+    const operations = [];
+    for (const lead of leads) {
+      if (lead.stage === newStage) continue;
+      operations.push(prisma.lead.update({
+        where: {
+          id: lead.id
+        },
+        data: {
+          stage: newStage
+        }
+      }), prisma.stageHistory.create({
+        data: {
+          leadId: lead.id,
+          fromStage: lead.stage,
+          toStage: newStage,
+          changedById: userId
+        }
+      }), logActivity({
+        leadId: lead.id,
+        userId,
+        action: "STAGE_CHANGED",
+        description: `${currentUser.name || "Unknown"} moved from ${formatStage(lead.stage)} to ${formatStage(newStage)}`,
+        metadata: {
+          fromStage: lead.stage,
+          toStage: newStage
+        }
+      }));
+    }
+    await prisma.$transaction(operations.filter(Boolean));
+    return {
+      success: true
+    };
+  }
   return {};
 }
 const pipeline = UNSAFE_withComponentProps(function Pipeline() {
@@ -4424,45 +5054,127 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
     stages
   } = useLoaderData();
   const [localStages, setLocalStages] = useState(stages);
+  const [selectedIds, setSelectedIds] = useState(/* @__PURE__ */ new Set());
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const detailFetcher = useFetcher();
   useEffect(() => {
     setLocalStages(stages);
   }, [stages]);
+  useEffect(() => {
+    var _a;
+    if ((_a = detailFetcher.data) == null ? void 0 : _a.lead) {
+      setSelectedLead(detailFetcher.data.lead);
+      if (!detailFetcher.data.edited) {
+        setModalOpen(true);
+      }
+      if (detailFetcher.data.edited) {
+        const updated = detailFetcher.data.lead;
+        setLocalStages((prev) => prev.map((stage) => ({
+          ...stage,
+          leads: stage.leads.map((l) => l.id === updated.id ? {
+            ...l,
+            ...updated
+          } : l)
+        })));
+      }
+    }
+  }, [detailFetcher.data]);
+  const handleLeadClick = useCallback((leadId) => {
+    detailFetcher.submit({
+      intent: "getLeadDetail",
+      leadId
+    }, {
+      method: "POST",
+      action: "/pipeline"
+    });
+  }, [detailFetcher]);
+  const handleSaveLead = useCallback((formData) => {
+    detailFetcher.submit(formData, {
+      method: "POST",
+      action: "/pipeline"
+    });
+  }, [detailFetcher]);
+  const handleSelect = useCallback((leadId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => {
+    setSelectedIds(/* @__PURE__ */ new Set());
+  }, []);
   const onDragEnd = useCallback(async (result) => {
     if ((user == null ? void 0 : user.role) !== "ADMIN") return;
     if (!result.destination) return;
-    const leadId = result.draggableId;
+    const draggedId = result.draggableId;
     const newStage = result.destination.droppableId;
+    const idsToMove = selectedIds.has(draggedId) ? Array.from(selectedIds) : [draggedId];
     setLocalStages((prev) => {
-      const lead = prev.flatMap((s) => s.leads).find((l) => l.id === leadId);
-      if (!lead) return prev;
+      const movingLeads = prev.flatMap((s) => s.leads).filter((l) => idsToMove.includes(l.id));
       return prev.map((stage) => ({
         ...stage,
-        leads: stage.leads.filter((l) => l.id !== leadId).concat(stage.id === newStage ? [{
-          ...lead,
+        leads: [...stage.leads.filter((l) => !idsToMove.includes(l.id)), ...stage.id === newStage ? movingLeads.map((l) => ({
+          ...l,
           stage: newStage
-        }] : [])
+        })) : []]
       }));
     });
-    const formData = new FormData();
-    formData.set("intent", "moveStage");
-    formData.set("leadId", leadId);
-    formData.set("newStage", newStage);
-    await fetch("/pipeline", {
-      method: "POST",
-      body: formData
-    });
-  }, [user == null ? void 0 : user.role]);
+    setSelectedIds(/* @__PURE__ */ new Set());
+    if (idsToMove.length === 1) {
+      const formData = new FormData();
+      formData.set("intent", "moveStage");
+      formData.set("leadId", idsToMove[0]);
+      formData.set("newStage", newStage);
+      await fetch("/pipeline", {
+        method: "POST",
+        body: formData
+      });
+    } else {
+      const formData = new FormData();
+      formData.set("intent", "bulkMoveStage");
+      formData.set("leadIds", JSON.stringify(idsToMove));
+      formData.set("newStage", newStage);
+      await fetch("/pipeline", {
+        method: "POST",
+        body: formData
+      });
+    }
+  }, [user == null ? void 0 : user.role, selectedIds]);
   return /* @__PURE__ */ jsx(AppShell, {
     user,
     children: /* @__PURE__ */ jsxs("div", {
       className: "space-y-6",
       children: [/* @__PURE__ */ jsxs("div", {
-        children: [/* @__PURE__ */ jsx("h1", {
-          className: "text-3xl font-bold tracking-tight",
-          children: "Pipeline"
-        }), /* @__PURE__ */ jsx("p", {
-          className: "text-muted-foreground",
-          children: "Drag and drop leads between stages to track progress"
+        className: "flex items-center justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-3xl font-bold tracking-tight",
+            children: "Pipeline"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: "Select leads with checkboxes, then drag to move. Click a company name for details."
+          })]
+        }), selectedIds.size > 0 && /* @__PURE__ */ jsxs("div", {
+          className: "flex items-center gap-2",
+          children: [/* @__PURE__ */ jsxs(Badge, {
+            variant: "secondary",
+            className: "text-sm px-3 py-1",
+            children: [selectedIds.size, " selected"]
+          }), /* @__PURE__ */ jsxs(Button, {
+            variant: "ghost",
+            size: "sm",
+            onClick: clearSelection,
+            className: "h-7 px-2",
+            children: [/* @__PURE__ */ jsx(X, {
+              className: "h-3.5 w-3.5 mr-1"
+            }), "Clear"]
+          })]
         })]
       }), /* @__PURE__ */ jsx(DragDropContext, {
         onDragEnd,
@@ -4497,12 +5209,21 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
                 children: [stage.leads.map((lead, index) => /* @__PURE__ */ jsx(LeadCard, {
                   lead,
                   index,
-                  draggable: (user == null ? void 0 : user.role) === "ADMIN"
+                  draggable: (user == null ? void 0 : user.role) === "ADMIN",
+                  onClick: handleLeadClick,
+                  selected: selectedIds.has(lead.id),
+                  onSelect: handleSelect
                 }, lead.id)), provided.placeholder]
               })
             })]
           }, stage.id))
         })
+      }), /* @__PURE__ */ jsx(LeadDetailModal, {
+        lead: selectedLead,
+        open: modalOpen,
+        onOpenChange: setModalOpen,
+        onSave: (user == null ? void 0 : user.role) === "ADMIN" ? handleSaveLead : void 0,
+        saving: detailFetcher.state === "submitting"
       })]
     })
   });
@@ -6199,58 +6920,6 @@ const route19 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: settings,
   loader: loader$1
 }, Symbol.toStringTag, { value: "Module" }));
-function Dialog({ open, onOpenChange, children }) {
-  const childArray = React.Children.toArray(children);
-  const trigger = childArray.find(
-    (c) => React.isValidElement(c) && c.type === DialogTrigger
-  );
-  const content = childArray.filter(
-    (c) => !(React.isValidElement(c) && c.type === DialogTrigger)
-  );
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
-    trigger,
-    open && /* @__PURE__ */ jsxs("div", { className: "fixed inset-0 z-50", children: [
-      /* @__PURE__ */ jsx(
-        "div",
-        {
-          className: "fixed inset-0 bg-black/80",
-          onClick: () => onOpenChange == null ? void 0 : onOpenChange(false)
-        }
-      ),
-      /* @__PURE__ */ jsx("div", { className: "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2", children: content })
-    ] })
-  ] });
-}
-const DialogContent = React.forwardRef(
-  ({ className, children, ...props }, ref) => /* @__PURE__ */ jsx(
-    "div",
-    {
-      ref,
-      className: cn(
-        "grid w-full gap-4 rounded-lg border bg-background p-6 shadow-lg animate-in",
-        className
-      ),
-      ...props,
-      children
-    }
-  )
-);
-DialogContent.displayName = "DialogContent";
-function DialogHeader({ className, ...props }) {
-  return /* @__PURE__ */ jsx("div", { className: cn("flex flex-col space-y-1.5 text-center sm:text-left", className), ...props });
-}
-function DialogTitle({ className, ...props }) {
-  return /* @__PURE__ */ jsx(
-    "h2",
-    {
-      className: cn("text-lg font-semibold leading-none tracking-tight", className),
-      ...props
-    }
-  );
-}
-function DialogTrigger({ children, asChild, ...props }) {
-  return /* @__PURE__ */ jsx("button", { ...props, children });
-}
 async function loader({
   request
 }) {
@@ -6570,7 +7239,7 @@ const route20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: settings_users,
   loader
 }, Symbol.toStringTag, { value: "Module" }));
-const serverManifest = { "entry": { "module": "/assets/entry.client-CayAyXiM.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/index-CdVSHfAt.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-CczfAQvG.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/index-CdVSHfAt.js"], "css": ["/assets/root-DpQ6o81C.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bihsk4a_.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-C6Zmz6jf.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/card-BYsPMh0P.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-FLbe1B_s.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/card-BYsPMh0P.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-YFAtwjgj.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/card-BYsPMh0P.js", "/assets/button-CVJ0SyBJ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-SYOiJcvm.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/plus-B42_Zges.js", "/assets/circle-check-P6GF7ho6.js", "/assets/circle-x-T-Igsiyy.js", "/assets/snowflake-BxrU2OUm.js", "/assets/sun-Dfk2vtMj.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-BodizWdR.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js", "/assets/textarea-C2xfnNCo.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-x-T-Igsiyy.js", "/assets/user-BjhOiaY9.js", "/assets/twitter-Clh6UsOd.js", "/assets/clock-B7K2-0ZU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-DWxmgGpg.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/textarea-C2xfnNCo.js", "/assets/card-BYsPMh0P.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js", "/assets/twitter-Clh6UsOd.js", "/assets/snowflake-BxrU2OUm.js", "/assets/sun-Dfk2vtMj.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-6vAvU_je.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/textarea-C2xfnNCo.js", "/assets/select-DhiNWvvh.js", "/assets/badge-DWl9s17V.js", "/assets/card-BYsPMh0P.js", "/assets/plus-B42_Zges.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-CUlVcXZn.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/textarea-C2xfnNCo.js", "/assets/card-BYsPMh0P.js", "/assets/snowflake-BxrU2OUm.js", "/assets/sun-Dfk2vtMj.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-Bpw20EOu.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/badge-DWl9s17V.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/user-BjhOiaY9.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-DgS9NViU.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-CcXaHWM6.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/badge-DWl9s17V.js", "/assets/index-CdVSHfAt.js", "/assets/card-BYsPMh0P.js", "/assets/button-CVJ0SyBJ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-BrJFu9pV.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/card-BYsPMh0P.js", "/assets/button-CVJ0SyBJ.js", "/assets/clock-B7K2-0ZU.js", "/assets/send-MuU5421_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-BwIxTOKa.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/textarea-C2xfnNCo.js", "/assets/card-BYsPMh0P.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/plus-B42_Zges.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-DzZkxmsE.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js", "/assets/select-DhiNWvvh.js", "/assets/label-BoDIw1Eu.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/send-MuU5421_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-BxXhOTSd.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-BXdkmEc4.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/circle-check-P6GF7ho6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-DAvHdPgr.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/card-BYsPMh0P.js", "/assets/badge-DWl9s17V.js", "/assets/sun-Dfk2vtMj.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-d9z9VhWX.js", "imports": ["/assets/chunk-QFMPRPBF-BQUsGxfi.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-D-XuCOuM.js", "/assets/button-CVJ0SyBJ.js", "/assets/input-Bzq9F1sS.js", "/assets/label-BoDIw1Eu.js", "/assets/badge-DWl9s17V.js", "/assets/card-BYsPMh0P.js", "/assets/select-DhiNWvvh.js", "/assets/arrow-left-Dn7s1dU3.js", "/assets/plus-B42_Zges.js", "/assets/trash-2-BJpT6SYt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-70585a44.js", "version": "70585a44", "sri": void 0 };
+const serverManifest = { "entry": { "module": "/assets/entry.client-Cf8DQAXV.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/index-D5EkznqJ.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-DOF9vhIE.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/index-D5EkznqJ.js"], "css": ["/assets/root-CinWZphP.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bo20sNer.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-HM0a59ln.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/card-C3L9rzPh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-BalBBLHP.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/card-C3L9rzPh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-C5SNzPZn.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/card-C3L9rzPh.js", "/assets/button-ClmldBSp.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-D2V7s-tc.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/plus-B4IOKfYt.js", "/assets/circle-check-VaBaa3eC.js", "/assets/circle-x-KFTUZ4_d.js", "/assets/snowflake-Car_A4zj.js", "/assets/sun-CILWh-Ae.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-Cyiry9Jy.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js", "/assets/textarea-uFYPWP4f.js", "/assets/activity-log-BBOtPYtB.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-x-KFTUZ4_d.js", "/assets/user-BESmp7-9.js", "/assets/twitter-Db5haj_P.js", "/assets/activity-BMei8L_c.js", "/assets/clock-BvW-YK-K.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-DSKV7Vw9.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/card-C3L9rzPh.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js", "/assets/twitter-Db5haj_P.js", "/assets/snowflake-Car_A4zj.js", "/assets/sun-CILWh-Ae.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-B-N21Hls.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/select-YHO60Sps.js", "/assets/badge-DM9JvGuT.js", "/assets/card-C3L9rzPh.js", "/assets/plus-B4IOKfYt.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-BwabB2MA.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/textarea-uFYPWP4f.js", "/assets/card-C3L9rzPh.js", "/assets/snowflake-Car_A4zj.js", "/assets/sun-CILWh-Ae.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-ypYSgXri.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/badge-DM9JvGuT.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/user-BESmp7-9.js", "/assets/activity-BMei8L_c.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-CxEc2aXp.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-BvHP_V3h.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/badge-DM9JvGuT.js", "/assets/index-D5EkznqJ.js", "/assets/card-C3L9rzPh.js", "/assets/dialog-BzoRca-0.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/activity-log-BBOtPYtB.js", "/assets/user-BESmp7-9.js", "/assets/clock-BvW-YK-K.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-X43o8bGd.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/card-C3L9rzPh.js", "/assets/button-ClmldBSp.js", "/assets/clock-BvW-YK-K.js", "/assets/send-CEDEi0A3.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-DDRsUw1B.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/card-C3L9rzPh.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/plus-B4IOKfYt.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-0UMF1RFX.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js", "/assets/select-YHO60Sps.js", "/assets/label-CVtPrSA-.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/send-CEDEi0A3.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-DZ764gqf.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-08tNqWNl.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-Bo0q9yYm.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js", "/assets/sun-CILWh-Ae.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-BEfYT98d.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/badge-DM9JvGuT.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/dialog-BzoRca-0.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/plus-B4IOKfYt.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-49affad1.js", "version": "49affad1", "sri": void 0 };
 const assetsBuildDirectory = "build\\client";
 const basename = "/";
 const future = { "unstable_optimizeDeps": false, "unstable_passThroughRequests": false, "unstable_subResourceIntegrity": false, "unstable_trailingSlashAwareDataRequests": false, "unstable_previewServerPrerendering": false, "v8_middleware": false, "v8_splitRouteModules": false, "v8_viteEnvironmentApi": false };

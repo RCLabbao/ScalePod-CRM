@@ -6,9 +6,10 @@ interface DialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
+  className?: string;
 }
 
-function Dialog({ open, onOpenChange, children }: DialogProps) {
+function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   // Separate trigger children from content children
   const childArray = React.Children.toArray(children);
   const trigger = childArray.find(
@@ -24,10 +25,10 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
       {open && (
         <div className="fixed inset-0 z-50">
           <div
-            className="fixed inset-0 bg-black/80"
+            className="fixed inset-0 bg-black/90"
             onClick={() => onOpenChange?.(false)}
           />
-          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2">
+          <div className={cn("fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2", className)}>
             {content}
           </div>
         </div>

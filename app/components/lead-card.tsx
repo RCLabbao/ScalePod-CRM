@@ -2,7 +2,7 @@ import { Draggable } from "@hello-pangea/dnd";
 import { Link } from "react-router";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { GripVertical, Mail, ExternalLink } from "lucide-react";
+import { GripVertical, Mail, CheckSquare, Square } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface Lead {
@@ -15,7 +15,16 @@ interface Lead {
   stage: string;
 }
 
-export function LeadCard({ lead, index, draggable = true }: { lead: Lead; index: number; draggable?: boolean }) {
+interface LeadCardProps {
+  lead: Lead;
+  index: number;
+  draggable?: boolean;
+  onClick?: (leadId: string) => void;
+  selected?: boolean;
+  onSelect?: (leadId: string) => void;
+}
+
+export function LeadCard({ lead, index, draggable = true, onClick, selected = false, onSelect }: LeadCardProps) {
   return (
     <Draggable draggableId={lead.id} index={index} isDragDisabled={!draggable}>
       {(provided, snapshot) => (
@@ -24,8 +33,24 @@ export function LeadCard({ lead, index, draggable = true }: { lead: Lead; index:
           {...provided.draggableProps}
           className={`${snapshot.isDragging ? "opacity-90 shadow-lg" : ""}`}
         >
-          <Card className="cursor-default p-3 transition-shadow hover:shadow-md">
+          <Card className={`cursor-default p-3 transition-all hover:shadow-md ${selected ? "ring-2 ring-primary bg-primary/5" : ""}`}>
             <div className="flex items-start gap-2">
+              {/* Checkbox for multi-select */}
+              {draggable && (
+                <button
+                  type="button"
+                  onClick={() => onSelect?.(lead.id)}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="mt-0.5 text-muted-foreground hover:text-primary shrink-0"
+                  title={selected ? "Deselect" : "Select for bulk move"}
+                >
+                  {selected ? (
+                    <CheckSquare className="h-4 w-4 text-primary" />
+                  ) : (
+                    <Square className="h-4 w-4" />
+                  )}
+                </button>
+              )}
               {draggable && (
                 <div
                   {...provided.dragHandleProps}
@@ -36,12 +61,14 @@ export function LeadCard({ lead, index, draggable = true }: { lead: Lead; index:
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <Link
-                    to={`/inbox/${lead.id}`}
-                    className="truncate text-sm font-medium hover:underline"
+                  <button
+                    type="button"
+                    onClick={() => onClick?.(lead.id)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="truncate text-sm font-medium hover:underline text-left"
                   >
                     {lead.companyName}
-                  </Link>
+                  </button>
                 </div>
                 {lead.contactName && (
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -55,7 +82,7 @@ export function LeadCard({ lead, index, draggable = true }: { lead: Lead; index:
                     </Badge>
                   )}
                   <div className="ml-auto flex gap-1">
-                    <Link to={`/leads/${lead.id}/emails`}>
+                    <Link to={`/leads/${lead.id}/emails`} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-6 w-6">
                         <Mail className="h-3 w-3" />
                       </Button>
