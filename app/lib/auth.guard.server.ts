@@ -1,6 +1,6 @@
 import { redirect } from "react-router";
 import { getSession } from "../sessions/session";
-import { prisma } from "./prisma";
+import { prisma } from "./prisma.server";
 
 export async function requireAuth(request: Request) {
   const session = await getSession(request);

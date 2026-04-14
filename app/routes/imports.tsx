@@ -1,6 +1,6 @@
 import { Link, useLoaderData } from "react-router";
-import { prisma } from "../lib/prisma";
-import { requireAdmin } from "../lib/auth.guard";
+import { prisma } from "../lib/prisma.server";
+import { requireAdmin } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";

@@ -1,6 +1,6 @@
 import { Form, useLoaderData, useActionData } from "react-router";
-import { prisma } from "../lib/prisma";
-import { requireAuth } from "../lib/auth.guard";
+import { prisma } from "../lib/prisma.server";
+import { requireAuth } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -8,7 +8,8 @@ import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
 import { ArrowLeft, ExternalLink as LinkIcon, Linkedin, Facebook, Instagram, Twitter, User, CheckCircle, XCircle, Clock, Activity, UserPlus } from "lucide-react";
 import { Link } from "react-router";
-import { logActivity, getActivityStyle, formatStage } from "../lib/activity-log";
+import { logActivity } from "../lib/activity-log.server";
+import { getActivityStyle, formatStage } from "../lib/activity-log";
 import type { ActivityAction } from "../lib/activity-log";
 
 export async function loader({ request, params }: { request: Request; params: { leadId: string } }) {

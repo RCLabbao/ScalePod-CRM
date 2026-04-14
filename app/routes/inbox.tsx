@@ -1,12 +1,12 @@
 import { Form, Link, useLoaderData, useActionData, useSearchParams } from "react-router";
-import { prisma } from "../lib/prisma";
-import { requireAuth } from "../lib/auth.guard";
+import { prisma } from "../lib/prisma.server";
+import { requireAuth } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Plus, Search, ExternalLink, CheckCircle2, XCircle, ShieldCheck, Flame, Sun, Snowflake } from "lucide-react";
-import { scoreLead } from "../lib/scoring";
-import { logActivity } from "../lib/activity-log";
+import { scoreLead } from "../lib/scoring.server";
+import { logActivity } from "../lib/activity-log.server";
 
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAuth(request);

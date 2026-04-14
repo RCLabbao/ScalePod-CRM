@@ -1,13 +1,14 @@
 import { Form, useLoaderData, useFetcher } from "react-router";
-import { prisma } from "../lib/prisma";
-import { requireAuth } from "../lib/auth.guard";
+import { prisma } from "../lib/prisma.server";
+import { requireAuth } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { LeadCard } from "../components/lead-card";
 import { LeadDetailModal } from "../components/lead-detail-modal";
-import { logActivity, formatStage } from "../lib/activity-log";
+import { logActivity } from "../lib/activity-log.server";
+import { formatStage } from "../lib/activity-log";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { DragDropContext, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { GripVertical, X } from "lucide-react";

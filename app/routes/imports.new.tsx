@@ -1,6 +1,6 @@
 import { Form, Link, useLoaderData, useActionData, useNavigate } from "react-router";
-import { prisma } from "../lib/prisma";
-import { requireAdmin } from "../lib/auth.guard";
+import { prisma } from "../lib/prisma.server";
+import { requireAdmin } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import { Select } from "../components/ui/select";
 import { ArrowLeft, Upload, CheckCircle2 } from "lucide-react";
 import { LEAD_FIELDS, parseCSV, type LeadFieldName } from "../lib/csv-parser";
-import { processImport } from "../lib/lead-import";
+import { processImport } from "../lib/lead-import.server";
 import { useState } from "react";
 
 export async function loader({ request }: { request: Request }) {

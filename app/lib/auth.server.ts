@@ -2,7 +2,7 @@ import { Authenticator } from "remix-auth";
 import { FormStrategy } from "remix-auth-form";
 import pkg from "bcryptjs";
 const { compare, hash } = pkg;
-import { prisma } from "./prisma";
+import { prisma } from "./prisma.server";
 import { sessionStorage } from "../sessions/session";
 
 export const authenticator = new Authenticator<string>(sessionStorage);

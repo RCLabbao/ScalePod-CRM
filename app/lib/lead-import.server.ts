@@ -1,6 +1,6 @@
-import { prisma } from "./prisma";
+import { prisma } from "./prisma.server";
 import { parseCSV, mapRowToLead, type LeadFieldName } from "./csv-parser";
-import { logActivity } from "./activity-log";
+import { logActivity } from "./activity-log.server";
 
 export async function processImport(importId: string) {
   const importJob = await prisma.leadImport.findUnique({

@@ -1,5 +1,5 @@
 import { Form, Link, useActionData, redirect } from "react-router";
-import { prisma } from "../lib/prisma";
+import { prisma } from "../lib/prisma.server";
 import { hashPassword } from "../lib/auth.server";
 import { getSession } from "../sessions/session";
 import { Button } from "../components/ui/button";

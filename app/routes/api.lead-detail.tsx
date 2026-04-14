@@ -1,5 +1,5 @@
-import { prisma } from "../lib/prisma";
-import { requireAuth } from "../lib/auth.guard";
+import { prisma } from "../lib/prisma.server";
+import { requireAuth } from "../lib/auth.guard.server";
 import { data } from "react-router";
 
 export async function loader({ request }: { request: Request }) {

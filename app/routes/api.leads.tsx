@@ -1,6 +1,6 @@
 import { data } from "react-router";
-import { prisma } from "../lib/prisma";
-import { logActivity } from "../lib/activity-log";
+import { prisma } from "../lib/prisma.server";
+import { logActivity } from "../lib/activity-log.server";
 import { z } from "zod";
 
 // API key auth middleware for external scrapers

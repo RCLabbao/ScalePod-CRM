@@ -4,10 +4,10 @@ import {
   useActionData,
   useFetcher,
 } from "react-router";
-import { prisma } from "../lib/prisma";
-import { requireAdmin } from "../lib/auth.guard";
-import { requireAuth } from "../lib/auth.guard";
-import { getScoreConfig } from "../lib/scoring";
+import { prisma } from "../lib/prisma.server";
+import { requireAdmin } from "../lib/auth.guard.server";
+import { requireAuth } from "../lib/auth.guard.server";
+import { getScoreConfig } from "../lib/scoring.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
