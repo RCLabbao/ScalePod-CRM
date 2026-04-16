@@ -22,16 +22,22 @@ export async function loader({ request, params }: { request: Request; params: { 
 
   const lead = await prisma.lead.findUnique({
     where: { id: params.leadId },
-    include: {
-      emails: {
-        orderBy: { lastMessage: "desc" },
-        include: { messages: { orderBy: { sentAt: "desc" } } },
-      },
-    },
   });
 
   if (!lead) {
     throw new Response("Lead not found", { status: 404 });
+  }
+
+  // Fetch email threads separately so a relation error doesn't crash the page
+  let emailThreads: any[] = [];
+  try {
+    emailThreads = await prisma.emailThread.findMany({
+      where: { leadId: lead.id },
+      orderBy: { lastMessage: "desc" },
+      include: { messages: { orderBy: { sentAt: "desc" } } },
+    });
+  } catch (err) {
+    console.error("[leads/emails] Failed to load email threads:", err);
   }
 
   let templates: Awaited<ReturnType<typeof prisma.emailTemplate.findMany>> = [];
@@ -51,7 +57,7 @@ export async function loader({ request, params }: { request: Request; params: { 
     }
   }
 
-  return { user, lead, templates, gmailConnected, gmailSignature };
+  return { user, lead, emails: emailThreads, templates, gmailConnected, gmailSignature };
 }
 
 export async function action({ request, params }: { request: Request; params: { leadId: string } }) {
@@ -128,7 +134,7 @@ export async function action({ request, params }: { request: Request; params: { 
 }
 
 export default function LeadEmails() {
-  const { user, lead, templates, gmailConnected, gmailSignature } = useLoaderData<typeof loader>();
+  const { user, lead, emails, templates, gmailConnected, gmailSignature } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [expandedThread, setExpandedThread] = useState<string | null>(null);
 
@@ -365,19 +371,19 @@ export default function LeadEmails() {
             <div>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Email History
-                {lead.emails.length > 0 && (
-                  <span className="ml-2 font-normal">({lead.emails.length})</span>
+                {emails.length > 0 && (
+                  <span className="ml-2 font-normal">({emails.length})</span>
                 )}
               </h3>
               <div className="space-y-2">
-                {lead.emails.length === 0 ? (
+                {emails.length === 0 ? (
                   <Card>
                     <CardContent className="flex flex-col items-center justify-center py-8">
                       <p className="text-muted-foreground text-sm">No emails sent yet.</p>
                     </CardContent>
                   </Card>
                 ) : (
-                  lead.emails.map((thread) => {
+                  emails.map((thread) => {
                     const isExpanded = expandedThread === thread.id;
                     return (
                       <Card key={thread.id} className="overflow-hidden">
