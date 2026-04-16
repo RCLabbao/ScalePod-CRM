@@ -107,14 +107,23 @@ export async function loader({ request }: { request: Request }) {
       }
     } catch (err: unknown) {
       // Extract detailed error info from Google API errors
-      const gaxiosErr = err as { response?: { status?: number; data?: { error?: string; error_description?: string } }; message?: string };
+      const gaxiosErr = err as any;
       const status = gaxiosErr?.response?.status;
-      const errorCode = gaxiosErr?.response?.data?.error;
-      const errorDesc = gaxiosErr?.response?.data?.error_description;
+      const errorData = gaxiosErr?.response?.data?.error;
+      
+      let errorCode = errorData;
+      let errorDesc = gaxiosErr?.response?.data?.error_description;
+
+      // Handle standard Google API Error structure vs OAuth error string
+      if (typeof errorData === "object" && errorData !== null) {
+        errorCode = errorData.status || errorData.code;
+        errorDesc = errorData.message;
+      }
+
       const msg = gaxiosErr?.message || String(err);
 
-      if (status === 401 || msg.includes("Invalid Credentials") || errorCode === "invalid_grant") {
-        inboxError = `Gmail auth failed (HTTP ${status}, ${errorCode || "auth error"}): Your Gmail token is invalid or expired. Go to Settings → Disconnect Gmail → Reconnect.`;
+      if (status === 401 || msg.includes("Invalid Credentials") || errorCode === "invalid_grant" || errorCode === "UNAUTHENTICATED") {
+        inboxError = `Gmail auth failed (HTTP ${status || 401}): Your Gmail token is invalid or expired.`;
       } else {
         inboxError = `Gmail error (HTTP ${status || "?"}, ${errorCode || "unknown"}): ${errorDesc || msg}`;
       }
@@ -340,6 +349,10 @@ export default function EmailHub() {
 
   const isLoading = navigation.state === "loading";
 
+  // Derive an expired state if we hit a 401 when trying to fetch the inbox
+  const isTokenExpired = !!inboxError && inboxError.includes("auth failed");
+  const isActivelyConnected = gmailConnected && !isTokenExpired;
+
   const setTab = (t: TabKey) => {
     setSearchParams((prev) => {
       prev.set("tab", t);
@@ -415,8 +428,10 @@ export default function EmailHub() {
         {/* Gmail connection banner */}
         <Card
           className={`border-l-4 ${
-            gmailConnected
+            isActivelyConnected
               ? "border-l-emerald-500"
+              : isTokenExpired
+              ? "border-l-destructive"
               : "border-l-amber-500"
           }`}
         >
@@ -424,28 +439,38 @@ export default function EmailHub() {
             <div className="flex items-center gap-3">
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                  gmailConnected ? "bg-emerald-500/10" : "bg-amber-500/10"
+                  isActivelyConnected
+                    ? "bg-emerald-500/10"
+                    : isTokenExpired
+                    ? "bg-destructive/10"
+                    : "bg-amber-500/10"
                 }`}
               >
-                <Mail
-                  className={`h-5 w-5 ${
-                    gmailConnected ? "text-emerald-400" : "text-amber-400"
-                  }`}
-                />
+                {isTokenExpired ? (
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                ) : (
+                  <Mail
+                    className={`h-5 w-5 ${
+                      isActivelyConnected ? "text-emerald-400" : "text-amber-400"
+                    }`}
+                  />
+                )}
               </div>
               <div>
                 <p className="font-medium">Gmail Integration</p>
                 <p className="text-sm text-muted-foreground">
-                  {gmailConnected
+                  {isActivelyConnected
                     ? "Connected and ready to send emails"
+                    : isTokenExpired
+                    ? "Your Gmail connection has expired. Please reconnect."
                     : "Connect your Gmail account in Settings to send emails and view inbox"}
                 </p>
               </div>
             </div>
-            {!gmailConnected && (
+            {!isActivelyConnected && (
               <Link to="/settings">
-                <Button size="sm" variant="outline">
-                  Connect
+                <Button size="sm" variant={isTokenExpired ? "destructive" : "outline"}>
+                  {isTokenExpired ? "Reconnect" : "Connect"}
                 </Button>
               </Link>
             )}
