@@ -62,17 +62,17 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         : error.statusText || details;
   } else if (error && error instanceof Error) {
     details = error.message;
-    if (import.meta.env.DEV) {
-      stack = error.stack;
-    }
+    stack = error.stack;
+  } else if (error) {
+    details = String(error);
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pt-16 text-center">
+    <main className="mx-auto max-w-3xl p-4 pt-16 text-center">
       <h1 className="text-4xl font-bold">{message}</h1>
-      <p className="mt-4 text-lg text-muted-foreground">{details}</p>
+      <p className="mt-4 text-lg text-red-400">{details}</p>
       {stack && (
-        <pre className="mt-4 max-w-lg mx-auto text-left text-sm text-red-500 whitespace-pre-wrap">
+        <pre className="mt-4 max-w-full mx-auto text-left text-xs text-red-400/80 bg-red-500/5 border border-red-500/20 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
           {stack}
         </pre>
       )}

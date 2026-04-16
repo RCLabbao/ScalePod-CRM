@@ -38,6 +38,18 @@ app.use(
   })
 );
 
+// ── Global Error Handler ──────────────────────────────────────────────
+// Catch ALL unhandled errors and log the real cause for debugging on cPanel
+app.use((err, req, res, next) => {
+  console.error("=== UNHANDLED SERVER ERROR ===");
+  console.error("URL:", req.url);
+  console.error("Method:", req.method);
+  console.error("Error:", err?.message || err);
+  console.error("Stack:", err?.stack || "No stack trace");
+  console.error("=== END ERROR ===");
+  res.status(500).send(`Server Error: ${err?.message || "Unknown error"}`);
+});
+
 // ── Start Server ──────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`ScalePod CRM running on port ${PORT}`);
