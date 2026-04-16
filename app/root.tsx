@@ -60,13 +60,15 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       error.status === 404
         ? "The requested page could not be found."
         : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
+  } else if (error && error instanceof Error) {
     details = error.message;
-    stack = error.stack;
+    if (import.meta.env.DEV) {
+      stack = error.stack;
+    }
   }
 
   return (
-    <main className="mx-auto p-4 pt-16 text-center">
+    <main className="mx-auto max-w-2xl p-4 pt-16 text-center">
       <h1 className="text-4xl font-bold">{message}</h1>
       <p className="mt-4 text-lg text-muted-foreground">{details}</p>
       {stack && (
@@ -74,6 +76,12 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
           {stack}
         </pre>
       )}
+      <a
+        href="/dashboard"
+        className="mt-6 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+      >
+        Back to Dashboard
+      </a>
     </main>
   );
 }

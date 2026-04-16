@@ -1,5 +1,5 @@
 import { prisma } from "./prisma.server";
-import { checkDangerousSQL, parseSQLStatements, discoverMigrationFiles } from "./migration-utils";
+import { checkDangerousSQL, parseSQLStatements, discoverMigrationFiles, sanitizeMigrationName } from "./migration-utils";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -24,6 +24,14 @@ async function getAppliedMigrations(): Promise<string[]> {
     SELECT \`name\` FROM \`_MigrationLog\` ORDER BY \`name\` ASC
   `;
   return rows.map((r: { name: string }) => r.name);
+}
+
+// ── Record a migration as applied (safe interpolation) ──
+async function recordMigration(tx: ReturnType<typeof prisma.$extends> extends (...args: any[]) => infer R ? R : never, name: string) {
+  const safeName = sanitizeMigrationName(name);
+  await tx.$executeRawUnsafe(
+    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
+  );
 }
 
 // ── Compute pending migrations ─────────────────────
@@ -87,10 +95,10 @@ export async function applyPendingMigrations(): Promise<{
           await tx.$executeRawUnsafe(stmt);
         }
 
-        // Record the migration as applied (parameterized)
+        // Record the migration as applied
+        const safeName = sanitizeMigrationName(migration.name);
         await tx.$executeRawUnsafe(
-          `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES (?, NOW(3))`,
-          [migration.name]
+          `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
         );
       });
 
@@ -114,9 +122,9 @@ export async function markBaselineApplied(): Promise<boolean> {
     return false;
   }
 
+  const safeName = sanitizeMigrationName("000_baseline.sql");
   await prisma.$executeRawUnsafe(
-    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES (?, NOW(3))`,
-    ["000_baseline.sql"]
+    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
   );
 
   return true;

@@ -3,6 +3,7 @@ import {
   checkDangerousSQL,
   parseSQLStatements,
   discoverMigrationFiles,
+  sanitizeMigrationName,
 } from "../app/lib/migration-utils";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -229,5 +230,26 @@ describe("_MigrationLog table SQL", () => {
   it("has UNIQUE constraint on name column", () => {
     expect(migrationLogSQL).toContain("UNIQUE");
     expect(migrationLogSQL).toContain("`name`");
+  });
+});
+
+// ── Filename Sanitization ──────────────────────────
+
+describe("sanitizeMigrationName", () => {
+  it("accepts valid migration filenames", () => {
+    expect(sanitizeMigrationName("000_baseline.sql")).toBe("000_baseline.sql");
+    expect(sanitizeMigrationName("001_add-phone-column.sql")).toBe("001_add-phone-column.sql");
+    expect(sanitizeMigrationName("002_new_table.sql")).toBe("002_new_table.sql");
+  });
+
+  it("rejects filenames with SQL injection characters", () => {
+    expect(() => sanitizeMigrationName("'; DROP TABLE User;--.sql")).toThrow("Invalid migration filename");
+    expect(() => sanitizeMigrationName("evil'; INSERT INTO User.sql")).toThrow("Invalid migration filename");
+  });
+
+  it("rejects filenames with spaces or special characters", () => {
+    expect(() => sanitizeMigrationName("bad file.sql")).toThrow("Invalid migration filename");
+    expect(() => sanitizeMigrationName("bad$file.sql")).toThrow("Invalid migration filename");
+    expect(() => sanitizeMigrationName("bad<script>.sql")).toThrow("Invalid migration filename");
   });
 });

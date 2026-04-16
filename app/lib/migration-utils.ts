@@ -52,3 +52,15 @@ export function discoverMigrationFiles(dir: string): string[] {
     .filter((f: string) => f.endsWith(".sql") && !f.startsWith("README"))
     .sort();
 }
+
+/**
+ * Validates a migration filename is safe for SQL string interpolation.
+ * Only allows: alphanumeric, dashes, underscores, dots.
+ * Throws if the name contains anything dangerous.
+ */
+export function sanitizeMigrationName(name: string): string {
+  if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
+    throw new Error(`Invalid migration filename: "${name}"`);
+  }
+  return name;
+}

@@ -45,35 +45,39 @@ export async function loader({ request }: { request: Request }) {
   const pageSize = 20;
 
   // Fetch DB-based threads (for All / Sent / Drafts tabs)
-  const dbThreads = await prisma.emailThread.findMany({
-    include: {
-      lead: {
-        select: { companyName: true, contactName: true, email: true },
-      },
-      messages: {
-        orderBy: { sentAt: "desc" },
-        take: 1,
-      },
-    },
-    orderBy: { lastMessage: "desc" },
-    ...(search
-      ? {
-          where: {
-            OR: [
-              { subject: { contains: search } },
-              { snippet: { contains: search } },
-              { lead: { companyName: { contains: search } } },
-              { lead: { contactName: { contains: search } } },
-            ],
-          },
-        }
-      : {}),
-  });
+  let dbThreads: Awaited<ReturnType<typeof prisma.emailThread.findMany>> = [];
+  let sentCount = 0;
 
-  // Count by status for tab badges
-  const [sentCount] = await Promise.all([
-    prisma.emailThread.count({ where: { status: "SENT" } }),
-  ]);
+  try {
+    dbThreads = await prisma.emailThread.findMany({
+      include: {
+        lead: {
+          select: { companyName: true, contactName: true, email: true },
+        },
+        messages: {
+          orderBy: { sentAt: "desc" },
+          take: 1,
+        },
+      },
+      orderBy: { lastMessage: "desc" },
+      ...(search
+        ? {
+            where: {
+              OR: [
+                { subject: { contains: search } },
+                { snippet: { contains: search } },
+                { lead: { companyName: { contains: search } } },
+                { lead: { contactName: { contains: search } } },
+              ],
+            },
+          }
+        : {}),
+    });
+
+    sentCount = await prisma.emailThread.count({ where: { status: "SENT" } });
+  } catch (err: unknown) {
+    console.error("[EmailHub] DB query failed:", err);
+  }
 
   // Fetch Gmail inbox messages (inbox tab, and all tab when connected)
   let gmailMessages: ParsedMessage[] = [];
@@ -88,11 +92,22 @@ export async function loader({ request }: { request: Request }) {
         q: search || undefined,
       });
 
-      gmailMessages = await Promise.all(
+      // Fetch each message individually so one failure doesn't kill the rest
+      const results = await Promise.allSettled(
         listResult.messages.map((m) => getMessage(userId, m.id))
       );
-    } catch (err: any) {
-      inboxError = err?.message || "Failed to fetch Gmail inbox.";
+
+      gmailMessages = results
+        .filter((r): r is PromiseFulfilledResult<ParsedMessage> => r.status === "fulfilled")
+        .map((r) => r.value);
+
+      const failedCount = results.filter((r) => r.status === "rejected").length;
+      if (failedCount > 0) {
+        inboxError = `Loaded ${gmailMessages.length} messages, but ${failedCount} failed to load.`;
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to fetch Gmail inbox.";
+      inboxError = message;
     }
   }
 

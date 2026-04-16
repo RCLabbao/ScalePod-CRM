@@ -32,10 +32,15 @@ export async function loader({ request }: { request: Request }) {
     select: { name: true, email: true, role: true },
   });
 
-  const criteria = await prisma.verificationCriteria.findMany({
-    where: { active: true },
-    orderBy: { sortOrder: "asc" },
-  });
+  let criteria: Awaited<ReturnType<typeof prisma.verificationCriteria.findMany>> = [];
+  try {
+    criteria = await prisma.verificationCriteria.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+    });
+  } catch (err) {
+    console.error("[leads/new] Failed to load criteria:", err);
+  }
 
   return { user, criteria };
 }
@@ -64,7 +69,13 @@ export async function action({ request }: { request: Request }) {
   }
 
   // Score the lead
-  const result = await scoreLead(responses);
+  let result;
+  try {
+    result = await scoreLead(responses);
+  } catch (err) {
+    console.error("[leads/new] Scoring failed:", err);
+    return { error: "Failed to score lead. Please try again." };
+  }
 
   // Create lead with score and creator tracking
   const lead = await prisma.lead.create({

@@ -34,12 +34,21 @@ export async function loader({ request, params }: { request: Request; params: { 
     throw new Response("Lead not found", { status: 404 });
   }
 
-  const templates = await prisma.emailTemplate.findMany({ orderBy: { name: "asc" } });
+  let templates: Awaited<ReturnType<typeof prisma.emailTemplate.findMany>> = [];
+  try {
+    templates = await prisma.emailTemplate.findMany({ orderBy: { name: "asc" } });
+  } catch (err) {
+    console.error("[leads/emails] Failed to load templates:", err);
+  }
 
   let gmailSignature = "";
   const gmailConnected = !!user?.gmailTokens;
   if (gmailConnected) {
-    gmailSignature = await getGmailSignature(userId);
+    try {
+      gmailSignature = await getGmailSignature(userId);
+    } catch (err) {
+      console.error("[leads/emails] Failed to load Gmail signature:", err);
+    }
   }
 
   return { user, lead, templates, gmailConnected, gmailSignature };
