@@ -1,4 +1,4 @@
-import { a, s, b, c, e, f, i, d, g, r, h, j } from "./assets/server-build-B_Z-UYe_.js";
+import { a, s, b, c, e, f, i, d, g, r, h, j } from "./assets/server-build-26W0q76H.js";
 import "react/jsx-runtime";
 import "isbot";
 import "react-dom/server";

@@ -657,14 +657,25 @@ async function getAuthenticatedClient(userId) {
   });
   const isExpired = !token.expiryDate || token.expiryDate.getTime() < Date.now() + 6e4;
   if (isExpired) {
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    await prisma.gmailToken.update({
-      where: { userId },
-      data: {
-        accessToken: credentials.access_token || null,
-        expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date) : null
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      await prisma.gmailToken.update({
+        where: { userId },
+        data: {
+          accessToken: credentials.access_token || null,
+          expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date) : null
+        }
+      });
+    } catch (refreshErr) {
+      const errMsg = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+      console.error("[Gmail] Token refresh failed:", errMsg);
+      if (errMsg.includes("invalid_grant")) {
+        throw new Error(
+          "Gmail token expired. Go to Settings → disconnect Gmail → reconnect it. Also check: Google Cloud Console → OAuth Consent Screen → set to 'Production' or add your email as a Test User."
+        );
       }
-    });
+      throw new Error(`Gmail auth failed: ${errMsg}`);
+    }
   }
   return google.gmail({ version: "v1", auth: oauth2Client });
 }
@@ -910,6 +921,29 @@ async function loader$p({
       expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : null
     }
   });
+  try {
+    const oauth2Client2 = getOAuthClient();
+    oauth2Client2.setCredentials(tokens);
+    const gmail = google.gmail({
+      version: "v1",
+      auth: oauth2Client2
+    });
+    const profile = await gmail.users.getProfile({
+      userId: "me"
+    });
+    if (profile.data.emailAddress) {
+      await prisma.gmailToken.update({
+        where: {
+          userId
+        },
+        data: {
+          gmailAddress: profile.data.emailAddress
+        }
+      });
+    }
+  } catch (profileErr) {
+    console.error("[Gmail] Failed to fetch profile after connect:", profileErr);
+  }
   session.unset("oauth_state");
   session.unset("oauth_user_id");
   return redirect("/settings?gmail=connected", {
@@ -10892,7 +10926,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-D7XjUadz.js").then(({
+    import("./pipeline-csUyn056.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -10921,7 +10955,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-D7XjUadz.js").then(({
+    import("./pipeline-csUyn056.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

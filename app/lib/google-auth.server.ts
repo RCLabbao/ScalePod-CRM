@@ -60,16 +60,30 @@ export async function getAuthenticatedClient(userId: string) {
     !token.expiryDate || token.expiryDate.getTime() < Date.now() + 60_000;
 
   if (isExpired) {
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    await prisma.gmailToken.update({
-      where: { userId },
-      data: {
-        accessToken: credentials.access_token || null,
-        expiryDate: credentials.expiry_date
-          ? new Date(credentials.expiry_date)
-          : null,
-      },
-    });
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      await prisma.gmailToken.update({
+        where: { userId },
+        data: {
+          accessToken: credentials.access_token || null,
+          expiryDate: credentials.expiry_date
+            ? new Date(credentials.expiry_date)
+            : null,
+        },
+      });
+    } catch (refreshErr: unknown) {
+      const errMsg = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+      console.error("[Gmail] Token refresh failed:", errMsg);
+
+      // Provide a clear, actionable error message
+      if (errMsg.includes("invalid_grant")) {
+        throw new Error(
+          "Gmail token expired. Go to Settings → disconnect Gmail → reconnect it. " +
+          "Also check: Google Cloud Console → OAuth Consent Screen → set to 'Production' or add your email as a Test User."
+        );
+      }
+      throw new Error(`Gmail auth failed: ${errMsg}`);
+    }
   }
 
   return google.gmail({ version: "v1", auth: oauth2Client });

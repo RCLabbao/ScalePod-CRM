@@ -3,6 +3,7 @@ import { requireAuth } from "../lib/auth.guard.server";
 import { getOAuthClient } from "../lib/google-auth.server";
 import { prisma } from "../lib/prisma.server";
 import { getSession, sessionStorage } from "../sessions/session";
+import { google } from "googleapis";
 
 export async function loader({ request }: { request: Request }) {
   const url = new URL(request.url);
@@ -59,6 +60,22 @@ export async function loader({ request }: { request: Request }) {
       expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
     },
   });
+
+  // Fetch and store the Gmail address for this user
+  try {
+    const oauth2Client = getOAuthClient();
+    oauth2Client.setCredentials(tokens);
+    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+    const profile = await gmail.users.getProfile({ userId: "me" });
+    if (profile.data.emailAddress) {
+      await prisma.gmailToken.update({
+        where: { userId },
+        data: { gmailAddress: profile.data.emailAddress },
+      });
+    }
+  } catch (profileErr) {
+    console.error("[Gmail] Failed to fetch profile after connect:", profileErr);
+  }
 
   // Clean up session
   session.unset("oauth_state");
