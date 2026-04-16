@@ -5,8 +5,12 @@ export default [
   // Auth
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
+  route("auth/google", "routes/auth.google.tsx"),
+  route("auth/google/callback", "routes/auth.google.callback.tsx"),
   // Dashboard
   route("dashboard", "routes/dashboard.tsx"),
+  // Analytics
+  route("analytics", "routes/analytics.tsx"),
   // Lead Inbox
   route("inbox", "routes/inbox.tsx"),
   route("inbox/:leadId", "routes/inbox.$leadId.tsx"),
@@ -22,6 +26,8 @@ export default [
   // Email Outreach
   route("emails", "routes/emails.tsx"),
   route("emails/templates", "routes/emails.templates.tsx"),
+  route("emails/threads/:threadId", "routes/emails.threads.$threadId.tsx"),
+  route("emails/inbox/:messageId", "routes/emails.inbox.$messageId.tsx"),
   route("leads/:leadId/emails", "routes/leads.$leadId.emails.tsx"),
   // API Gateway
   route("api/leads", "routes/api.leads.tsx"),
@@ -31,4 +37,10 @@ export default [
   // Settings
   route("settings", "routes/settings.tsx"),
   route("settings/users", "routes/settings.users.tsx"),
+  route("settings/database", "routes/settings.database.tsx"),
+  // Shopify Scraper
+  route("scraper", "routes/scraper.tsx"),
+  route("scraper/new", "routes/scraper.new.tsx"),
+  route("scraper/:jobId", "routes/scraper.$jobId.tsx"),
+  route("api/scraper", "routes/api.scraper.tsx"),
 ] satisfies RouteConfig;

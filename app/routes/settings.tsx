@@ -1,26 +1,56 @@
-import { Link, useLoaderData } from "react-router";
+import { Link, Form, useLoaderData, useNavigation } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { Users, ShieldCheck, Sun, Moon } from "lucide-react";
+import { Users, ShieldCheck, Database, Sun, Moon } from "lucide-react";
 import { useTheme } from "../hooks/use-theme";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router";
 
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAuth(request);
+  const url = new URL(request.url);
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { name: true, email: true, role: true, gmailTokens: true },
   });
 
-  return { user };
+  return { user, gmailStatus: url.searchParams.get("gmail") };
+}
+
+export async function action({ request }: { request: Request }) {
+  const userId = await requireAuth(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent") as string;
+
+  if (intent === "disconnectGmail") {
+    await prisma.gmailToken.deleteMany({ where: { userId } });
+    return { success: true, disconnected: true };
+  }
+
+  return {};
 }
 
 export default function Settings() {
-  const { user } = useLoaderData<typeof loader>();
+  const { user, gmailStatus } = useLoaderData<typeof loader>();
   const { theme, toggleTheme } = useTheme();
+  const navigation = useNavigation();
+  const [, setSearchParams] = useSearchParams();
+
+  const isDisconnecting =
+    navigation.state === "submitting" &&
+    navigation.formData?.get("intent") === "disconnectGmail";
+
+  // Clear the gmail status param after showing
+  useEffect(() => {
+    if (gmailStatus) {
+      const timer = setTimeout(() => setSearchParams({}, { replace: true }), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [gmailStatus, setSearchParams]);
 
   return (
     <AppShell user={user!}>
@@ -128,6 +158,27 @@ export default function Settings() {
             </Card>
           )}
 
+          {/* Admin-only: Database Migrations */}
+          {user?.role === "ADMIN" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Database Migrations
+                </CardTitle>
+                <CardDescription>Apply schema changes without losing data</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link to="/settings/database">
+                  <Button variant="outline" className="w-full">
+                    <Database className="mr-2 h-4 w-4" />
+                    Manage Database
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Gmail Integration */}
           <Card>
             <CardHeader>
@@ -135,6 +186,20 @@ export default function Settings() {
               <CardDescription>Connect your Gmail account for email outreach</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {gmailStatus && (
+                <div className={`rounded-md border p-3 text-sm ${
+                  gmailStatus === "connected"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    : gmailStatus === "denied"
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                    : "bg-red-500/10 text-red-400 border-red-500/20"
+                }`}>
+                  {gmailStatus === "connected" && "Gmail connected successfully!"}
+                  {gmailStatus === "denied" && "Gmail connection was denied."}
+                  {gmailStatus === "disconnected" && "Gmail disconnected."}
+                  {gmailStatus === "error" && "Something went wrong connecting Gmail."}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10">
@@ -155,16 +220,32 @@ export default function Settings() {
                   {user?.gmailTokens ? "Connected" : "Disconnected"}
                 </Badge>
               </div>
-              <Button
-                className="w-full"
-                variant={user?.gmailTokens ? "outline" : "default"}
-                onClick={() => {
-                  // TODO: Implement Google OAuth flow
-                  alert("Google OAuth will be configured with GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars");
-                }}
-              >
-                {user?.gmailTokens ? "Reconnect Gmail" : "Connect Gmail"}
-              </Button>
+              {user?.gmailTokens ? (
+                <div className="flex gap-2">
+                  <Link to="/auth/google" className="flex-1">
+                    <Button variant="outline" className="w-full">
+                      Reconnect Gmail
+                    </Button>
+                  </Link>
+                  <Form method="post" className="flex-1">
+                    <input type="hidden" name="intent" value="disconnectGmail" />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      className="w-full text-red-400 hover:text-red-300"
+                      disabled={isDisconnecting}
+                    >
+                      {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                    </Button>
+                  </Form>
+                </div>
+              ) : (
+                <Link to="/auth/google">
+                  <Button className="w-full">
+                    Connect Gmail
+                  </Button>
+                </Link>
+              )}
             </CardContent>
           </Card>
 

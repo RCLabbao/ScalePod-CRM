@@ -13,6 +13,8 @@ import {
   UserPlus,
   Users,
   Upload,
+  BarChart3,
+  Search,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -24,7 +26,9 @@ const navItems = [
   { to: "/inbox", label: "Lead Inbox", icon: Inbox },
   { to: "/pipeline", label: "Pipeline", icon: Kanban },
   { to: "/emails", label: "Email Hub", icon: Mail },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/imports", label: "Import", icon: Upload, adminOnly: true },
+  { to: "/scraper", label: "Scraper", icon: Search, adminOnly: true },
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
   { to: "/verification/criteria", label: "Criteria", icon: ShieldCheck, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings },

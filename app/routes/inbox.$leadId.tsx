@@ -1,12 +1,15 @@
 import { Form, useLoaderData, useActionData } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
+import { sendEmail, getGmailSignature, buildHtmlEmail } from "../lib/google-auth.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
-import { ArrowLeft, ExternalLink as LinkIcon, Linkedin, Facebook, Instagram, Twitter, User, CheckCircle, XCircle, Clock, Activity, UserPlus } from "lucide-react";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { ArrowLeft, ExternalLink as LinkIcon, Linkedin, Facebook, Instagram, Twitter, User, CheckCircle, XCircle, Clock, Activity, UserPlus, Send, Mail } from "lucide-react";
 import { Link } from "react-router";
 import { logActivity } from "../lib/activity-log.server";
 import { getActivityStyle, formatStage } from "../lib/activity-log";
@@ -16,13 +19,16 @@ export async function loader({ request, params }: { request: Request; params: { 
   const userId = await requireAuth(request);
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, email: true, role: true },
+    select: { name: true, email: true, role: true, gmailTokens: true },
   });
 
   const lead = await prisma.lead.findUnique({
     where: { id: params.leadId },
     include: {
-      emails: true,
+      emails: {
+        orderBy: { lastMessage: "desc" },
+        take: 3,
+      },
       stageHistory: {
         orderBy: { changedAt: "desc" },
         include: { changedBy: { select: { id: true, name: true, email: true } } },
@@ -49,7 +55,7 @@ export async function loader({ request, params }: { request: Request; params: { 
     orderBy: { name: "asc" },
   });
 
-  return { user, lead, users };
+  return { user, lead, users, gmailConnected: !!user?.gmailTokens };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -62,6 +68,74 @@ export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
   const leadId = formData.get("leadId") as string;
+
+  if (intent === "sendEmail") {
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+    const subject = formData.get("subject") as string;
+    const body = formData.get("body") as string;
+
+    if (!lead?.email) {
+      return { error: "This lead has no email address." };
+    }
+    if (!subject?.trim() || !body?.trim()) {
+      return { error: "Subject and body are required." };
+    }
+
+    try {
+      const signature = await getGmailSignature(userId);
+      const htmlBody = buildHtmlEmail(body, signature);
+
+      const result = await sendEmail(userId, {
+        to: lead.email,
+        subject,
+        body,
+        htmlBody,
+      });
+
+      const now = new Date();
+      const gmailToken = await prisma.gmailToken.findUnique({ where: { userId } });
+
+      const thread = await prisma.emailThread.create({
+        data: {
+          leadId: lead.id,
+          gmailThreadId: result.gmailThreadId,
+          subject,
+          snippet: body.substring(0, 200),
+          status: "SENT",
+          lastMessage: now,
+        },
+      });
+
+      await prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          gmailMessageId: result.gmailMessageId,
+          fromAddress: gmailToken?.gmailAddress || "me",
+          toAddress: lead.email,
+          subject,
+          bodyPlain: body,
+          bodyHtml: htmlBody,
+          snippet: body.substring(0, 200),
+          direction: "sent",
+          sentAt: now,
+        },
+      });
+
+      await logActivity({
+        leadId,
+        userId,
+        action: "NOTE_ADDED",
+        description: `${currentUser?.name || "Unknown"} sent an email: "${subject}"`,
+      });
+
+      return { success: true, sentSubject: subject };
+    } catch (err: any) {
+      const message = err?.message?.includes("has not connected Gmail")
+        ? "Gmail is not connected. Go to Settings to connect your account."
+        : err?.message || "Failed to send email.";
+      return { error: message };
+    }
+  }
 
   if (intent === "updateNotes") {
     const notes = formData.get("notes") as string;
@@ -112,7 +186,7 @@ export async function action({ request }: { request: Request }) {
 }
 
 export default function LeadDetail() {
-  const { user, lead, users } = useLoaderData<typeof loader>();
+  const { user, lead, users, gmailConnected } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isAdmin = user?.role === "ADMIN";
 
@@ -349,6 +423,86 @@ export default function LeadDetail() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Quick Compose Email */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Contact Lead
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!gmailConnected ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-amber-400">
+                      Connect Gmail in Settings to send emails directly.
+                    </p>
+                    <Link to="/settings">
+                      <Button variant="outline" size="sm" className="w-full">
+                        Go to Settings
+                      </Button>
+                    </Link>
+                  </div>
+                ) : !lead.email ? (
+                  <p className="text-xs text-muted-foreground">
+                    No email address on file for this lead.
+                  </p>
+                ) : (
+                  <Form method="post" className="space-y-3">
+                    <input type="hidden" name="intent" value="sendEmail" />
+                    <input type="hidden" name="leadId" value={lead.id} />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">To</p>
+                      <p className="text-sm rounded-md bg-muted/50 px-3 py-1.5 truncate">{lead.email}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Subject</Label>
+                      <Input
+                        name="subject"
+                        placeholder="Email subject..."
+                        required
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Message</Label>
+                      <Textarea
+                        name="body"
+                        placeholder="Write your message..."
+                        rows={5}
+                        required
+                        className="text-sm"
+                      />
+                    </div>
+                    {actionData?.sentSubject && (
+                      <p className="text-xs text-emerald-400">
+                        Sent: "{actionData.sentSubject}"
+                      </p>
+                    )}
+                    {actionData?.error && (
+                      <p className="text-xs text-destructive">{actionData.error}</p>
+                    )}
+                    <Button type="submit" size="sm" className="w-full">
+                      <Send className="mr-2 h-3 w-3" />
+                      Send Email
+                    </Button>
+                  </Form>
+                )}
+                {/* Recent emails link */}
+                {lead.emails.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <Link
+                      to={`/leads/${lead.id}/emails`}
+                      className="text-xs text-violet-400 hover:underline flex items-center gap-1"
+                    >
+                      View all email history ({lead.emails.length})
+                      <ArrowLeft className="h-3 w-3 rotate-180" />
+                    </Link>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Notes */}
             <Card>

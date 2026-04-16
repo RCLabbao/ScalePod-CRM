@@ -1,5 +1,5 @@
 import { redirect } from "react-router";
-import { getSession } from "../sessions/session";
+import { getSession, sessionStorage } from "../sessions/session";
 import { prisma } from "./prisma.server";
 
 export async function requireAuth(request: Request) {
@@ -8,6 +8,20 @@ export async function requireAuth(request: Request) {
 
   if (!userId) {
     throw redirect("/login");
+  }
+
+  // Verify user still exists (handles DB resets / deleted users)
+  const exists = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!exists) {
+    throw redirect("/login", {
+      headers: {
+        "Set-Cookie": await sessionStorage.destroySession(session),
+      },
+    });
   }
 
   return userId;

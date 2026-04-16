@@ -9,6 +9,34 @@
   body {
     background-color: var(--color-background);
   }
+  /* Force native select dropdowns to respect theme */
+  select {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+  select option {
+    background-color: var(--color-popover);
+    color: var(--color-popover-foreground);
+    padding: 6px 12px;
+  }
+  /* Force native date/calendar inputs to respect theme */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"] {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+  .light input[type="date"]::-webkit-calendar-picker-indicator,
+  .light input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .light input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: none;
+  }
 }
 
 @theme {

@@ -4,9 +4,10 @@ import { requireAuth } from "../lib/auth.guard.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Search, ExternalLink, CheckCircle2, XCircle, ShieldCheck, Flame, Sun, Snowflake } from "lucide-react";
+import { Plus, Search, ExternalLink, CheckCircle2, XCircle, ShieldCheck, Flame, Sun, Snowflake, ChevronDown, ChevronRight } from "lucide-react";
 import { scoreLead } from "../lib/scoring.server";
 import { logActivity } from "../lib/activity-log.server";
+import { useState } from "react";
 
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAuth(request);
@@ -311,78 +312,7 @@ export default function Inbox() {
                   </tr>
                 ) : (
                   leads.map((lead) => (
-                    <tr key={lead.id} className="border-b transition-colors hover:bg-muted/30">
-                      <td className="px-4 py-3">
-                        <div className="font-medium">{lead.companyName}</div>
-                        {lead.website && (
-                          <div className="text-xs text-muted-foreground">{lead.website}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">{lead.contactName || "—"}</td>
-                      <td className="hidden px-4 py-3 md:table-cell">{lead.email}</td>
-                      <td className="hidden px-4 py-3 lg:table-cell">
-                        {lead.industry && (
-                          <span className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0 text-xs text-blue-400">{lead.industry}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-bold">{Math.round(lead.score)}/{Math.round(lead.maxScore)}</span>
-                          <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                lead.maxScore > 0 && (lead.score / lead.maxScore) >= 0.8
-                                  ? "bg-red-400"
-                                  : lead.maxScore > 0 && (lead.score / lead.maxScore) >= 0.5
-                                  ? "bg-amber-400"
-                                  : "bg-blue-400"
-                              }`}
-                              style={{ width: `${lead.maxScore > 0 ? (lead.score / lead.maxScore) * 100 : 0}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <TemperatureBadge temperature={lead.temperature} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <StageBadge stage={lead.stage} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          {isAdmin && lead.status === "INBOX" && (
-                            <>
-                              <Form method="post">
-                                <input type="hidden" name="intent" value="accept" />
-                                <input type="hidden" name="leadId" value={lead.id} />
-                                <Button type="submit" size="icon" variant="ghost" title="Accept lead">
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                </Button>
-                              </Form>
-                              <Form method="post">
-                                <input type="hidden" name="intent" value="reject" />
-                                <input type="hidden" name="leadId" value={lead.id} />
-                                <Button type="submit" size="icon" variant="ghost" title="Reject lead">
-                                  <XCircle className="h-4 w-4 text-red-400" />
-                                </Button>
-                              </Form>
-                            </>
-                          )}
-                          {isAdmin && (
-                            <Link to={`/verification/${lead.id}`}>
-                              <Button size="icon" variant="ghost" title="Re-score lead">
-                                <ShieldCheck className="h-4 w-4 text-violet-400" />
-                              </Button>
-                            </Link>
-                          )}
-                          <Link to={`/leads/${lead.id}/emails`}>
-                            <Button size="icon" variant="ghost" title="Email lead">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
+                    <LeadRow key={lead.id} lead={lead} isAdmin={isAdmin} />
                   ))
                 )}
               </tbody>
@@ -425,5 +355,122 @@ function TemperatureBadge({ temperature }: { temperature: string }) {
       <Icon className="h-3 w-3" />
       {temperature}
     </span>
+  );
+}
+
+function LeadRow({ lead, isAdmin }: { lead: any; isAdmin: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const responses = lead.criteriaResponses || [];
+  const hasScores = responses.length > 0;
+  const pct = lead.maxScore > 0 ? Math.round((lead.score / lead.maxScore) * 100) : 0;
+
+  return (
+    <>
+      <tr className="border-b transition-colors hover:bg-muted/30">
+        <td className="px-4 py-3">
+          <div className="font-medium">{lead.companyName}</div>
+          {lead.website && (
+            <div className="text-xs text-muted-foreground">{lead.website}</div>
+          )}
+        </td>
+        <td className="px-4 py-3">{lead.contactName || "—"}</td>
+        <td className="hidden px-4 py-3 md:table-cell">{lead.email}</td>
+        <td className="hidden px-4 py-3 lg:table-cell">
+          {lead.industry && (
+            <span className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0 text-xs text-blue-400">{lead.industry}</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <button
+            type="button"
+            onClick={() => hasScores && setExpanded(!expanded)}
+            className={`flex items-center gap-2 ${hasScores ? "cursor-pointer hover:opacity-80" : ""}`}
+          >
+            {hasScores && (
+              expanded
+                ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+            <span className="font-mono text-sm font-bold">{Math.round(lead.score)}/{Math.round(lead.maxScore)}</span>
+            <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  pct >= 80 ? "bg-red-400" : pct >= 50 ? "bg-amber-400" : "bg-blue-400"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </button>
+        </td>
+        <td className="px-4 py-3">
+          <TemperatureBadge temperature={lead.temperature} />
+        </td>
+        <td className="px-4 py-3">
+          <StageBadge stage={lead.stage} />
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end gap-1">
+            {isAdmin && lead.status === "INBOX" && (
+              <>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="accept" />
+                  <input type="hidden" name="leadId" value={lead.id} />
+                  <Button type="submit" size="icon" variant="ghost" title="Accept lead">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  </Button>
+                </Form>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="reject" />
+                  <input type="hidden" name="leadId" value={lead.id} />
+                  <Button type="submit" size="icon" variant="ghost" title="Reject lead">
+                    <XCircle className="h-4 w-4 text-red-400" />
+                  </Button>
+                </Form>
+              </>
+            )}
+            {isAdmin && (
+              <Link to={`/verification/${lead.id}`}>
+                <Button size="icon" variant="ghost" title="Re-score lead">
+                  <ShieldCheck className="h-4 w-4 text-violet-400" />
+                </Button>
+              </Link>
+            )}
+            <Link to={`/leads/${lead.id}/emails`}>
+              <Button size="icon" variant="ghost" title="Email lead">
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </td>
+      </tr>
+      {expanded && hasScores && (
+        <tr className="border-b bg-muted/20">
+          <td colSpan={8} className="px-6 py-3">
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                Score Breakdown — {pct}%
+              </p>
+              {responses.map((r: any) => {
+                const isPositive = r.response === "yes" || Number(r.response) >= 4;
+                const isNegative = r.response === "no" || Number(r.response) <= 2;
+                return (
+                  <div key={r.id} className="flex items-center gap-3 text-xs">
+                    <span className={`shrink-0 font-mono font-bold w-10 text-right ${isPositive ? "text-emerald-400" : isNegative ? "text-red-400" : "text-amber-400"}`}>
+                      +{r.score}pt
+                    </span>
+                    <span className="text-muted-foreground">{r.criteria?.name || "Criterion"}</span>
+                    <span className={`ml-auto rounded-md px-1.5 py-0.5 font-medium ${
+                      isPositive ? "bg-emerald-500/15 text-emerald-400" : isNegative ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"
+                    }`}>
+                      {r.response === "yes" ? "Yes" : r.response === "no" ? "No" : r.response}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

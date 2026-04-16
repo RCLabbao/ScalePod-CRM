@@ -136,7 +136,7 @@ export default function NewLead() {
 
   useEffect(() => {
     if (actionData?.success) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     }
   }, [actionData]);
 
@@ -358,7 +358,7 @@ export default function NewLead() {
                             : "border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 has-[:checked]:bg-emerald-500/20 has-[:checked]:border-emerald-500/40";
                           return (
                             <label key={score} className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border text-sm font-medium transition-colors ${cls}`}>
-                              <input type="radio" name={`response_${c.id}`} value={String(score)} required={c.required} className="sr-only" />
+                              <input type="radio" name={`response_${c.id}`} value={String(score)} required={c.required} className="fixed opacity-0 pointer-events-none" />
                               {score}
                             </label>
                           );

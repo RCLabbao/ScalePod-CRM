@@ -1,0 +1,13 @@
+-- ── Baseline Migration ──────────────────────────
+-- This is a marker for the initial schema that was
+-- already present in the database before the migration
+-- system was introduced.
+--
+-- All tables from database-setup.sql are considered
+-- already applied. Do NOT re-run database-setup.sql.
+--
+-- Future schema changes go in numbered migration files:
+--   001_description.sql
+--   002_description.sql
+--   ...etc.
+-- ────────────────────────────────────────────────

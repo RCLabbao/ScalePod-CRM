@@ -7,7 +7,8 @@ export type ActivityAction =
   | "LEAD_UNASSIGNED"
   | "LEAD_SCORED"
   | "LEAD_EDITED"
-  | "NOTE_ADDED";
+  | "NOTE_ADDED"
+  | "LEAD_SCRAPED";
 
 export interface ActivityLogInput {
   leadId: string;
@@ -55,6 +56,8 @@ export function getActivityStyle(action: ActivityAction): {
       return { icon: "✎", bgColor: "bg-gray-100", textColor: "text-gray-700" };
     case "NOTE_ADDED":
       return { icon: "💬", bgColor: "bg-indigo-100", textColor: "text-indigo-700" };
+    case "LEAD_SCRAPED":
+      return { icon: "🔍", bgColor: "bg-cyan-100", textColor: "text-cyan-700" };
     default:
       return { icon: "•", bgColor: "bg-gray-100", textColor: "text-gray-700" };
   }

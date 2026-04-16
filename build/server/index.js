@@ -1,20 +1,28 @@
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
-import { ServerRouter, UNSAFE_withComponentProps, Outlet, UNSAFE_withErrorBoundaryProps, isRouteErrorResponse, Meta, Links, ScrollRestoration, Scripts, redirect, createCookieSessionStorage, useActionData, Form, Link, useLocation, useLoaderData, useSearchParams, useNavigate, useFetcher, data } from "react-router";
+import { ServerRouter, UNSAFE_withComponentProps, Outlet, UNSAFE_withErrorBoundaryProps, isRouteErrorResponse, Meta, Links, ScrollRestoration, Scripts, redirect, createCookieSessionStorage, useActionData, Form, Link, useLocation, useLoaderData, useSearchParams, useNavigate, useFetcher, useNavigation, data, useRevalidator } from "react-router";
 import { Authenticator } from "remix-auth";
 import { FormStrategy } from "remix-auth-form";
 import pkg from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import * as React from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, Upload, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, Plus, Search, CheckCircle2, XCircle, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, ArrowUp, ArrowDown, Trash2, FileCheck, Target, CheckSquare, Square, GripVertical, Building2, Pencil, Save, Globe, BarChart3, Link as Link$1, ArrowRight, FileText, MessageSquare, Send, FileSpreadsheet, Moon } from "lucide-react";
+import { google } from "googleapis";
+import { randomBytes } from "crypto";
+import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, BarChart3, Upload, Search, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, UserCheck, FileCheck, Trophy, XCircle, Target, ChevronDown, Plus, ChevronRight, CheckCircle2, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, Send, ArrowUp, ArrowDown, Trash2, CheckSquare, Square, GripVertical, Building2, Pencil, Save, Globe, Link as Link$1, ArrowRight, FileText, AlertCircle, Loader2, MessageSquare, Reply, Bold, Italic, Underline, List, ListOrdered, Pilcrow, PenLine, FileSpreadsheet, Moon, Database, Play, Zap, Check, AlertTriangle } from "lucide-react";
 import { Draggable, DragDropContext, Droppable } from "@hello-pangea/dnd";
 import { z } from "zod";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import dns from "node:dns/promises";
+import axios from "axios";
+import * as cheerio from "cheerio";
+import { chromium } from "playwright";
 async function handleRequest(request, responseStatusCode, responseHeaders, routerContext) {
   const body = await renderToReadableStream(
     /* @__PURE__ */ jsx(ServerRouter, { context: routerContext, url: request.url }),
@@ -104,7 +112,7 @@ const route0 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   default: root,
   links
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$j() {
+async function loader$t() {
   return redirect("/dashboard");
 }
 const home = UNSAFE_withComponentProps(function Index() {
@@ -113,7 +121,7 @@ const home = UNSAFE_withComponentProps(function Index() {
 const route1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: home,
-  loader: loader$j
+  loader: loader$t
 }, Symbol.toStringTag, { value: "Module" }));
 const globalForPrisma = globalThis;
 if (!process.env.DATABASE_URL && process.env.DB_USER) {
@@ -269,7 +277,7 @@ const CardContent = React.forwardRef(
   ({ className, ...props }, ref) => /* @__PURE__ */ jsx("div", { ref, className: cn("p-6 pt-0", className), ...props })
 );
 CardContent.displayName = "CardContent";
-async function loader$i({
+async function loader$s({
   request
 }) {
   const session = await getSession(request);
@@ -278,7 +286,7 @@ async function loader$i({
   }
   return {};
 }
-async function action$e({
+async function action$k({
   request
 }) {
   const formData = await request.clone().formData();
@@ -380,11 +388,11 @@ const login = UNSAFE_withComponentProps(function Login() {
 });
 const route2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$e,
+  action: action$k,
   default: login,
-  loader: loader$i
+  loader: loader$s
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$h({
+async function loader$r({
   request
 }) {
   const session = await getSession(request);
@@ -393,7 +401,7 @@ async function loader$h({
   }
   return {};
 }
-async function action$d({
+async function action$j({
   request
 }) {
   const formData = await request.formData();
@@ -562,15 +570,26 @@ const register = UNSAFE_withComponentProps(function Register() {
 });
 const route3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$d,
+  action: action$j,
   default: register,
-  loader: loader$h
+  loader: loader$r
 }, Symbol.toStringTag, { value: "Module" }));
 async function requireAuth(request) {
   const session = await getSession(request);
   const userId = session.get("userId");
   if (!userId) {
     throw redirect("/login");
+  }
+  const exists = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true }
+  });
+  if (!exists) {
+    throw redirect("/login", {
+      headers: {
+        "Set-Cookie": await sessionStorage.destroySession(session)
+      }
+    });
   }
   return userId;
 }
@@ -585,13 +604,325 @@ async function requireAdmin(request) {
   }
   return userId;
 }
+function plainTextToHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>\n");
+}
+function buildHtmlEmail(body, signature) {
+  const bodyHtml = plainTextToHtml(body);
+  if (!signature) {
+    return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${bodyHtml}</body></html>`;
+  }
+  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;">${bodyHtml}<br><br>${signature}</body></html>`;
+}
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.settings.basic"
+];
+function getOAuthClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error(
+      "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI must be set"
+    );
+  }
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+function getScopes() {
+  return SCOPES;
+}
+async function getAuthenticatedClient(userId) {
+  const token = await prisma.gmailToken.findUnique({
+    where: { userId }
+  });
+  if (!token) {
+    throw new Error("User has not connected Gmail");
+  }
+  const oauth2Client = getOAuthClient();
+  oauth2Client.setCredentials({
+    refresh_token: token.refreshToken,
+    access_token: token.accessToken || void 0,
+    expiry_date: token.expiryDate ? token.expiryDate.getTime() : void 0
+  });
+  const isExpired = !token.expiryDate || token.expiryDate.getTime() < Date.now() + 6e4;
+  if (isExpired) {
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    await prisma.gmailToken.update({
+      where: { userId },
+      data: {
+        accessToken: credentials.access_token || null,
+        expiryDate: credentials.expiry_date ? new Date(credentials.expiry_date) : null
+      }
+    });
+  }
+  return google.gmail({ version: "v1", auth: oauth2Client });
+}
+function parseHeaders(headers) {
+  const get = (name) => {
+    var _a;
+    return ((_a = headers.find((h) => {
+      var _a2;
+      return ((_a2 = h.name) == null ? void 0 : _a2.toLowerCase()) === name;
+    })) == null ? void 0 : _a.value) || "";
+  };
+  return {
+    from: get("from"),
+    to: get("to"),
+    subject: get("subject"),
+    date: get("date")
+  };
+}
+function extractBody(payload) {
+  var _a, _b;
+  let plain = "";
+  let html = "";
+  if ((_a = payload.body) == null ? void 0 : _a.data) {
+    const decoded = Buffer.from(payload.body.data, "base64url").toString("utf-8");
+    if (payload.mimeType === "text/html") html = decoded;
+    else plain = decoded;
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      if ((_b = part.body) == null ? void 0 : _b.data) {
+        const decoded = Buffer.from(part.body.data, "base64url").toString(
+          "utf-8"
+        );
+        if (part.mimeType === "text/html") html = decoded;
+        else if (part.mimeType === "text/plain") plain = decoded;
+      }
+      if (part.parts) {
+        const nested = extractBody(part);
+        if (!plain) plain = nested.plain;
+        if (!html) html = nested.html;
+      }
+    }
+  }
+  return { plain, html };
+}
+async function listMessages(userId, opts = {}) {
+  const gmail = await getAuthenticatedClient(userId);
+  const res = await gmail.users.messages.list({
+    userId: "me",
+    labelIds: opts.labelIds,
+    maxResults: opts.maxResults || 20,
+    pageToken: opts.pageToken,
+    q: opts.q
+  });
+  return {
+    messages: res.data.messages || [],
+    nextPageToken: res.data.nextPageToken || void 0,
+    resultSizeEstimate: res.data.resultSizeEstimate || 0
+  };
+}
+async function getMessage(userId, messageId) {
+  var _a, _b;
+  const gmail = await getAuthenticatedClient(userId);
+  const res = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "full"
+  });
+  const msg = res.data;
+  const headers = ((_a = msg.payload) == null ? void 0 : _a.headers) || [];
+  const { from, to, subject, date } = parseHeaders(headers);
+  const { plain, html } = extractBody(msg.payload || {});
+  return {
+    id: msg.id,
+    threadId: msg.threadId,
+    from,
+    to,
+    subject,
+    date,
+    snippet: msg.snippet || "",
+    bodyPlain: plain,
+    bodyHtml: html,
+    labelIds: msg.labelIds || [],
+    historyId: ((_b = msg.historyId) == null ? void 0 : _b.toString()) || ""
+  };
+}
+function buildRawMessage(opts) {
+  const headers = [
+    `To: ${opts.to}`,
+    `From: ${opts.from}`,
+    `Subject: =?utf-8?B?${Buffer.from(opts.subject).toString("base64")}?=`
+  ];
+  if (opts.cc) headers.push(`Cc: ${opts.cc}`);
+  if (opts.replyToMessageId) {
+    headers.push(`In-Reply-To: ${opts.replyToMessageId}`);
+    headers.push(`References: ${opts.replyToMessageId}`);
+  }
+  headers.push("MIME-Version: 1.0");
+  let raw;
+  if (opts.htmlBody) {
+    const boundary = `scalepod_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+    const parts = [
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      opts.body,
+      `--${boundary}`,
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      opts.htmlBody,
+      `--${boundary}--`
+    ];
+    raw = [...headers, "", ...parts].join("\r\n");
+  } else {
+    headers.push("Content-Type: text/plain; charset=utf-8");
+    raw = [...headers, "", opts.body].join("\r\n");
+  }
+  return Buffer.from(raw).toString("base64url");
+}
+async function sendEmail(userId, opts) {
+  const gmail = await getAuthenticatedClient(userId);
+  const token = await prisma.gmailToken.findUnique({ where: { userId } });
+  const fromAddress = (token == null ? void 0 : token.gmailAddress) || "me";
+  const raw = buildRawMessage({
+    to: opts.to,
+    subject: opts.subject,
+    body: opts.body,
+    htmlBody: opts.htmlBody,
+    from: fromAddress
+  });
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw,
+      threadId: opts.threadId
+    }
+  });
+  return {
+    gmailMessageId: res.data.id,
+    gmailThreadId: res.data.threadId
+  };
+}
+async function getGmailSignature(userId) {
+  var _a;
+  try {
+    const gmail = await getAuthenticatedClient(userId);
+    const token = await prisma.gmailToken.findUnique({ where: { userId } });
+    const address = token == null ? void 0 : token.gmailAddress;
+    if (address) {
+      const res2 = await gmail.users.settings.sendAs.get({
+        userId: "me",
+        sendAsEmail: address
+      });
+      return res2.data.signature || "";
+    }
+    const res = await gmail.users.settings.sendAs.list({ userId: "me" });
+    const defaultAlias = (_a = res.data.sendAs) == null ? void 0 : _a.find((s) => s.isDefault);
+    return (defaultAlias == null ? void 0 : defaultAlias.signature) || "";
+  } catch {
+    return "";
+  }
+}
+async function loader$q({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Response("Gmail integration is not configured", {
+      status: 501
+    });
+  }
+  const state = randomBytes(16).toString("hex");
+  const session = await getSession(request);
+  session.set("oauth_state", state);
+  session.set("oauth_user_id", userId);
+  const oauth2Client = getOAuthClient();
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent",
+    scope: getScopes(),
+    state
+  });
+  return redirect(authUrl, {
+    headers: {
+      "Set-Cookie": await sessionStorage.commitSession(session)
+    }
+  });
+}
+const route4 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  loader: loader$q
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$p({
+  request
+}) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+  if (error) {
+    return redirect("/settings?gmail=denied");
+  }
+  if (!code || !state) {
+    return redirect("/settings?gmail=error");
+  }
+  const session = await getSession(request);
+  const savedState = session.get("oauth_state");
+  const sessionUserId = session.get("oauth_user_id");
+  if (!savedState || savedState !== state) {
+    throw new Response("Invalid OAuth state — possible CSRF attack", {
+      status: 403
+    });
+  }
+  const userId = await requireAuth(request);
+  if (sessionUserId && sessionUserId !== userId) {
+    throw new Response("User mismatch", {
+      status: 403
+    });
+  }
+  const oauth2Client = getOAuthClient();
+  const {
+    tokens
+  } = await oauth2Client.getToken(code);
+  if (!tokens.refresh_token) {
+    return redirect("/settings?gmail=error");
+  }
+  await prisma.gmailToken.upsert({
+    where: {
+      userId
+    },
+    update: {
+      refreshToken: tokens.refresh_token,
+      accessToken: tokens.access_token || null,
+      expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : null
+    },
+    create: {
+      userId,
+      refreshToken: tokens.refresh_token,
+      accessToken: tokens.access_token || null,
+      expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : null
+    }
+  });
+  session.unset("oauth_state");
+  session.unset("oauth_user_id");
+  return redirect("/settings?gmail=connected", {
+    headers: {
+      "Set-Cookie": await sessionStorage.commitSession(session)
+    }
+  });
+}
+const route5 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  loader: loader$p
+}, Symbol.toStringTag, { value: "Module" }));
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/leads/new", label: "Add Lead", icon: UserPlus, adminOnly: true },
   { to: "/inbox", label: "Lead Inbox", icon: Inbox },
   { to: "/pipeline", label: "Pipeline", icon: Kanban },
   { to: "/emails", label: "Email Hub", icon: Mail },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/imports", label: "Import", icon: Upload, adminOnly: true },
+  { to: "/scraper", label: "Scraper", icon: Search, adminOnly: true },
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
   { to: "/verification/criteria", label: "Criteria", icon: ShieldCheck, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings }
@@ -696,7 +1027,7 @@ function AppShell({ user, children }) {
     ] })
   ] });
 }
-async function loader$g({
+async function loader$o({
   request
 }) {
   const userId = await requireAuth(request);
@@ -918,10 +1249,943 @@ function PipelineBreakdown() {
     }, item.stage))
   });
 }
-const route4 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route6 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: dashboard,
-  loader: loader$g
+  loader: loader$o
+}, Symbol.toStringTag, { value: "Module" }));
+function formatStage(stage) {
+  return stage.replace(/_/g, " ").split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
+}
+function getActivityStyle(action2) {
+  switch (action2) {
+    case "LEAD_CREATED":
+      return { icon: "+", bgColor: "bg-green-100", textColor: "text-green-700" };
+    case "LEAD_APPROVED":
+      return { icon: "✓", bgColor: "bg-green-100", textColor: "text-green-700" };
+    case "LEAD_REJECTED":
+      return { icon: "✕", bgColor: "bg-red-100", textColor: "text-red-700" };
+    case "STAGE_CHANGED":
+      return { icon: "→", bgColor: "bg-blue-100", textColor: "text-blue-700" };
+    case "LEAD_ASSIGNED":
+      return { icon: "@", bgColor: "bg-purple-100", textColor: "text-purple-700" };
+    case "LEAD_UNASSIGNED":
+      return { icon: "@", bgColor: "bg-gray-100", textColor: "text-gray-700" };
+    case "LEAD_SCORED":
+      return { icon: "★", bgColor: "bg-yellow-100", textColor: "text-yellow-700" };
+    case "LEAD_EDITED":
+      return { icon: "✎", bgColor: "bg-gray-100", textColor: "text-gray-700" };
+    case "NOTE_ADDED":
+      return { icon: "💬", bgColor: "bg-indigo-100", textColor: "text-indigo-700" };
+    case "LEAD_SCRAPED":
+      return { icon: "🔍", bgColor: "bg-cyan-100", textColor: "text-cyan-700" };
+    default:
+      return { icon: "•", bgColor: "bg-gray-100", textColor: "text-gray-700" };
+  }
+}
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground shadow",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        destructive: "border-transparent bg-destructive text-destructive-foreground shadow",
+        outline: "text-foreground",
+        success: "border-transparent bg-emerald-500/20 text-emerald-400",
+        warning: "border-transparent bg-amber-500/20 text-amber-400"
+      }
+    },
+    defaultVariants: {
+      variant: "default"
+    }
+  }
+);
+function Badge({ className, variant, ...props }) {
+  return /* @__PURE__ */ jsx("div", { className: cn(badgeVariants({ variant }), className), ...props });
+}
+const PIPELINE_STAGES = ["SOURCED", "QUALIFIED", "FIRST_CONTACT", "MEETING_BOOKED", "PROPOSAL_SENT", "CLOSED_WON"];
+const STAGE_COLORS$1 = {
+  SOURCED: "bg-slate-400/20 text-slate-300",
+  QUALIFIED: "bg-blue-500/20 text-blue-400",
+  FIRST_CONTACT: "bg-violet-500/20 text-violet-400",
+  MEETING_BOOKED: "bg-amber-500/20 text-amber-400",
+  PROPOSAL_SENT: "bg-orange-500/20 text-orange-400",
+  CLOSED_WON: "bg-emerald-500/20 text-emerald-400",
+  CLOSED_LOST: "bg-red-500/20 text-red-400"
+};
+const STAGE_BAR_COLORS = {
+  SOURCED: "bg-slate-400/50",
+  QUALIFIED: "bg-blue-500/60",
+  FIRST_CONTACT: "bg-violet-500/60",
+  MEETING_BOOKED: "bg-amber-500/60",
+  PROPOSAL_SENT: "bg-orange-500/60",
+  CLOSED_WON: "bg-emerald-500/60",
+  CLOSED_LOST: "bg-red-500/60"
+};
+function rangeToStartDate(range, from) {
+  if (range === "all") return void 0;
+  if (range === "custom" && from) return new Date(from);
+  const now = /* @__PURE__ */ new Date();
+  const d = new Date(now);
+  switch (range) {
+    case "7d":
+      d.setDate(d.getDate() - 7);
+      break;
+    case "30d":
+      d.setDate(d.getDate() - 30);
+      break;
+    case "90d":
+      d.setDate(d.getDate() - 90);
+      break;
+    case "1y":
+      d.setFullYear(d.getFullYear() - 1);
+      break;
+  }
+  return d;
+}
+async function loader$n({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const url = new URL(request.url);
+  const range = url.searchParams.get("range") || "all";
+  const customFrom = url.searchParams.get("from") || void 0;
+  const customTo = url.searchParams.get("to") || void 0;
+  const startDate = rangeToStartDate(range, customFrom);
+  const endDate = customTo ? new Date(customTo) : void 0;
+  const rawHistory = await prisma.stageHistory.findMany({
+    include: {
+      lead: {
+        select: {
+          id: true,
+          companyName: true,
+          contactName: true,
+          email: true,
+          stage: true,
+          leadSource: true
+        }
+      },
+      changedBy: {
+        select: {
+          id: true,
+          name: true
+        }
+      }
+    },
+    orderBy: {
+      changedAt: "asc"
+    }
+  });
+  const firstArrivalMap = /* @__PURE__ */ new Map();
+  for (const h of rawHistory) {
+    const key = `${h.leadId}::${h.toStage}`;
+    if (!firstArrivalMap.has(key)) {
+      firstArrivalMap.set(key, h);
+    }
+  }
+  const dedupedHistory = Array.from(firstArrivalMap.values());
+  const stageHistory = startDate || endDate ? dedupedHistory.filter((h) => {
+    const t = new Date(h.changedAt).getTime();
+    if (startDate && t < startDate.getTime()) return false;
+    if (endDate && t > endDate.getTime()) return false;
+    return true;
+  }) : dedupedHistory;
+  const stageCounts = {};
+  for (const stage of [...PIPELINE_STAGES, "CLOSED_LOST"]) {
+    stageCounts[stage] = stageHistory.filter((h) => h.toStage === stage).length;
+  }
+  const won = stageCounts["CLOSED_WON"];
+  const lost = stageCounts["CLOSED_LOST"];
+  const winRate = won + lost > 0 ? Math.round(won / (won + lost) * 100) : 0;
+  const now = /* @__PURE__ */ new Date();
+  const monthsToShow = range === "7d" ? 1 : range === "30d" ? 2 : range === "90d" ? 4 : range === "1y" ? 12 : 6;
+  const monthlyTrends = [];
+  for (let i = monthsToShow - 1; i >= 0; i--) {
+    const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    const label = mStart.toLocaleDateString("en-US", {
+      month: "short",
+      year: "2-digit"
+    });
+    const inRange = (d) => d >= mStart && d < mEnd;
+    monthlyTrends.push({
+      month: label,
+      contacted: stageHistory.filter((h) => h.toStage === "FIRST_CONTACT" && inRange(h.changedAt)).length,
+      won: stageHistory.filter((h) => h.toStage === "CLOSED_WON" && inRange(h.changedAt)).length,
+      lost: stageHistory.filter((h) => h.toStage === "CLOSED_LOST" && inRange(h.changedAt)).length
+    });
+  }
+  const leadSources = await prisma.lead.groupBy({
+    by: ["leadSource"],
+    _count: {
+      id: true
+    },
+    orderBy: {
+      _count: {
+        id: "desc"
+      }
+    },
+    ...startDate ? {
+      where: {
+        createdAt: {
+          gte: startDate
+        }
+      }
+    } : {}
+  });
+  const allUsers = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true
+    }
+  });
+  const teamStats = allUsers.map((u) => {
+    const contacted = stageHistory.filter((h) => h.changedById === u.id && h.toStage === "FIRST_CONTACT").length;
+    const dealsWon = stageHistory.filter((h) => h.changedById === u.id && h.toStage === "CLOSED_WON").length;
+    const dealsLost = stageHistory.filter((h) => h.changedById === u.id && h.toStage === "CLOSED_LOST").length;
+    return {
+      ...u,
+      contacted,
+      dealsWon,
+      dealsLost,
+      winRate: dealsWon + dealsLost > 0 ? Math.round(dealsWon / (dealsWon + dealsLost) * 100) : 0
+    };
+  }).filter((u) => u.contacted > 0 || u.dealsWon > 0 || u.dealsLost > 0).sort((a, b) => b.dealsWon - a.dealsWon);
+  const wonHistory = stageHistory.filter((h) => h.toStage === "CLOSED_WON");
+  const lostHistory = stageHistory.filter((h) => h.toStage === "CLOSED_LOST");
+  const proposalHistory = stageHistory.filter((h) => h.toStage === "PROPOSAL_SENT");
+  const contactedHistory = stageHistory.filter((h) => h.toStage === "FIRST_CONTACT");
+  const totalLeads = await prisma.lead.count(startDate ? {
+    where: {
+      createdAt: {
+        gte: startDate
+      }
+    }
+  } : {});
+  const totalEmailsSent = await prisma.emailMessage.count({
+    where: {
+      direction: "sent",
+      ...startDate ? {
+        createdAt: {
+          gte: startDate
+        }
+      } : {}
+    }
+  });
+  return {
+    user,
+    range,
+    totalLeads,
+    stageCounts,
+    won,
+    lost,
+    winRate,
+    monthlyTrends,
+    leadSources: leadSources.map((s) => ({
+      source: s.leadSource || "Unknown",
+      count: s._count.id
+    })),
+    teamStats,
+    wonHistory,
+    lostHistory,
+    proposalHistory,
+    contactedHistory,
+    totalEmailsSent
+  };
+}
+function RangePicker({
+  range
+}) {
+  const isCustom = range === "custom";
+  const ranges = [{
+    key: "7d",
+    label: "7D"
+  }, {
+    key: "30d",
+    label: "30D"
+  }, {
+    key: "90d",
+    label: "90D"
+  }, {
+    key: "1y",
+    label: "1Y"
+  }, {
+    key: "all",
+    label: "All Time"
+  }];
+  return /* @__PURE__ */ jsxs("div", {
+    className: "flex flex-col gap-2",
+    children: [/* @__PURE__ */ jsxs("div", {
+      className: "flex gap-1 rounded-lg bg-muted/50 p-1",
+      children: [ranges.map((r) => /* @__PURE__ */ jsx(Link, {
+        to: `/analytics?range=${r.key}`,
+        className: `rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${range === r.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`,
+        children: r.label
+      }, r.key)), /* @__PURE__ */ jsx(Link, {
+        to: `/analytics?range=custom`,
+        className: `rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${isCustom ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`,
+        children: "Custom"
+      })]
+    }), isCustom && /* @__PURE__ */ jsxs("form", {
+      method: "get",
+      action: "/analytics",
+      className: "flex items-center gap-2",
+      children: [/* @__PURE__ */ jsx("input", {
+        type: "hidden",
+        name: "range",
+        value: "custom"
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-1.5",
+        children: [/* @__PURE__ */ jsx("span", {
+          className: "text-xs text-muted-foreground",
+          children: "From"
+        }), /* @__PURE__ */ jsx("input", {
+          type: "date",
+          name: "from",
+          className: "h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-1.5",
+        children: [/* @__PURE__ */ jsx("span", {
+          className: "text-xs text-muted-foreground",
+          children: "To"
+        }), /* @__PURE__ */ jsx("input", {
+          type: "date",
+          name: "to",
+          className: "h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+        })]
+      }), /* @__PURE__ */ jsx(Button, {
+        type: "submit",
+        size: "sm",
+        variant: "outline",
+        className: "h-8 text-xs",
+        children: "Apply"
+      })]
+    })]
+  });
+}
+function KPICard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  accent
+}) {
+  const accents = {
+    violet: {
+      bg: "bg-violet-500/10",
+      text: "text-violet-400",
+      border: "border-violet-500/20"
+    },
+    blue: {
+      bg: "bg-blue-500/10",
+      text: "text-blue-400",
+      border: "border-blue-500/20"
+    },
+    amber: {
+      bg: "bg-amber-500/10",
+      text: "text-amber-400",
+      border: "border-amber-500/20"
+    },
+    emerald: {
+      bg: "bg-emerald-500/10",
+      text: "text-emerald-400",
+      border: "border-emerald-500/20"
+    },
+    red: {
+      bg: "bg-red-500/10",
+      text: "text-red-400",
+      border: "border-red-500/20"
+    },
+    orange: {
+      bg: "bg-orange-500/10",
+      text: "text-orange-400",
+      border: "border-orange-500/20"
+    },
+    slate: {
+      bg: "bg-slate-400/10",
+      text: "text-slate-300",
+      border: "border-slate-400/20"
+    }
+  };
+  const a = accents[accent] || accents.violet;
+  return /* @__PURE__ */ jsx(Card, {
+    className: `border ${a.border}`,
+    children: /* @__PURE__ */ jsx(CardContent, {
+      className: "p-4",
+      children: /* @__PURE__ */ jsxs("div", {
+        className: "flex items-start justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("p", {
+            className: "text-2xl font-bold",
+            children: value
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-xs text-muted-foreground mt-0.5",
+            children: label
+          }), sub && /* @__PURE__ */ jsx("p", {
+            className: "text-[10px] text-muted-foreground/60 mt-0.5",
+            children: sub
+          })]
+        }), /* @__PURE__ */ jsx("div", {
+          className: `flex h-9 w-9 items-center justify-center rounded-lg ${a.bg}`,
+          children: /* @__PURE__ */ jsx(Icon, {
+            className: `h-4 w-4 ${a.text}`
+          })
+        })]
+      })
+    })
+  });
+}
+function GroupedBarChart({
+  data: data2
+}) {
+  const maxVal = Math.max(...data2.flatMap((d) => [d.contacted, d.won, d.lost]), 1);
+  return /* @__PURE__ */ jsx("div", {
+    className: "flex items-end gap-3",
+    style: {
+      height: 160
+    },
+    children: data2.map((d) => /* @__PURE__ */ jsxs("div", {
+      className: "flex-1 flex flex-col items-center gap-1",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-end gap-0.5 w-full",
+        style: {
+          height: 130
+        },
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "flex-1 flex flex-col justify-end",
+          children: /* @__PURE__ */ jsx("div", {
+            className: "w-full rounded-t bg-violet-500/50 min-h-[3px] transition-all",
+            style: {
+              height: `${d.contacted / maxVal * 100}%`
+            }
+          })
+        }), /* @__PURE__ */ jsx("div", {
+          className: "flex-1 flex flex-col justify-end",
+          children: /* @__PURE__ */ jsx("div", {
+            className: "w-full rounded-t bg-emerald-500/60 min-h-[3px] transition-all",
+            style: {
+              height: `${d.won / maxVal * 100}%`
+            }
+          })
+        }), /* @__PURE__ */ jsx("div", {
+          className: "flex-1 flex flex-col justify-end",
+          children: /* @__PURE__ */ jsx("div", {
+            className: "w-full rounded-t bg-red-500/50 min-h-[3px] transition-all",
+            style: {
+              height: `${d.lost / maxVal * 100}%`
+            }
+          })
+        })]
+      }), /* @__PURE__ */ jsx("span", {
+        className: "text-[10px] text-muted-foreground whitespace-nowrap",
+        children: d.month
+      })]
+    }, d.month))
+  });
+}
+function FunnelBar({
+  stage,
+  count,
+  maxCount
+}) {
+  const width = maxCount > 0 ? Math.max(count / maxCount * 100, count > 0 ? 6 : 0) : 0;
+  return /* @__PURE__ */ jsxs("div", {
+    className: "flex items-center gap-3 group",
+    children: [/* @__PURE__ */ jsx("span", {
+      className: "text-xs text-muted-foreground w-28 shrink-0 text-right truncate",
+      children: formatStage(stage)
+    }), /* @__PURE__ */ jsx("div", {
+      className: "flex-1 h-8 bg-muted/20 rounded overflow-hidden relative",
+      children: count > 0 && /* @__PURE__ */ jsx("div", {
+        className: `h-full rounded flex items-center px-2.5 transition-all ${STAGE_BAR_COLORS[stage] || "bg-muted"}`,
+        style: {
+          width: `${Math.min(width, 100)}%`,
+          minWidth: 40
+        },
+        children: /* @__PURE__ */ jsx("span", {
+          className: "text-xs font-semibold whitespace-nowrap",
+          children: count
+        })
+      })
+    }), /* @__PURE__ */ jsx("span", {
+      className: "text-[10px] text-muted-foreground w-10 shrink-0 text-right",
+      children: count
+    })]
+  });
+}
+function DataTable({
+  rows
+}) {
+  if (rows.length === 0) {
+    return /* @__PURE__ */ jsx("div", {
+      className: "flex flex-col items-center py-8 text-muted-foreground",
+      children: /* @__PURE__ */ jsx("p", {
+        className: "text-sm",
+        children: "No records found for this period."
+      })
+    });
+  }
+  return /* @__PURE__ */ jsx("div", {
+    className: "overflow-x-auto",
+    children: /* @__PURE__ */ jsxs("table", {
+      className: "w-full text-sm",
+      children: [/* @__PURE__ */ jsx("thead", {
+        children: /* @__PURE__ */ jsxs("tr", {
+          className: "border-b border-border text-left text-[10px] text-muted-foreground uppercase tracking-wider",
+          children: [/* @__PURE__ */ jsx("th", {
+            className: "pb-2.5 pr-4",
+            children: "Company"
+          }), /* @__PURE__ */ jsx("th", {
+            className: "pb-2.5 pr-4",
+            children: "Contact"
+          }), /* @__PURE__ */ jsx("th", {
+            className: "pb-2.5 pr-4",
+            children: "Date"
+          }), /* @__PURE__ */ jsx("th", {
+            className: "pb-2.5 pr-4",
+            children: "By"
+          }), /* @__PURE__ */ jsx("th", {
+            className: "pb-2.5",
+            children: "Current Stage"
+          })]
+        })
+      }), /* @__PURE__ */ jsx("tbody", {
+        className: "divide-y divide-border/40",
+        children: rows.map((r) => /* @__PURE__ */ jsxs("tr", {
+          className: "hover:bg-muted/15 transition-colors",
+          children: [/* @__PURE__ */ jsx("td", {
+            className: "py-2.5 pr-4",
+            children: /* @__PURE__ */ jsx(Link, {
+              to: `/inbox/${r.leadId}`,
+              className: "font-medium text-violet-400 hover:underline",
+              children: r.company
+            })
+          }), /* @__PURE__ */ jsx("td", {
+            className: "py-2.5 pr-4 text-muted-foreground",
+            children: r.contact || "—"
+          }), /* @__PURE__ */ jsx("td", {
+            className: "py-2.5 pr-4 text-muted-foreground whitespace-nowrap",
+            children: new Date(r.date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric"
+            })
+          }), /* @__PURE__ */ jsx("td", {
+            className: "py-2.5 pr-4 text-muted-foreground",
+            children: r.changedBy || "—"
+          }), /* @__PURE__ */ jsx("td", {
+            className: "py-2.5",
+            children: /* @__PURE__ */ jsx(Badge, {
+              className: `text-[10px] ${STAGE_COLORS$1[r.currentStage] || "bg-muted text-muted-foreground"}`,
+              children: formatStage(r.currentStage)
+            })
+          })]
+        }, r.id))
+      })]
+    })
+  });
+}
+function TabButton$1({
+  active,
+  label,
+  count,
+  onClick
+}) {
+  return /* @__PURE__ */ jsxs("button", {
+    onClick,
+    className: `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`,
+    children: [label, /* @__PURE__ */ jsx("span", {
+      className: `rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? "bg-primary-foreground/20" : "bg-muted"}`,
+      children: count
+    })]
+  });
+}
+const analytics = UNSAFE_withComponentProps(function Analytics() {
+  const data2 = useLoaderData();
+  const [activeTab, setActiveTab] = useState("won");
+  const toRow = (h) => {
+    var _a, _b, _c, _d, _e;
+    return {
+      id: h.id,
+      leadId: ((_a = h.lead) == null ? void 0 : _a.id) || "",
+      company: ((_b = h.lead) == null ? void 0 : _b.companyName) || "—",
+      contact: ((_c = h.lead) == null ? void 0 : _c.contactName) || "",
+      date: h.changedAt,
+      changedBy: ((_d = h.changedBy) == null ? void 0 : _d.name) || "",
+      currentStage: ((_e = h.lead) == null ? void 0 : _e.stage) || "UNKNOWN"
+    };
+  };
+  const tabData = {
+    won: data2.wonHistory.map(toRow),
+    lost: data2.lostHistory.map(toRow),
+    proposals: data2.proposalHistory.map(toRow),
+    contacted: data2.contactedHistory.map(toRow)
+  };
+  const maxSource = Math.max(...data2.leadSources.map((s) => s.count), 1);
+  Math.max(...data2.teamStats.map((t) => t.contacted + t.dealsWon), 1);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user: data2.user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-3xl font-bold tracking-tight",
+            children: "Analytics"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground",
+            children: "Pipeline performance and outreach metrics"
+          })]
+        }), /* @__PURE__ */ jsx(RangePicker, {
+          range: data2.range
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6",
+        children: [/* @__PURE__ */ jsx(KPICard, {
+          icon: Users,
+          label: "Total Leads",
+          value: data2.totalLeads,
+          accent: "slate"
+        }), /* @__PURE__ */ jsx(KPICard, {
+          icon: UserCheck,
+          label: "Contacted",
+          value: data2.stageCounts["FIRST_CONTACT"],
+          sub: "Reached First Contact",
+          accent: "violet"
+        }), /* @__PURE__ */ jsx(KPICard, {
+          icon: FileCheck,
+          label: "Proposals Sent",
+          value: data2.stageCounts["PROPOSAL_SENT"],
+          accent: "orange"
+        }), /* @__PURE__ */ jsx(KPICard, {
+          icon: Trophy,
+          label: "Deals Won",
+          value: data2.won,
+          accent: "emerald"
+        }), /* @__PURE__ */ jsx(KPICard, {
+          icon: XCircle,
+          label: "Deals Lost",
+          value: data2.lost,
+          accent: "red"
+        }), /* @__PURE__ */ jsx(KPICard, {
+          icon: Target,
+          label: "Win Rate",
+          value: `${data2.winRate}%`,
+          sub: `${data2.won}W / ${data2.lost}L`,
+          accent: "amber"
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 lg:grid-cols-5",
+        children: [/* @__PURE__ */ jsxs(Card, {
+          className: "lg:col-span-3",
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            className: "pb-3",
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+              children: "Conversion Funnel"
+            })
+          }), /* @__PURE__ */ jsx(CardContent, {
+            className: "space-y-2",
+            children: PIPELINE_STAGES.map((stage, i) => {
+              const count = data2.stageCounts[stage];
+              const prevCount = i > 0 ? data2.stageCounts[PIPELINE_STAGES[i - 1]] : 0;
+              const maxCount = data2.stageCounts["SOURCED"] || Math.max(...Object.values(data2.stageCounts), 1);
+              const convRate = i > 0 && prevCount > 0 && count > 0 ? Math.round(count / prevCount * 100) : null;
+              return /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx(FunnelBar, {
+                  stage,
+                  count,
+                  maxCount
+                }), i < PIPELINE_STAGES.length - 1 && /* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-3 ml-[calc(7rem+0.5rem)] my-0.5",
+                  children: [/* @__PURE__ */ jsx("div", {
+                    className: "h-px flex-1 bg-border/30"
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "text-[10px] text-muted-foreground/60 font-medium",
+                    children: convRate !== null ? `${convRate}% conversion` : "—"
+                  }), /* @__PURE__ */ jsx(ChevronDown, {
+                    className: "h-3 w-3 text-muted-foreground/30"
+                  })]
+                })]
+              }, stage);
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          className: "lg:col-span-2",
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            className: "pb-3",
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+              children: "Won vs Lost"
+            })
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex gap-3",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-center",
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-3xl font-bold text-emerald-400",
+                  children: data2.won
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-emerald-400/70 mt-1",
+                  children: "Won"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex-1 rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-center",
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-3xl font-bold text-red-400",
+                  children: data2.lost
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-red-400/70 mt-1",
+                  children: "Lost"
+                })]
+              })]
+            }), data2.won + data2.lost > 0 && /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex h-2 rounded-full overflow-hidden bg-muted/30",
+                children: [/* @__PURE__ */ jsx("div", {
+                  className: "bg-emerald-500/70 transition-all",
+                  style: {
+                    width: `${data2.won / (data2.won + data2.lost) * 100}%`
+                  }
+                }), /* @__PURE__ */ jsx("div", {
+                  className: "bg-red-500/50 transition-all",
+                  style: {
+                    width: `${data2.lost / (data2.won + data2.lost) * 100}%`
+                  }
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex justify-between text-[10px] text-muted-foreground",
+                children: [/* @__PURE__ */ jsxs("span", {
+                  children: [data2.winRate, "% won"]
+                }), /* @__PURE__ */ jsxs("span", {
+                  children: [100 - data2.winRate, "% lost"]
+                })]
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "space-y-1.5 pt-2 border-t border-border/30",
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "text-[10px] text-muted-foreground uppercase tracking-wider font-medium",
+                children: "Recent outcomes"
+              }), [...data2.wonHistory.slice(0, 3).map((h) => ({
+                ...h,
+                outcome: "won"
+              })), ...data2.lostHistory.slice(0, 3).map((h) => ({
+                ...h,
+                outcome: "lost"
+              }))].sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()).slice(0, 4).map((h) => {
+                var _a, _b;
+                return /* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2 text-xs",
+                  children: [/* @__PURE__ */ jsx("span", {
+                    className: `h-1.5 w-1.5 rounded-full shrink-0 ${h.outcome === "won" ? "bg-emerald-400" : "bg-red-400"}`
+                  }), /* @__PURE__ */ jsx(Link, {
+                    to: `/inbox/${(_a = h.lead) == null ? void 0 : _a.id}`,
+                    className: "truncate text-foreground/80 hover:text-violet-400 hover:underline flex-1",
+                    children: (_b = h.lead) == null ? void 0 : _b.companyName
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "text-muted-foreground shrink-0",
+                    children: new Date(h.changedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric"
+                    })
+                  })]
+                }, h.id);
+              })]
+            })]
+          })]
+        })]
+      }), /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          className: "pb-2",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center justify-between",
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+              children: "Monthly Trends"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex gap-3",
+              children: [/* @__PURE__ */ jsxs("span", {
+                className: "flex items-center gap-1 text-[10px] text-muted-foreground",
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "h-2 w-2 rounded-sm bg-violet-500/50"
+                }), " Contacted"]
+              }), /* @__PURE__ */ jsxs("span", {
+                className: "flex items-center gap-1 text-[10px] text-muted-foreground",
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "h-2 w-2 rounded-sm bg-emerald-500/60"
+                }), " Won"]
+              }), /* @__PURE__ */ jsxs("span", {
+                className: "flex items-center gap-1 text-[10px] text-muted-foreground",
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "h-2 w-2 rounded-sm bg-red-500/50"
+                }), " Lost"]
+              })]
+            })]
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: data2.monthlyTrends.every((m) => m.contacted === 0 && m.won === 0 && m.lost === 0) ? /* @__PURE__ */ jsxs("div", {
+            className: "flex flex-col items-center py-8 text-muted-foreground",
+            children: [/* @__PURE__ */ jsx(BarChart3, {
+              className: "h-8 w-8 mb-2 opacity-30"
+            }), /* @__PURE__ */ jsx("p", {
+              className: "text-sm",
+              children: "No trend data for this period"
+            })]
+          }) : /* @__PURE__ */ jsx(GroupedBarChart, {
+            data: data2.monthlyTrends
+          })
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 lg:grid-cols-2",
+        children: [/* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            className: "pb-3",
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+              children: "Lead Sources"
+            })
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: data2.leadSources.length === 0 ? /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-muted-foreground text-center py-6",
+              children: "No lead source data."
+            }) : /* @__PURE__ */ jsx("div", {
+              className: "space-y-2.5",
+              children: data2.leadSources.slice(0, 8).map((s) => /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-3",
+                children: [/* @__PURE__ */ jsx("span", {
+                  className: "text-xs text-muted-foreground w-24 shrink-0 truncate text-right",
+                  children: s.source
+                }), /* @__PURE__ */ jsx("div", {
+                  className: "flex-1 h-6 bg-muted/20 rounded overflow-hidden",
+                  children: /* @__PURE__ */ jsx("div", {
+                    className: "h-full rounded bg-violet-500/40 flex items-center px-2 transition-all",
+                    style: {
+                      width: `${Math.max(s.count / maxSource * 100, 8)}%`
+                    },
+                    children: /* @__PURE__ */ jsx("span", {
+                      className: "text-[10px] font-semibold",
+                      children: s.count
+                    })
+                  })
+                })]
+              }, s.source))
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsx(CardHeader, {
+            className: "pb-3",
+            children: /* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+              children: "Team Performance"
+            })
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: data2.teamStats.length === 0 ? /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-muted-foreground text-center py-6",
+              children: "No team activity yet."
+            }) : /* @__PURE__ */ jsxs("div", {
+              className: "space-y-2",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "grid grid-cols-[1fr_60px_60px_60px] text-[10px] text-muted-foreground uppercase tracking-wider pb-1 border-b border-border/30",
+                children: [/* @__PURE__ */ jsx("span", {
+                  children: "Member"
+                }), /* @__PURE__ */ jsx("span", {
+                  className: "text-center",
+                  children: "Contacted"
+                }), /* @__PURE__ */ jsx("span", {
+                  className: "text-center",
+                  children: "Won"
+                }), /* @__PURE__ */ jsx("span", {
+                  className: "text-center",
+                  children: "Rate"
+                })]
+              }), data2.teamStats.map((t) => /* @__PURE__ */ jsxs("div", {
+                className: "grid grid-cols-[1fr_60px_60px_60px] items-center text-xs py-1.5",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2",
+                  children: [/* @__PURE__ */ jsx("div", {
+                    className: "flex h-6 w-6 items-center justify-center rounded-full bg-violet-500/15 text-violet-400 text-[10px] font-semibold",
+                    children: (t.name || t.email)[0].toUpperCase()
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "truncate font-medium",
+                    children: t.name || t.email
+                  })]
+                }), /* @__PURE__ */ jsx("span", {
+                  className: "text-center text-muted-foreground",
+                  children: t.contacted
+                }), /* @__PURE__ */ jsx("span", {
+                  className: "text-center text-emerald-400 font-medium",
+                  children: t.dealsWon
+                }), /* @__PURE__ */ jsxs("span", {
+                  className: "text-center text-muted-foreground",
+                  children: [t.winRate, "%"]
+                })]
+              }, t.id))]
+            })
+          })]
+        })]
+      }), /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          className: "pb-3",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center justify-between",
+            children: [/* @__PURE__ */ jsx(CardTitle, {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+              children: "Details"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex gap-1 rounded-lg bg-muted/50 p-0.5",
+              children: [/* @__PURE__ */ jsx(TabButton$1, {
+                label: "Won",
+                count: data2.wonHistory.length,
+                active: activeTab === "won",
+                onClick: () => setActiveTab("won")
+              }), /* @__PURE__ */ jsx(TabButton$1, {
+                label: "Lost",
+                count: data2.lostHistory.length,
+                active: activeTab === "lost",
+                onClick: () => setActiveTab("lost")
+              }), /* @__PURE__ */ jsx(TabButton$1, {
+                label: "Proposals",
+                count: data2.proposalHistory.length,
+                active: activeTab === "proposals",
+                onClick: () => setActiveTab("proposals")
+              }), /* @__PURE__ */ jsx(TabButton$1, {
+                label: "Contacted",
+                count: data2.contactedHistory.length,
+                active: activeTab === "contacted",
+                onClick: () => setActiveTab("contacted")
+              })]
+            })]
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsx(DataTable, {
+            rows: tabData[activeTab]
+          })
+        })]
+      })]
+    })
+  });
+});
+const route7 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: analytics,
+  loader: loader$n
 }, Symbol.toStringTag, { value: "Module" }));
 async function scoreLead(responses) {
   const criteria = await prisma.verificationCriteria.findMany({
@@ -991,7 +2255,7 @@ async function logActivity(input) {
     }
   });
 }
-async function loader$f({
+async function loader$m({
   request
 }) {
   const userId = await requireAuth(request);
@@ -1063,7 +2327,7 @@ async function loader$f({
     criteria
   };
 }
-async function action$c({
+async function action$i({
   request
 }) {
   const userId = await requireAuth(request);
@@ -1376,123 +2640,9 @@ const inbox = UNSAFE_withComponentProps(function Inbox2() {
                   className: "px-4 py-12 text-center text-muted-foreground",
                   children: "No leads found. Add one to get started."
                 })
-              }) : leads.map((lead) => /* @__PURE__ */ jsxs("tr", {
-                className: "border-b transition-colors hover:bg-muted/30",
-                children: [/* @__PURE__ */ jsxs("td", {
-                  className: "px-4 py-3",
-                  children: [/* @__PURE__ */ jsx("div", {
-                    className: "font-medium",
-                    children: lead.companyName
-                  }), lead.website && /* @__PURE__ */ jsx("div", {
-                    className: "text-xs text-muted-foreground",
-                    children: lead.website
-                  })]
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "px-4 py-3",
-                  children: lead.contactName || "—"
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "hidden px-4 py-3 md:table-cell",
-                  children: lead.email
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "hidden px-4 py-3 lg:table-cell",
-                  children: lead.industry && /* @__PURE__ */ jsx("span", {
-                    className: "inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0 text-xs text-blue-400",
-                    children: lead.industry
-                  })
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "px-4 py-3",
-                  children: /* @__PURE__ */ jsxs("div", {
-                    className: "flex items-center gap-2",
-                    children: [/* @__PURE__ */ jsxs("span", {
-                      className: "font-mono text-sm font-bold",
-                      children: [Math.round(lead.score), "/", Math.round(lead.maxScore)]
-                    }), /* @__PURE__ */ jsx("div", {
-                      className: "h-2 w-16 rounded-full bg-muted overflow-hidden",
-                      children: /* @__PURE__ */ jsx("div", {
-                        className: `h-full rounded-full ${lead.maxScore > 0 && lead.score / lead.maxScore >= 0.8 ? "bg-red-400" : lead.maxScore > 0 && lead.score / lead.maxScore >= 0.5 ? "bg-amber-400" : "bg-blue-400"}`,
-                        style: {
-                          width: `${lead.maxScore > 0 ? lead.score / lead.maxScore * 100 : 0}%`
-                        }
-                      })
-                    })]
-                  })
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "px-4 py-3",
-                  children: /* @__PURE__ */ jsx(TemperatureBadge$1, {
-                    temperature: lead.temperature
-                  })
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "px-4 py-3",
-                  children: /* @__PURE__ */ jsx(StageBadge$1, {
-                    stage: lead.stage
-                  })
-                }), /* @__PURE__ */ jsx("td", {
-                  className: "px-4 py-3",
-                  children: /* @__PURE__ */ jsxs("div", {
-                    className: "flex items-center justify-end gap-1",
-                    children: [isAdmin && lead.status === "INBOX" && /* @__PURE__ */ jsxs(Fragment, {
-                      children: [/* @__PURE__ */ jsxs(Form, {
-                        method: "post",
-                        children: [/* @__PURE__ */ jsx("input", {
-                          type: "hidden",
-                          name: "intent",
-                          value: "accept"
-                        }), /* @__PURE__ */ jsx("input", {
-                          type: "hidden",
-                          name: "leadId",
-                          value: lead.id
-                        }), /* @__PURE__ */ jsx(Button, {
-                          type: "submit",
-                          size: "icon",
-                          variant: "ghost",
-                          title: "Accept lead",
-                          children: /* @__PURE__ */ jsx(CheckCircle2, {
-                            className: "h-4 w-4 text-emerald-400"
-                          })
-                        })]
-                      }), /* @__PURE__ */ jsxs(Form, {
-                        method: "post",
-                        children: [/* @__PURE__ */ jsx("input", {
-                          type: "hidden",
-                          name: "intent",
-                          value: "reject"
-                        }), /* @__PURE__ */ jsx("input", {
-                          type: "hidden",
-                          name: "leadId",
-                          value: lead.id
-                        }), /* @__PURE__ */ jsx(Button, {
-                          type: "submit",
-                          size: "icon",
-                          variant: "ghost",
-                          title: "Reject lead",
-                          children: /* @__PURE__ */ jsx(XCircle, {
-                            className: "h-4 w-4 text-red-400"
-                          })
-                        })]
-                      })]
-                    }), isAdmin && /* @__PURE__ */ jsx(Link, {
-                      to: `/verification/${lead.id}`,
-                      children: /* @__PURE__ */ jsx(Button, {
-                        size: "icon",
-                        variant: "ghost",
-                        title: "Re-score lead",
-                        children: /* @__PURE__ */ jsx(ShieldCheck, {
-                          className: "h-4 w-4 text-violet-400"
-                        })
-                      })
-                    }), /* @__PURE__ */ jsx(Link, {
-                      to: `/leads/${lead.id}/emails`,
-                      children: /* @__PURE__ */ jsx(Button, {
-                        size: "icon",
-                        variant: "ghost",
-                        title: "Email lead",
-                        children: /* @__PURE__ */ jsx(ExternalLink, {
-                          className: "h-4 w-4"
-                        })
-                      })
-                    })]
-                  })
-                })]
+              }) : leads.map((lead) => /* @__PURE__ */ jsx(LeadRow, {
+                lead,
+                isAdmin
               }, lead.id))
             })]
           })
@@ -1559,33 +2709,177 @@ function TemperatureBadge$1({
     }), temperature]
   });
 }
-const route5 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-  __proto__: null,
-  action: action$c,
-  default: inbox,
-  loader: loader$f
-}, Symbol.toStringTag, { value: "Module" }));
-const badgeVariants = cva(
-  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  {
-    variants: {
-      variant: {
-        default: "border-transparent bg-primary text-primary-foreground shadow",
-        secondary: "border-transparent bg-secondary text-secondary-foreground",
-        destructive: "border-transparent bg-destructive text-destructive-foreground shadow",
-        outline: "text-foreground",
-        success: "border-transparent bg-emerald-500/20 text-emerald-400",
-        warning: "border-transparent bg-amber-500/20 text-amber-400"
-      }
-    },
-    defaultVariants: {
-      variant: "default"
-    }
-  }
-);
-function Badge({ className, variant, ...props }) {
-  return /* @__PURE__ */ jsx("div", { className: cn(badgeVariants({ variant }), className), ...props });
+function LeadRow({
+  lead,
+  isAdmin
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const responses = lead.criteriaResponses || [];
+  const hasScores = responses.length > 0;
+  const pct = lead.maxScore > 0 ? Math.round(lead.score / lead.maxScore * 100) : 0;
+  return /* @__PURE__ */ jsxs(Fragment, {
+    children: [/* @__PURE__ */ jsxs("tr", {
+      className: "border-b transition-colors hover:bg-muted/30",
+      children: [/* @__PURE__ */ jsxs("td", {
+        className: "px-4 py-3",
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "font-medium",
+          children: lead.companyName
+        }), lead.website && /* @__PURE__ */ jsx("div", {
+          className: "text-xs text-muted-foreground",
+          children: lead.website
+        })]
+      }), /* @__PURE__ */ jsx("td", {
+        className: "px-4 py-3",
+        children: lead.contactName || "—"
+      }), /* @__PURE__ */ jsx("td", {
+        className: "hidden px-4 py-3 md:table-cell",
+        children: lead.email
+      }), /* @__PURE__ */ jsx("td", {
+        className: "hidden px-4 py-3 lg:table-cell",
+        children: lead.industry && /* @__PURE__ */ jsx("span", {
+          className: "inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-1.5 py-0 text-xs text-blue-400",
+          children: lead.industry
+        })
+      }), /* @__PURE__ */ jsx("td", {
+        className: "px-4 py-3",
+        children: /* @__PURE__ */ jsxs("button", {
+          type: "button",
+          onClick: () => hasScores && setExpanded(!expanded),
+          className: `flex items-center gap-2 ${hasScores ? "cursor-pointer hover:opacity-80" : ""}`,
+          children: [hasScores && (expanded ? /* @__PURE__ */ jsx(ChevronDown, {
+            className: "h-3.5 w-3.5 text-muted-foreground"
+          }) : /* @__PURE__ */ jsx(ChevronRight, {
+            className: "h-3.5 w-3.5 text-muted-foreground"
+          })), /* @__PURE__ */ jsxs("span", {
+            className: "font-mono text-sm font-bold",
+            children: [Math.round(lead.score), "/", Math.round(lead.maxScore)]
+          }), /* @__PURE__ */ jsx("div", {
+            className: "h-2 w-16 rounded-full bg-muted overflow-hidden",
+            children: /* @__PURE__ */ jsx("div", {
+              className: `h-full rounded-full ${pct >= 80 ? "bg-red-400" : pct >= 50 ? "bg-amber-400" : "bg-blue-400"}`,
+              style: {
+                width: `${pct}%`
+              }
+            })
+          })]
+        })
+      }), /* @__PURE__ */ jsx("td", {
+        className: "px-4 py-3",
+        children: /* @__PURE__ */ jsx(TemperatureBadge$1, {
+          temperature: lead.temperature
+        })
+      }), /* @__PURE__ */ jsx("td", {
+        className: "px-4 py-3",
+        children: /* @__PURE__ */ jsx(StageBadge$1, {
+          stage: lead.stage
+        })
+      }), /* @__PURE__ */ jsx("td", {
+        className: "px-4 py-3",
+        children: /* @__PURE__ */ jsxs("div", {
+          className: "flex items-center justify-end gap-1",
+          children: [isAdmin && lead.status === "INBOX" && /* @__PURE__ */ jsxs(Fragment, {
+            children: [/* @__PURE__ */ jsxs(Form, {
+              method: "post",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "intent",
+                value: "accept"
+              }), /* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "leadId",
+                value: lead.id
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                size: "icon",
+                variant: "ghost",
+                title: "Accept lead",
+                children: /* @__PURE__ */ jsx(CheckCircle2, {
+                  className: "h-4 w-4 text-emerald-400"
+                })
+              })]
+            }), /* @__PURE__ */ jsxs(Form, {
+              method: "post",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "intent",
+                value: "reject"
+              }), /* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "leadId",
+                value: lead.id
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                size: "icon",
+                variant: "ghost",
+                title: "Reject lead",
+                children: /* @__PURE__ */ jsx(XCircle, {
+                  className: "h-4 w-4 text-red-400"
+                })
+              })]
+            })]
+          }), isAdmin && /* @__PURE__ */ jsx(Link, {
+            to: `/verification/${lead.id}`,
+            children: /* @__PURE__ */ jsx(Button, {
+              size: "icon",
+              variant: "ghost",
+              title: "Re-score lead",
+              children: /* @__PURE__ */ jsx(ShieldCheck, {
+                className: "h-4 w-4 text-violet-400"
+              })
+            })
+          }), /* @__PURE__ */ jsx(Link, {
+            to: `/leads/${lead.id}/emails`,
+            children: /* @__PURE__ */ jsx(Button, {
+              size: "icon",
+              variant: "ghost",
+              title: "Email lead",
+              children: /* @__PURE__ */ jsx(ExternalLink, {
+                className: "h-4 w-4"
+              })
+            })
+          })]
+        })
+      })]
+    }), expanded && hasScores && /* @__PURE__ */ jsx("tr", {
+      className: "border-b bg-muted/20",
+      children: /* @__PURE__ */ jsx("td", {
+        colSpan: 8,
+        className: "px-6 py-3",
+        children: /* @__PURE__ */ jsxs("div", {
+          className: "space-y-1.5",
+          children: [/* @__PURE__ */ jsxs("p", {
+            className: "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2",
+            children: ["Score Breakdown — ", pct, "%"]
+          }), responses.map((r) => {
+            var _a;
+            const isPositive = r.response === "yes" || Number(r.response) >= 4;
+            const isNegative = r.response === "no" || Number(r.response) <= 2;
+            return /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-3 text-xs",
+              children: [/* @__PURE__ */ jsxs("span", {
+                className: `shrink-0 font-mono font-bold w-10 text-right ${isPositive ? "text-emerald-400" : isNegative ? "text-red-400" : "text-amber-400"}`,
+                children: ["+", r.score, "pt"]
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-muted-foreground",
+                children: ((_a = r.criteria) == null ? void 0 : _a.name) || "Criterion"
+              }), /* @__PURE__ */ jsx("span", {
+                className: `ml-auto rounded-md px-1.5 py-0.5 font-medium ${isPositive ? "bg-emerald-500/15 text-emerald-400" : isNegative ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`,
+                children: r.response === "yes" ? "Yes" : r.response === "no" ? "No" : r.response
+              })]
+            }, r.id);
+          })]
+        })
+      })
+    })]
+  });
 }
+const route8 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$i,
+  default: inbox,
+  loader: loader$m
+}, Symbol.toStringTag, { value: "Module" }));
 const Textarea = React.forwardRef(({ className, ...props }, ref) => {
   return /* @__PURE__ */ jsx(
     "textarea",
@@ -1600,34 +2894,7 @@ const Textarea = React.forwardRef(({ className, ...props }, ref) => {
   );
 });
 Textarea.displayName = "Textarea";
-function formatStage(stage) {
-  return stage.replace(/_/g, " ").split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(" ");
-}
-function getActivityStyle(action2) {
-  switch (action2) {
-    case "LEAD_CREATED":
-      return { icon: "+", bgColor: "bg-green-100", textColor: "text-green-700" };
-    case "LEAD_APPROVED":
-      return { icon: "✓", bgColor: "bg-green-100", textColor: "text-green-700" };
-    case "LEAD_REJECTED":
-      return { icon: "✕", bgColor: "bg-red-100", textColor: "text-red-700" };
-    case "STAGE_CHANGED":
-      return { icon: "→", bgColor: "bg-blue-100", textColor: "text-blue-700" };
-    case "LEAD_ASSIGNED":
-      return { icon: "@", bgColor: "bg-purple-100", textColor: "text-purple-700" };
-    case "LEAD_UNASSIGNED":
-      return { icon: "@", bgColor: "bg-gray-100", textColor: "text-gray-700" };
-    case "LEAD_SCORED":
-      return { icon: "★", bgColor: "bg-yellow-100", textColor: "text-yellow-700" };
-    case "LEAD_EDITED":
-      return { icon: "✎", bgColor: "bg-gray-100", textColor: "text-gray-700" };
-    case "NOTE_ADDED":
-      return { icon: "💬", bgColor: "bg-indigo-100", textColor: "text-indigo-700" };
-    default:
-      return { icon: "•", bgColor: "bg-gray-100", textColor: "text-gray-700" };
-  }
-}
-async function loader$e({
+async function loader$l({
   request,
   params
 }) {
@@ -1639,7 +2906,8 @@ async function loader$e({
     select: {
       name: true,
       email: true,
-      role: true
+      role: true,
+      gmailTokens: true
     }
   });
   const lead = await prisma.lead.findUnique({
@@ -1647,7 +2915,12 @@ async function loader$e({
       id: params.leadId
     },
     include: {
-      emails: true,
+      emails: {
+        orderBy: {
+          lastMessage: "desc"
+        },
+        take: 3
+      },
       stageHistory: {
         orderBy: {
           changedAt: "desc"
@@ -1726,12 +2999,14 @@ async function loader$e({
   return {
     user,
     lead,
-    users: users2
+    users: users2,
+    gmailConnected: !!(user == null ? void 0 : user.gmailTokens)
   };
 }
-async function action$b({
+async function action$h({
   request
 }) {
+  var _a;
   const userId = await requireAuth(request);
   const currentUser = await prisma.user.findUnique({
     where: {
@@ -1745,6 +3020,80 @@ async function action$b({
   const formData = await request.formData();
   const intent = formData.get("intent");
   const leadId = formData.get("leadId");
+  if (intent === "sendEmail") {
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: leadId
+      }
+    });
+    const subject = formData.get("subject");
+    const body = formData.get("body");
+    if (!(lead == null ? void 0 : lead.email)) {
+      return {
+        error: "This lead has no email address."
+      };
+    }
+    if (!(subject == null ? void 0 : subject.trim()) || !(body == null ? void 0 : body.trim())) {
+      return {
+        error: "Subject and body are required."
+      };
+    }
+    try {
+      const signature = await getGmailSignature(userId);
+      const htmlBody = buildHtmlEmail(body, signature);
+      const result = await sendEmail(userId, {
+        to: lead.email,
+        subject,
+        body,
+        htmlBody
+      });
+      const now = /* @__PURE__ */ new Date();
+      const gmailToken = await prisma.gmailToken.findUnique({
+        where: {
+          userId
+        }
+      });
+      const thread = await prisma.emailThread.create({
+        data: {
+          leadId: lead.id,
+          gmailThreadId: result.gmailThreadId,
+          subject,
+          snippet: body.substring(0, 200),
+          status: "SENT",
+          lastMessage: now
+        }
+      });
+      await prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          gmailMessageId: result.gmailMessageId,
+          fromAddress: (gmailToken == null ? void 0 : gmailToken.gmailAddress) || "me",
+          toAddress: lead.email,
+          subject,
+          bodyPlain: body,
+          bodyHtml: htmlBody,
+          snippet: body.substring(0, 200),
+          direction: "sent",
+          sentAt: now
+        }
+      });
+      await logActivity({
+        leadId,
+        userId,
+        action: "NOTE_ADDED",
+        description: `${(currentUser == null ? void 0 : currentUser.name) || "Unknown"} sent an email: "${subject}"`
+      });
+      return {
+        success: true,
+        sentSubject: subject
+      };
+    } catch (err) {
+      const message = ((_a = err == null ? void 0 : err.message) == null ? void 0 : _a.includes("has not connected Gmail")) ? "Gmail is not connected. Go to Settings to connect your account." : (err == null ? void 0 : err.message) || "Failed to send email.";
+      return {
+        error: message
+      };
+    }
+  }
   if (intent === "updateNotes") {
     const notes = formData.get("notes");
     await prisma.lead.update({
@@ -1813,9 +3162,10 @@ const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
   const {
     user,
     lead,
-    users: users2
+    users: users2,
+    gmailConnected
   } = useLoaderData();
-  useActionData();
+  const actionData = useActionData();
   const isAdmin = (user == null ? void 0 : user.role) === "ADMIN";
   return /* @__PURE__ */ jsx(AppShell, {
     user,
@@ -2105,6 +3455,100 @@ const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
             })]
           }), /* @__PURE__ */ jsxs(Card, {
             children: [/* @__PURE__ */ jsx(CardHeader, {
+              children: /* @__PURE__ */ jsxs(CardTitle, {
+                className: "flex items-center gap-2",
+                children: [/* @__PURE__ */ jsx(Mail, {
+                  className: "h-4 w-4"
+                }), "Contact Lead"]
+              })
+            }), /* @__PURE__ */ jsxs(CardContent, {
+              children: [!gmailConnected ? /* @__PURE__ */ jsxs("div", {
+                className: "space-y-2",
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-amber-400",
+                  children: "Connect Gmail in Settings to send emails directly."
+                }), /* @__PURE__ */ jsx(Link, {
+                  to: "/settings",
+                  children: /* @__PURE__ */ jsx(Button, {
+                    variant: "outline",
+                    size: "sm",
+                    className: "w-full",
+                    children: "Go to Settings"
+                  })
+                })]
+              }) : !lead.email ? /* @__PURE__ */ jsx("p", {
+                className: "text-xs text-muted-foreground",
+                children: "No email address on file for this lead."
+              }) : /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "space-y-3",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "sendEmail"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "leadId",
+                  value: lead.id
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-1.5",
+                  children: [/* @__PURE__ */ jsx("p", {
+                    className: "text-xs font-medium text-muted-foreground uppercase tracking-wider",
+                    children: "To"
+                  }), /* @__PURE__ */ jsx("p", {
+                    className: "text-sm rounded-md bg-muted/50 px-3 py-1.5 truncate",
+                    children: lead.email
+                  })]
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-1.5",
+                  children: [/* @__PURE__ */ jsx(Label, {
+                    className: "text-xs",
+                    children: "Subject"
+                  }), /* @__PURE__ */ jsx(Input, {
+                    name: "subject",
+                    placeholder: "Email subject...",
+                    required: true,
+                    className: "text-sm"
+                  })]
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-1.5",
+                  children: [/* @__PURE__ */ jsx(Label, {
+                    className: "text-xs",
+                    children: "Message"
+                  }), /* @__PURE__ */ jsx(Textarea, {
+                    name: "body",
+                    placeholder: "Write your message...",
+                    rows: 5,
+                    required: true,
+                    className: "text-sm"
+                  })]
+                }), (actionData == null ? void 0 : actionData.sentSubject) && /* @__PURE__ */ jsxs("p", {
+                  className: "text-xs text-emerald-400",
+                  children: ['Sent: "', actionData.sentSubject, '"']
+                }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-destructive",
+                  children: actionData.error
+                }), /* @__PURE__ */ jsxs(Button, {
+                  type: "submit",
+                  size: "sm",
+                  className: "w-full",
+                  children: [/* @__PURE__ */ jsx(Send, {
+                    className: "mr-2 h-3 w-3"
+                  }), "Send Email"]
+                })]
+              }), lead.emails.length > 0 && /* @__PURE__ */ jsx("div", {
+                className: "mt-3 pt-3 border-t border-border/50",
+                children: /* @__PURE__ */ jsxs(Link, {
+                  to: `/leads/${lead.id}/emails`,
+                  className: "text-xs text-violet-400 hover:underline flex items-center gap-1",
+                  children: ["View all email history (", lead.emails.length, ")", /* @__PURE__ */ jsx(ArrowLeft, {
+                    className: "h-3 w-3 rotate-180"
+                  })]
+                })
+              })]
+            })]
+          }), /* @__PURE__ */ jsxs(Card, {
+            children: [/* @__PURE__ */ jsx(CardHeader, {
               children: /* @__PURE__ */ jsx(CardTitle, {
                 children: "Notes"
               })
@@ -2194,13 +3638,13 @@ function StageBadge({
     children: stage.replace(/_/g, " ")
   });
 }
-const route6 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route9 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$b,
+  action: action$h,
   default: inbox_$leadId,
-  loader: loader$e
+  loader: loader$l
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$d({
+async function loader$k({
   request
 }) {
   const userId = await requireAuth(request);
@@ -2227,7 +3671,7 @@ async function loader$d({
     criteria
   };
 }
-async function action$a({
+async function action$g({
   request
 }) {
   const userId = await requireAuth(request);
@@ -2324,7 +3768,7 @@ const leads_new = UNSAFE_withComponentProps(function NewLead() {
     if (actionData == null ? void 0 : actionData.success) {
       window.scrollTo({
         top: 0,
-        behavior: "smooth"
+        behavior: "instant"
       });
     }
   }, [actionData]);
@@ -2658,7 +4102,7 @@ const leads_new = UNSAFE_withComponentProps(function NewLead() {
                       name: `response_${c.id}`,
                       value: String(score),
                       required: c.required,
-                      className: "sr-only"
+                      className: "fixed opacity-0 pointer-events-none"
                     }), score]
                   }, score);
                 })
@@ -2716,11 +4160,11 @@ function TemperatureBadge({
     }), temperature]
   });
 }
-const route7 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route10 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$a,
+  action: action$g,
   default: leads_new,
-  loader: loader$d
+  loader: loader$k
 }, Symbol.toStringTag, { value: "Module" }));
 const Select = React.forwardRef(
   ({ className, children, ...props }, ref) => /* @__PURE__ */ jsx(
@@ -2728,7 +4172,7 @@ const Select = React.forwardRef(
     {
       ref,
       className: cn(
-        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
         className
       ),
       ...props,
@@ -2737,7 +4181,7 @@ const Select = React.forwardRef(
   )
 );
 Select.displayName = "Select";
-async function loader$c({
+async function loader$j({
   request
 }) {
   const userId = await requireAuth(request);
@@ -2763,7 +4207,7 @@ async function loader$c({
     scoreConfig
   };
 }
-async function action$9({
+async function action$f({
   request
 }) {
   await requireAdmin(request);
@@ -3246,13 +4690,13 @@ function CriteriaForm({
     })]
   });
 }
-const route8 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route11 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$9,
+  action: action$f,
   default: verification_criteria,
-  loader: loader$c
+  loader: loader$j
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$b({
+async function loader$i({
   request,
   params
 }) {
@@ -3306,7 +4750,7 @@ async function loader$b({
     existingResponses
   };
 }
-async function action$8({
+async function action$e({
   request,
   params
 }) {
@@ -3667,13 +5111,13 @@ const verification_$leadId = UNSAFE_withComponentProps(function VerifyLead() {
     })
   });
 });
-const route9 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route12 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$8,
+  action: action$e,
   default: verification_$leadId,
-  loader: loader$b
+  loader: loader$i
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$a({
+async function loader$h({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -3717,7 +5161,7 @@ async function loader$a({
     users: users2
   };
 }
-async function action$7({
+async function action$d({
   request
 }) {
   await requireAdmin(request);
@@ -3982,13 +5426,13 @@ const users = UNSAFE_withComponentProps(function UserList() {
     })
   });
 });
-const route10 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route13 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$7,
+  action: action$d,
   default: users,
-  loader: loader$a
+  loader: loader$h
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$9({
+async function loader$g({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -4006,7 +5450,7 @@ async function loader$9({
     user
   };
 }
-async function action$6({
+async function action$c({
   request
 }) {
   await requireAdmin(request);
@@ -4196,11 +5640,11 @@ const users_new = UNSAFE_withComponentProps(function NewUser() {
     })
   });
 });
-const route11 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route14 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$6,
+  action: action$c,
   default: users_new,
-  loader: loader$9
+  loader: loader$g
 }, Symbol.toStringTag, { value: "Module" }));
 function LeadCard({ lead, index, draggable = true, onClick, selected = false, onSelect }) {
   return /* @__PURE__ */ jsx(Draggable, { draggableId: lead.id, index, isDragDisabled: !draggable, children: (provided, snapshot) => /* @__PURE__ */ jsx(
@@ -4302,7 +5746,7 @@ function DialogTitle({ className, ...props }) {
 function DialogTrigger({ children, asChild, ...props }) {
   return /* @__PURE__ */ jsx("button", { ...props, children });
 }
-function formatDate(dateStr) {
+function formatDate$1(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -4645,7 +6089,7 @@ function TimelineItem({
       /* @__PURE__ */ jsx("div", { className: "text-foreground leading-relaxed", children }),
       /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-1 text-muted-foreground", children: [
         /* @__PURE__ */ jsx(Clock, { className: "h-2.5 w-2.5" }),
-        formatDate(date)
+        formatDate$1(date)
       ] })
     ] })
   ] });
@@ -4693,7 +6137,7 @@ const STAGES = [{
   bg: "bg-red-500/10",
   dot: "bg-red-400"
 }];
-async function loader$8({
+async function loader$f({
   request
 }) {
   const userId = await requireAuth(request);
@@ -4724,7 +6168,7 @@ async function loader$8({
     stages: grouped
   };
 }
-async function action$5({
+async function action$b({
   request
 }) {
   const userId = await requireAuth(request);
@@ -5185,13 +6629,13 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
     })
   });
 });
-const route12 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route15 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$5,
+  action: action$b,
   default: pipeline,
-  loader: loader$8
+  loader: loader$f
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$7({
+async function loader$e({
   request
 }) {
   const userId = await requireAuth(request);
@@ -5206,7 +6650,13 @@ async function loader$7({
       gmailTokens: true
     }
   });
-  const threads = await prisma.emailThread.findMany({
+  const gmailConnected = !!(user == null ? void 0 : user.gmailTokens);
+  const url = new URL(request.url);
+  const tab = url.searchParams.get("tab") || "all";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+  const search = url.searchParams.get("q") || "";
+  const pageSize = 20;
+  const dbThreads = await prisma.emailThread.findMany({
     include: {
       lead: {
         select: {
@@ -5214,17 +6664,73 @@ async function loader$7({
           contactName: true,
           email: true
         }
+      },
+      messages: {
+        orderBy: {
+          sentAt: "desc"
+        },
+        take: 1
       }
     },
     orderBy: {
       lastMessage: "desc"
-    }
+    },
+    ...search ? {
+      where: {
+        OR: [{
+          subject: {
+            contains: search
+          }
+        }, {
+          snippet: {
+            contains: search
+          }
+        }, {
+          lead: {
+            companyName: {
+              contains: search
+            }
+          }
+        }, {
+          lead: {
+            contactName: {
+              contains: search
+            }
+          }
+        }]
+      }
+    } : {}
   });
-  const gmailConnected = !!(user == null ? void 0 : user.gmailTokens);
+  const [sentCount] = await Promise.all([prisma.emailThread.count({
+    where: {
+      status: "SENT"
+    }
+  })]);
+  let gmailMessages = [];
+  let inboxError = null;
+  if (gmailConnected && (tab === "inbox" || tab === "all")) {
+    try {
+      const listResult = await listMessages(userId, {
+        labelIds: ["INBOX"],
+        maxResults: pageSize,
+        pageToken: page > 1 ? url.searchParams.get("pageToken") || void 0 : void 0,
+        q: search || void 0
+      });
+      gmailMessages = await Promise.all(listResult.messages.map((m) => getMessage(userId, m.id)));
+    } catch (err) {
+      inboxError = (err == null ? void 0 : err.message) || "Failed to fetch Gmail inbox.";
+    }
+  }
   return {
     user,
-    threads,
-    gmailConnected
+    gmailConnected,
+    tab,
+    page,
+    search,
+    dbThreads,
+    sentCount,
+    gmailMessages,
+    inboxError
   };
 }
 function StatusBadge$1({
@@ -5253,12 +6759,210 @@ function StatusBadge$1({
     }), status]
   });
 }
+function TabButton({
+  active,
+  count,
+  icon: Icon,
+  label,
+  onClick
+}) {
+  return /* @__PURE__ */ jsxs("button", {
+    type: "button",
+    onClick,
+    className: `inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`,
+    children: [/* @__PURE__ */ jsx(Icon, {
+      className: "h-4 w-4"
+    }), label, count !== void 0 && count > 0 && /* @__PURE__ */ jsx("span", {
+      className: `rounded-full px-1.5 py-0.5 text-xs font-semibold ${active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"}`,
+      children: count
+    })]
+  });
+}
+function GmailInboxRow({
+  msg
+}) {
+  const isUnread = msg.labelIds.includes("UNREAD");
+  return /* @__PURE__ */ jsxs(Link, {
+    to: `/emails/inbox/${msg.id}`,
+    className: "flex items-start gap-4 p-4 transition-colors hover:bg-muted/30 cursor-pointer",
+    children: [/* @__PURE__ */ jsx("div", {
+      className: "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10",
+      children: /* @__PURE__ */ jsx(Mail, {
+        className: "h-5 w-5 text-violet-400"
+      })
+    }), /* @__PURE__ */ jsxs("div", {
+      className: "min-w-0 flex-1",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-2",
+        children: [/* @__PURE__ */ jsx("span", {
+          className: `text-sm truncate ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`,
+          children: msg.from.split("<")[0].trim()
+        }), isUnread && /* @__PURE__ */ jsx("span", {
+          className: "h-2 w-2 rounded-full bg-blue-400 shrink-0"
+        })]
+      }), /* @__PURE__ */ jsx("p", {
+        className: `text-sm truncate ${isUnread ? "font-medium text-foreground" : "text-foreground/80"}`,
+        children: msg.subject
+      }), /* @__PURE__ */ jsx("p", {
+        className: "mt-0.5 truncate text-xs text-muted-foreground",
+        children: msg.snippet
+      })]
+    }), /* @__PURE__ */ jsx("div", {
+      className: "shrink-0 text-right",
+      children: /* @__PURE__ */ jsx("span", {
+        className: "text-xs text-muted-foreground",
+        children: formatDate(msg.date)
+      })
+    })]
+  });
+}
+function ThreadRow({
+  thread
+}) {
+  var _a;
+  const messageCount = ((_a = thread.messages) == null ? void 0 : _a.length) || 0;
+  return /* @__PURE__ */ jsx(Link, {
+    to: `/emails/threads/${thread.id}`,
+    className: "block cursor-pointer",
+    children: /* @__PURE__ */ jsx(Card, {
+      className: "transition-all hover:bg-muted/30 hover:border-border",
+      children: /* @__PURE__ */ jsxs(CardContent, {
+        className: "flex items-center gap-4 p-4",
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10",
+          children: /* @__PURE__ */ jsx(Send, {
+            className: "h-5 w-5 text-blue-400"
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1 min-w-0",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-2",
+            children: [thread.lead && /* @__PURE__ */ jsx("span", {
+              className: "text-sm font-medium text-violet-400 hover:text-violet-300",
+              children: thread.lead.companyName
+            }), /* @__PURE__ */ jsx(StatusBadge$1, {
+              status: thread.status
+            })]
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm font-medium text-foreground/80 truncate",
+            children: thread.subject
+          }), thread.snippet && /* @__PURE__ */ jsx("p", {
+            className: "mt-0.5 truncate text-xs text-muted-foreground",
+            children: thread.snippet
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "shrink-0 text-right",
+          children: [messageCount > 1 && /* @__PURE__ */ jsxs("p", {
+            className: "text-xs text-muted-foreground mb-0.5",
+            children: [messageCount, " messages"]
+          }), /* @__PURE__ */ jsx("span", {
+            className: "text-xs text-muted-foreground",
+            children: new Date(thread.lastMessage).toLocaleDateString()
+          })]
+        }), /* @__PURE__ */ jsx(ArrowRight, {
+          className: "h-4 w-4 text-muted-foreground/50 shrink-0"
+        })]
+      })
+    })
+  });
+}
+function LoadingSpinner() {
+  return /* @__PURE__ */ jsx(Card, {
+    children: /* @__PURE__ */ jsxs(CardContent, {
+      className: "flex flex-col items-center justify-center py-16",
+      children: [/* @__PURE__ */ jsx(Loader2, {
+        className: "h-8 w-8 animate-spin text-muted-foreground"
+      }), /* @__PURE__ */ jsx("p", {
+        className: "mt-3 text-sm text-muted-foreground",
+        children: "Loading emails..."
+      })]
+    })
+  });
+}
+function formatDate(dateStr) {
+  try {
+    const d = new Date(dateStr);
+    const now = /* @__PURE__ */ new Date();
+    const diffDays = Math.floor((now.getTime() - d.getTime()) / (1e3 * 60 * 60 * 24));
+    if (diffDays === 0) return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    if (diffDays < 7) return d.toLocaleDateString([], {
+      weekday: "short"
+    });
+    return d.toLocaleDateString();
+  } catch {
+    return dateStr;
+  }
+}
 const emails = UNSAFE_withComponentProps(function EmailHub() {
   const {
     user,
-    threads,
-    gmailConnected
+    gmailConnected,
+    tab,
+    search,
+    dbThreads,
+    sentCount,
+    gmailMessages,
+    inboxError
   } = useLoaderData();
+  const navigation = useNavigation();
+  const [, setSearchParams] = useSearchParams();
+  const isLoading = navigation.state === "loading";
+  const setTab = (t) => {
+    setSearchParams((prev) => {
+      prev.set("tab", t);
+      prev.delete("page");
+      return prev;
+    });
+  };
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const q = fd.get("q");
+    setSearchParams((prev) => {
+      if (q) prev.set("q", q);
+      else prev.delete("q");
+      prev.delete("page");
+      return prev;
+    });
+  };
+  const clearSearch = () => {
+    setSearchParams((prev) => {
+      prev.delete("q");
+      prev.delete("page");
+      return prev;
+    });
+  };
+  const filteredThreads = (() => {
+    switch (tab) {
+      case "sent":
+        return dbThreads.filter((t) => t.status === "SENT");
+      case "drafts":
+        return [];
+      default:
+        return dbThreads;
+    }
+  })();
+  const tabs = [{
+    key: "all",
+    label: "All",
+    icon: Mail
+  }, {
+    key: "inbox",
+    label: "Gmail Inbox",
+    icon: Inbox
+  }, {
+    key: "sent",
+    label: "Sent",
+    icon: Send,
+    count: sentCount
+  }, {
+    key: "drafts",
+    label: "Drafts",
+    icon: FileText
+  }];
   return /* @__PURE__ */ jsx(AppShell, {
     user,
     children: /* @__PURE__ */ jsxs("div", {
@@ -5302,75 +7006,218 @@ const emails = UNSAFE_withComponentProps(function EmailHub() {
                 children: "Gmail Integration"
               }), /* @__PURE__ */ jsx("p", {
                 className: "text-sm text-muted-foreground",
-                children: gmailConnected ? "Connected and ready to send emails" : "Connect your Gmail account to send emails"
+                children: gmailConnected ? "Connected and ready to send emails" : "Connect your Gmail account in Settings to send emails and view inbox"
               })]
             })]
-          }), /* @__PURE__ */ jsx("span", {
-            className: `inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold ${gmailConnected ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`,
-            children: gmailConnected ? "Connected" : "Not Connected"
+          }), !gmailConnected && /* @__PURE__ */ jsx(Link, {
+            to: "/settings",
+            children: /* @__PURE__ */ jsx(Button, {
+              size: "sm",
+              variant: "outline",
+              children: "Connect"
+            })
           })]
         })
-      }), /* @__PURE__ */ jsx("div", {
-        className: "space-y-3",
-        children: threads.length === 0 ? /* @__PURE__ */ jsx(Card, {
-          children: /* @__PURE__ */ jsxs(CardContent, {
-            className: "flex flex-col items-center justify-center py-12",
-            children: [/* @__PURE__ */ jsx("div", {
-              className: "flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10",
-              children: /* @__PURE__ */ jsx(Mail, {
-                className: "h-8 w-8 text-blue-400"
-              })
-            }), /* @__PURE__ */ jsx("p", {
-              className: "mt-4 font-medium",
-              children: "No email threads yet"
-            }), /* @__PURE__ */ jsx("p", {
-              className: "text-sm text-muted-foreground",
-              children: "Send an email from a lead's profile to get started."
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "flex gap-1 rounded-lg bg-muted/50 p-1",
+          children: tabs.map((t) => /* @__PURE__ */ jsx(TabButton, {
+            active: tab === t.key,
+            icon: t.icon,
+            label: t.label,
+            count: t.count,
+            onClick: () => setTab(t.key)
+          }, t.key))
+        }), /* @__PURE__ */ jsxs("form", {
+          onSubmit: handleSearch,
+          className: "flex gap-2",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "relative",
+            children: [/* @__PURE__ */ jsx(Search, {
+              className: "absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"
+            }), /* @__PURE__ */ jsx(Input, {
+              name: "q",
+              placeholder: "Search emails...",
+              defaultValue: search,
+              className: "pl-9 w-64"
             })]
-          })
-        }) : threads.map((thread) => /* @__PURE__ */ jsx(Card, {
-          className: "transition-colors hover:bg-muted/30",
-          children: /* @__PURE__ */ jsxs(CardContent, {
-            className: "flex items-center gap-4 p-4",
-            children: [/* @__PURE__ */ jsx("div", {
-              className: "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10",
-              children: /* @__PURE__ */ jsx(Mail, {
-                className: "h-5 w-5 text-violet-400"
+          }), search && /* @__PURE__ */ jsx(Button, {
+            type: "button",
+            variant: "ghost",
+            size: "sm",
+            onClick: clearSearch,
+            children: "Clear"
+          })]
+        })]
+      }), isLoading ? /* @__PURE__ */ jsx(LoadingSpinner, {}) : tab === "all" ? (
+        /* All tab: combine Gmail inbox + DB threads */
+        /* @__PURE__ */ jsxs("div", {
+          className: "space-y-3",
+          children: [gmailConnected && gmailMessages.length > 0 && /* @__PURE__ */ jsxs(Fragment, {
+            children: [/* @__PURE__ */ jsxs("p", {
+              className: "text-xs font-medium text-muted-foreground uppercase tracking-wider px-1",
+              children: ["Gmail Inbox (", gmailMessages.length, ")"]
+            }), /* @__PURE__ */ jsx(Card, {
+              children: /* @__PURE__ */ jsx("div", {
+                className: "divide-y divide-border/50",
+                children: gmailMessages.map((msg) => /* @__PURE__ */ jsx(GmailInboxRow, {
+                  msg
+                }, msg.id))
               })
-            }), /* @__PURE__ */ jsxs("div", {
-              className: "flex-1 min-w-0",
-              children: [/* @__PURE__ */ jsxs("div", {
-                className: "flex items-center gap-2",
-                children: [/* @__PURE__ */ jsx(Link, {
-                  to: `/leads/${thread.leadId}/emails`,
-                  className: "font-medium hover:underline",
-                  children: thread.lead.companyName
-                }), /* @__PURE__ */ jsx(StatusBadge$1, {
-                  status: thread.status
-                })]
-              }), /* @__PURE__ */ jsx("p", {
-                className: "text-sm font-medium text-foreground/80",
-                children: thread.subject
-              }), thread.snippet && /* @__PURE__ */ jsx("p", {
-                className: "mt-1 truncate text-sm text-muted-foreground",
-                children: thread.snippet
+            })]
+          }), gmailConnected && inboxError && /* @__PURE__ */ jsx(Card, {
+            className: "border-destructive/30",
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex items-center gap-3 p-3",
+              children: [/* @__PURE__ */ jsx(AlertCircle, {
+                className: "h-4 w-4 text-destructive shrink-0"
+              }), /* @__PURE__ */ jsxs("p", {
+                className: "text-sm text-muted-foreground",
+                children: ["Could not load Gmail inbox: ", inboxError]
               })]
-            }), /* @__PURE__ */ jsx("div", {
-              className: "shrink-0 text-right text-xs text-muted-foreground",
-              children: new Date(thread.lastMessage).toLocaleDateString()
-            })]
+            })
+          }), filteredThreads.length > 0 && /* @__PURE__ */ jsxs(Fragment, {
+            children: [/* @__PURE__ */ jsxs("p", {
+              className: "text-xs font-medium text-muted-foreground uppercase tracking-wider px-1 pt-2",
+              children: ["Sent from CRM (", filteredThreads.length, ")"]
+            }), filteredThreads.map((thread) => /* @__PURE__ */ jsx(ThreadRow, {
+              thread
+            }, thread.id))]
+          }), !gmailConnected && filteredThreads.length === 0 && /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10",
+                children: /* @__PURE__ */ jsx(Mail, {
+                  className: "h-8 w-8 text-blue-400"
+                })
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 font-medium",
+                children: "No emails yet"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: "Connect Gmail to see your inbox, or send an email from a lead's profile."
+              })]
+            })
+          }), gmailConnected && gmailMessages.length === 0 && filteredThreads.length === 0 && !inboxError && /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10",
+                children: /* @__PURE__ */ jsx(Mail, {
+                  className: "h-8 w-8 text-blue-400"
+                })
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 font-medium",
+                children: "No emails yet"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: "Send an email from a lead's profile to get started."
+              })]
+            })
+          })]
+        })
+      ) : tab === "inbox" ? (
+        // Gmail Inbox tab (dedicated)
+        /* @__PURE__ */ jsx("div", {
+          className: "space-y-2",
+          children: !gmailConnected ? /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10",
+                children: /* @__PURE__ */ jsx(AlertCircle, {
+                  className: "h-8 w-8 text-amber-400"
+                })
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 font-medium",
+                children: "Gmail not connected"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: "Connect your Gmail account to view your inbox here."
+              }), /* @__PURE__ */ jsx(Link, {
+                to: "/settings",
+                className: "mt-4",
+                children: /* @__PURE__ */ jsx(Button, {
+                  variant: "outline",
+                  children: "Go to Settings"
+                })
+              })]
+            })
+          }) : inboxError ? /* @__PURE__ */ jsx(Card, {
+            className: "border-destructive/50",
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx(AlertCircle, {
+                className: "h-8 w-8 text-destructive"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 font-medium text-destructive",
+                children: "Failed to load inbox"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: inboxError
+              })]
+            })
+          }) : gmailMessages.length === 0 ? /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-16 w-16 items-center justify-center rounded-full bg-violet-500/10",
+                children: /* @__PURE__ */ jsx(Inbox, {
+                  className: "h-8 w-8 text-violet-400"
+                })
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 font-medium",
+                children: "Inbox is empty"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: search ? "No messages match your search." : "No messages in your Gmail inbox."
+              })]
+            })
+          }) : /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsx("div", {
+              className: "divide-y divide-border/50",
+              children: gmailMessages.map((msg) => /* @__PURE__ */ jsx(GmailInboxRow, {
+                msg
+              }, msg.id))
+            })
           })
-        }, thread.id))
-      })]
+        })
+      ) : (
+        // DB thread tabs (Sent / Drafts)
+        /* @__PURE__ */ jsx("div", {
+          className: "space-y-3",
+          children: filteredThreads.length === 0 ? /* @__PURE__ */ jsx(Card, {
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex flex-col items-center justify-center py-12",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10",
+                children: /* @__PURE__ */ jsx(Mail, {
+                  className: "h-8 w-8 text-blue-400"
+                })
+              }), /* @__PURE__ */ jsx("p", {
+                className: "mt-4 font-medium",
+                children: tab === "drafts" ? "No drafts yet" : search ? "No threads match your search" : "No sent emails yet"
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: tab === "drafts" ? "Draft emails will appear here." : "Send an email from a lead's profile to get started."
+              })]
+            })
+          }) : filteredThreads.map((thread) => /* @__PURE__ */ jsx(ThreadRow, {
+            thread
+          }, thread.id))
+        })
+      )]
     })
   });
 });
-const route13 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route16 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: emails,
-  loader: loader$7
+  loader: loader$e
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$6({
+async function loader$d({
   request
 }) {
   const userId = await requireAuth(request);
@@ -5394,7 +7241,7 @@ async function loader$6({
     templates
   };
 }
-async function action$4({
+async function action$a({
   request
 }) {
   await requireAuth(request);
@@ -5582,13 +7429,849 @@ const emails_templates = UNSAFE_withComponentProps(function EmailTemplates() {
     })
   });
 });
-const route14 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route17 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$4,
+  action: action$a,
   default: emails_templates,
-  loader: loader$6
+  loader: loader$d
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$5({
+async function loader$c({
+  request,
+  params
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true,
+      gmailTokens: true
+    }
+  });
+  const thread = await prisma.emailThread.findUnique({
+    where: {
+      id: params.threadId
+    },
+    include: {
+      lead: {
+        select: {
+          id: true,
+          companyName: true,
+          contactName: true,
+          email: true
+        }
+      },
+      messages: {
+        orderBy: {
+          sentAt: "asc"
+        }
+      }
+    }
+  });
+  if (!thread) {
+    throw new Response("Thread not found", {
+      status: 404
+    });
+  }
+  return {
+    user,
+    thread,
+    gmailConnected: !!(user == null ? void 0 : user.gmailTokens)
+  };
+}
+async function action$9({
+  request,
+  params
+}) {
+  var _a;
+  const userId = await requireAuth(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "reply") {
+    const body = formData.get("body");
+    const threadId = params.threadId;
+    if (!(body == null ? void 0 : body.trim())) {
+      return {
+        error: "Reply body cannot be empty."
+      };
+    }
+    const thread = await prisma.emailThread.findUnique({
+      where: {
+        id: threadId
+      },
+      include: {
+        lead: true
+      }
+    });
+    if (!thread || !((_a = thread.lead) == null ? void 0 : _a.email)) {
+      return {
+        error: "Thread or lead email not found."
+      };
+    }
+    try {
+      const signature = await getGmailSignature(userId);
+      const htmlBody = buildHtmlEmail(body, signature);
+      const result = await sendEmail(userId, {
+        to: thread.lead.email,
+        subject: thread.subject || "(No Subject)",
+        body,
+        htmlBody,
+        threadId: thread.gmailThreadId
+      });
+      const now = /* @__PURE__ */ new Date();
+      const gmailToken = await prisma.gmailToken.findUnique({
+        where: {
+          userId
+        }
+      });
+      await prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          gmailMessageId: result.gmailMessageId,
+          fromAddress: (gmailToken == null ? void 0 : gmailToken.gmailAddress) || "me",
+          toAddress: thread.lead.email,
+          subject: thread.subject,
+          bodyPlain: body,
+          bodyHtml: htmlBody,
+          snippet: body.substring(0, 200),
+          direction: "sent",
+          sentAt: now
+        }
+      });
+      await prisma.emailThread.update({
+        where: {
+          id: thread.id
+        },
+        data: {
+          snippet: body.substring(0, 200),
+          lastMessage: now,
+          status: "REPLIED"
+        }
+      });
+      return {
+        success: true
+      };
+    } catch (err) {
+      return {
+        error: (err == null ? void 0 : err.message) || "Failed to send reply."
+      };
+    }
+  }
+  return {};
+}
+const emails_threads_$threadId = UNSAFE_withComponentProps(function ThreadDetail() {
+  var _a, _b, _c;
+  const {
+    user,
+    thread,
+    gmailConnected
+  } = useLoaderData();
+  const actionData = useActionData();
+  const [replyOpen, setReplyOpen] = useState(false);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/emails",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1 min-w-0",
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight truncate",
+            children: thread.subject || "(No Subject)"
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-2 mt-1",
+            children: [thread.lead && /* @__PURE__ */ jsx(Link, {
+              to: `/leads/${thread.lead.id}/emails`,
+              className: "text-sm text-violet-400 hover:underline",
+              children: thread.lead.companyName
+            }), /* @__PURE__ */ jsx(Badge, {
+              variant: thread.status === "REPLIED" ? "success" : thread.status === "WAITING" ? "warning" : "secondary",
+              children: thread.status
+            })]
+          })]
+        }), gmailConnected && ((_a = thread.lead) == null ? void 0 : _a.email) && /* @__PURE__ */ jsxs(Button, {
+          onClick: () => setReplyOpen(!replyOpen),
+          children: [/* @__PURE__ */ jsx(Reply, {
+            className: "mr-2 h-4 w-4"
+          }), "Reply"]
+        })]
+      }), replyOpen && /* @__PURE__ */ jsxs(Card, {
+        className: "border-blue-500/30",
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          className: "pb-3",
+          children: /* @__PURE__ */ jsxs(CardTitle, {
+            className: "text-sm",
+            children: ["Reply to ", ((_b = thread.lead) == null ? void 0 : _b.contactName) || ((_c = thread.lead) == null ? void 0 : _c.email) || "lead"]
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            className: "space-y-3",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "reply"
+            }), /* @__PURE__ */ jsx(Textarea, {
+              name: "body",
+              placeholder: "Type your reply...",
+              rows: 5,
+              required: true,
+              autoFocus: true
+            }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-destructive",
+              children: actionData.error
+            }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-emerald-400",
+              children: "Reply sent!"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex gap-2",
+              children: [/* @__PURE__ */ jsxs(Button, {
+                type: "submit",
+                size: "sm",
+                children: [/* @__PURE__ */ jsx(Send, {
+                  className: "mr-2 h-3 w-3"
+                }), "Send Reply"]
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "button",
+                variant: "ghost",
+                size: "sm",
+                onClick: () => setReplyOpen(false),
+                children: "Cancel"
+              })]
+            })]
+          })
+        })]
+      }), /* @__PURE__ */ jsx("div", {
+        className: "space-y-4",
+        children: thread.messages.length === 0 ? /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsxs(CardContent, {
+            className: "flex flex-col items-center py-12",
+            children: [/* @__PURE__ */ jsx(Mail, {
+              className: "h-10 w-10 text-muted-foreground/50"
+            }), /* @__PURE__ */ jsx("p", {
+              className: "mt-3 text-muted-foreground",
+              children: "No messages in this thread."
+            })]
+          })
+        }) : thread.messages.map((msg, i) => /* @__PURE__ */ jsxs("div", {
+          className: `rounded-lg border ${msg.direction === "sent" ? "border-blue-500/20 bg-blue-500/5" : "border-border bg-card"}`,
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "flex items-center justify-between border-b border-border/30 px-4 py-2.5",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: `flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${msg.direction === "sent" ? "bg-blue-500/15 text-blue-400" : "bg-violet-500/15 text-violet-400"}`,
+                children: msg.direction === "sent" ? (msg.fromAddress || "You")[0].toUpperCase() : (msg.fromAddress || "?")[0].toUpperCase()
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm font-medium",
+                children: msg.direction === "sent" ? "You" : msg.fromAddress
+              })]
+            }), /* @__PURE__ */ jsx("span", {
+              className: "text-xs text-muted-foreground",
+              children: msg.sentAt ? new Date(msg.sentAt).toLocaleString() : new Date(msg.createdAt).toLocaleString()
+            })]
+          }), /* @__PURE__ */ jsx("div", {
+            className: "px-4 py-3",
+            children: /* @__PURE__ */ jsx("p", {
+              className: "text-sm whitespace-pre-wrap text-foreground/90",
+              children: msg.bodyPlain || msg.snippet || "(No content)"
+            })
+          })]
+        }, msg.id))
+      })]
+    })
+  });
+});
+const route18 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$9,
+  default: emails_threads_$threadId,
+  loader: loader$c
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$b({
+  request,
+  params
+}) {
+  const userId = await requireAuth(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true,
+      gmailTokens: true
+    }
+  });
+  const gmailConnected = !!(user == null ? void 0 : user.gmailTokens);
+  if (!gmailConnected) {
+    throw new Response("Gmail not connected", {
+      status: 403
+    });
+  }
+  const msg = await getMessage(userId, params.messageId);
+  const existingThread = await prisma.emailThread.findFirst({
+    where: {
+      gmailThreadId: msg.threadId
+    },
+    include: {
+      lead: {
+        select: {
+          id: true,
+          companyName: true,
+          contactName: true,
+          email: true
+        }
+      },
+      messages: {
+        orderBy: {
+          sentAt: "asc"
+        }
+      }
+    }
+  });
+  const senderEmail = extractEmailAddress(msg.from);
+  const matchedLead = await prisma.lead.findFirst({
+    where: {
+      email: senderEmail
+    },
+    select: {
+      id: true,
+      companyName: true,
+      contactName: true,
+      email: true
+    }
+  });
+  return {
+    user,
+    msg,
+    existingThread,
+    matchedLead
+  };
+}
+async function action$8({
+  request,
+  params
+}) {
+  const userId = await requireAuth(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "reply") {
+    const body = formData.get("body");
+    const toAddress = formData.get("toAddress");
+    const subject = formData.get("subject");
+    const gmailThreadId = formData.get("gmailThreadId");
+    if (!(body == null ? void 0 : body.trim())) {
+      return {
+        error: "Reply body cannot be empty."
+      };
+    }
+    try {
+      const signature = await getGmailSignature(userId);
+      const htmlBody = buildHtmlEmail(body, signature);
+      const result = await sendEmail(userId, {
+        to: toAddress,
+        subject,
+        body,
+        htmlBody,
+        threadId: gmailThreadId
+      });
+      const now = /* @__PURE__ */ new Date();
+      const gmailToken = await prisma.gmailToken.findUnique({
+        where: {
+          userId
+        }
+      });
+      let thread = await prisma.emailThread.findFirst({
+        where: {
+          gmailThreadId: result.gmailThreadId
+        }
+      });
+      if (!thread) {
+        const senderEmail = extractEmailAddress(toAddress);
+        const lead = await prisma.lead.findFirst({
+          where: {
+            email: senderEmail
+          }
+        });
+        thread = await prisma.emailThread.create({
+          data: {
+            leadId: (lead == null ? void 0 : lead.id) || null,
+            gmailThreadId: result.gmailThreadId,
+            subject,
+            snippet: body.substring(0, 200),
+            status: "REPLIED",
+            lastMessage: now
+          }
+        });
+      }
+      await prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          gmailMessageId: result.gmailMessageId,
+          fromAddress: (gmailToken == null ? void 0 : gmailToken.gmailAddress) || "me",
+          toAddress,
+          subject,
+          bodyPlain: body,
+          bodyHtml: htmlBody,
+          snippet: body.substring(0, 200),
+          direction: "sent",
+          sentAt: now
+        }
+      });
+      await prisma.emailThread.update({
+        where: {
+          id: thread.id
+        },
+        data: {
+          snippet: body.substring(0, 200),
+          lastMessage: now,
+          status: "REPLIED"
+        }
+      });
+      return {
+        success: true
+      };
+    } catch (err) {
+      return {
+        error: (err == null ? void 0 : err.message) || "Failed to send reply."
+      };
+    }
+  }
+  return {};
+}
+function extractEmailAddress(from) {
+  const match = from.match(/<(.+?)>/);
+  return match ? match[1] : from.trim();
+}
+function EmailBody({
+  html,
+  plain
+}) {
+  const iframeRef = useRef(null);
+  if (html) {
+    const srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; margin: 0; padding: 12px; background: #fff; word-wrap: break-word; }
+  a { color: #2563eb; }
+  img { max-width: 100%; height: auto; }
+  table { max-width: 100%; }
+</style>
+</head>
+<body>${html}</body>
+</html>`;
+    return /* @__PURE__ */ jsx("iframe", {
+      ref: iframeRef,
+      srcDoc: srcdoc,
+      sandbox: "allow-same-origin",
+      title: "Email content",
+      className: "w-full border-0 rounded-md",
+      style: {
+        minHeight: "200px"
+      },
+      onLoad: () => {
+        if (iframeRef.current) {
+          try {
+            const doc = iframeRef.current.contentDocument;
+            if (doc == null ? void 0 : doc.body) {
+              iframeRef.current.style.height = doc.body.scrollHeight + 24 + "px";
+            }
+          } catch {
+          }
+        }
+      }
+    });
+  }
+  return /* @__PURE__ */ jsx("div", {
+    className: "text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed",
+    children: plain || "(No content)"
+  });
+}
+const emails_inbox_$messageId = UNSAFE_withComponentProps(function GmailMessageDetail() {
+  const {
+    user,
+    msg,
+    existingThread,
+    matchedLead
+  } = useLoaderData();
+  const actionData = useActionData();
+  const [replyOpen, setReplyOpen] = useState(false);
+  const senderEmail = extractEmailAddress(msg.from);
+  const replySubject = msg.subject.startsWith("Re:") ? msg.subject : `Re: ${msg.subject}`;
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/emails?tab=inbox",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1 min-w-0",
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight truncate",
+            children: msg.subject || "(No Subject)"
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-2 mt-1",
+            children: [/* @__PURE__ */ jsxs("span", {
+              className: "text-sm text-muted-foreground",
+              children: ["From: ", msg.from]
+            }), matchedLead && /* @__PURE__ */ jsxs(Fragment, {
+              children: [/* @__PURE__ */ jsx("span", {
+                className: "text-muted-foreground",
+                children: "·"
+              }), /* @__PURE__ */ jsx(Link, {
+                to: `/leads/${matchedLead.id}/emails`,
+                className: "text-sm text-violet-400 hover:underline",
+                children: matchedLead.companyName
+              })]
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs(Button, {
+          onClick: () => setReplyOpen(!replyOpen),
+          children: [/* @__PURE__ */ jsx(Reply, {
+            className: "mr-2 h-4 w-4"
+          }), "Reply"]
+        })]
+      }), matchedLead && !existingThread && /* @__PURE__ */ jsx(Card, {
+        className: "border-l-4 border-l-violet-500",
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex items-center gap-3 p-4",
+          children: [/* @__PURE__ */ jsx("div", {
+            className: "flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10",
+            children: /* @__PURE__ */ jsx(Mail, {
+              className: "h-4 w-4 text-violet-400"
+            })
+          }), /* @__PURE__ */ jsxs("p", {
+            className: "text-sm text-muted-foreground",
+            children: ["This email matches lead", " ", /* @__PURE__ */ jsx(Link, {
+              to: `/leads/${matchedLead.id}/emails`,
+              className: "font-medium text-violet-400 hover:underline",
+              children: matchedLead.companyName
+            }), ". Replying will auto-associate this thread."]
+          })]
+        })
+      }), replyOpen && /* @__PURE__ */ jsx(Card, {
+        className: "border-blue-500/30",
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "pt-4 space-y-3",
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "grid gap-2",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "grid grid-cols-[auto_1fr] gap-2 items-center text-sm",
+              children: [/* @__PURE__ */ jsx("span", {
+                className: "text-muted-foreground text-xs font-medium",
+                children: "To"
+              }), /* @__PURE__ */ jsx("span", {
+                children: senderEmail
+              })]
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "grid grid-cols-[auto_1fr] gap-2 items-center text-sm",
+              children: [/* @__PURE__ */ jsx("span", {
+                className: "text-muted-foreground text-xs font-medium",
+                children: "Subject"
+              }), /* @__PURE__ */ jsx("span", {
+                children: replySubject
+              })]
+            })]
+          }), /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            className: "space-y-3",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "reply"
+            }), /* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "toAddress",
+              value: senderEmail
+            }), /* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "subject",
+              value: replySubject
+            }), /* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "gmailThreadId",
+              value: msg.threadId
+            }), /* @__PURE__ */ jsx(Textarea, {
+              name: "body",
+              placeholder: "Type your reply...",
+              rows: 6,
+              required: true,
+              autoFocus: true,
+              className: "text-sm"
+            }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-destructive",
+              children: actionData.error
+            }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("p", {
+              className: "text-sm text-emerald-400",
+              children: "Reply sent!"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex gap-2",
+              children: [/* @__PURE__ */ jsxs(Button, {
+                type: "submit",
+                size: "sm",
+                children: [/* @__PURE__ */ jsx(Send, {
+                  className: "mr-2 h-3 w-3"
+                }), "Send Reply"]
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "button",
+                variant: "ghost",
+                size: "sm",
+                onClick: () => setReplyOpen(false),
+                children: "Cancel"
+              })]
+            })]
+          })]
+        })
+      }), /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx("div", {
+          className: "border-b border-border/30 px-4 py-2.5",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center justify-between",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-8 w-8 items-center justify-center rounded-full bg-violet-500/15 text-violet-400 text-sm font-semibold",
+                children: (msg.from[0] || "?").toUpperCase()
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-sm font-medium",
+                  children: msg.from
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: ["To: ", msg.to]
+                })]
+              })]
+            }), /* @__PURE__ */ jsx("span", {
+              className: "text-xs text-muted-foreground",
+              children: new Date(msg.date).toLocaleString()
+            })]
+          })
+        }), /* @__PURE__ */ jsx("div", {
+          className: "p-2",
+          children: /* @__PURE__ */ jsx(EmailBody, {
+            html: msg.bodyHtml,
+            plain: msg.bodyPlain || msg.snippet
+          })
+        })]
+      }), existingThread && existingThread.messages.length > 0 && /* @__PURE__ */ jsxs("div", {
+        className: "space-y-4",
+        children: [/* @__PURE__ */ jsx("h3", {
+          className: "text-sm font-medium text-muted-foreground",
+          children: "Previous messages in this thread"
+        }), existingThread.messages.map((m) => /* @__PURE__ */ jsxs("div", {
+          className: `rounded-lg border ${m.direction === "sent" ? "border-blue-500/20 bg-blue-500/5" : "border-border bg-card"}`,
+          children: [/* @__PURE__ */ jsxs("div", {
+            className: "flex items-center justify-between border-b border-border/30 px-4 py-2",
+            children: [/* @__PURE__ */ jsx("span", {
+              className: "text-sm font-medium",
+              children: m.direction === "sent" ? "You" : m.fromAddress
+            }), /* @__PURE__ */ jsx("span", {
+              className: "text-xs text-muted-foreground",
+              children: m.sentAt ? new Date(m.sentAt).toLocaleString() : new Date(m.createdAt).toLocaleString()
+            })]
+          }), /* @__PURE__ */ jsx("div", {
+            className: "px-4 py-3",
+            children: /* @__PURE__ */ jsx("p", {
+              className: "text-sm whitespace-pre-wrap text-foreground/90",
+              children: m.bodyPlain || m.snippet || "(No content)"
+            })
+          })]
+        }, m.id))]
+      })]
+    })
+  });
+});
+const route19 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$8,
+  default: emails_inbox_$messageId,
+  loader: loader$b
+}, Symbol.toStringTag, { value: "Module" }));
+const ToolbarButton = ({
+  icon: Icon,
+  label,
+  onClick
+}) => /* @__PURE__ */ jsx(
+  "button",
+  {
+    type: "button",
+    onMouseDown: (e) => {
+      e.preventDefault();
+      onClick();
+    },
+    title: label,
+    className: cn(
+      "flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    ),
+    children: /* @__PURE__ */ jsx(Icon, { className: "h-3.5 w-3.5" })
+  }
+);
+function exec(command, value) {
+  document.execCommand(command, false, value);
+}
+function htmlToFragment(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  return template.content;
+}
+const RichEditor = forwardRef(
+  ({ value, onChange, placeholder, className, minHeight = 180 }, ref) => {
+    const editorRef = useRef(null);
+    const isInternalChange = useRef(false);
+    const syncChange = useCallback(() => {
+      if (editorRef.current) {
+        isInternalChange.current = true;
+        onChange(editorRef.current.innerHTML);
+      }
+    }, [onChange]);
+    useImperativeHandle(ref, () => ({
+      getHTML: () => {
+        var _a;
+        return ((_a = editorRef.current) == null ? void 0 : _a.innerHTML) || "";
+      },
+      getPlainText: () => {
+        var _a, _b;
+        return ((_a = editorRef.current) == null ? void 0 : _a.textContent) || ((_b = editorRef.current) == null ? void 0 : _b.innerText) || "";
+      },
+      setHTML: (html) => {
+        if (editorRef.current) {
+          isInternalChange.current = true;
+          editorRef.current.innerHTML = html;
+          onChange(html);
+        }
+      },
+      insertHTML: (html) => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        editor.focus();
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          const fragment = htmlToFragment(html);
+          range.insertNode(fragment);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } else {
+          editor.appendChild(htmlToFragment(html));
+        }
+        syncChange();
+      },
+      appendHTML: (html) => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        editor.appendChild(htmlToFragment(html));
+        syncChange();
+      }
+    }));
+    useEffect(() => {
+      if (editorRef.current && !isInternalChange.current) {
+        if (editorRef.current.innerHTML !== value) {
+          editorRef.current.innerHTML = value;
+        }
+      }
+      isInternalChange.current = false;
+    }, [value]);
+    const handleInput = useCallback(() => {
+      syncChange();
+    }, [syncChange]);
+    const handleLinkInsert = () => {
+      const url = window.prompt("Enter URL:");
+      if (url) {
+        exec("createLink", url);
+        handleInput();
+      }
+    };
+    return /* @__PURE__ */ jsxs(
+      "div",
+      {
+        className: cn(
+          "rounded-md border border-input bg-background overflow-hidden",
+          "focus-within:ring-1 focus-within:ring-ring",
+          className
+        ),
+        children: [
+          /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-0.5 border-b border-border/50 px-2 py-1 bg-muted/30", children: [
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: Bold, label: "Bold (Ctrl+B)", onClick: () => {
+              exec("bold");
+              handleInput();
+            } }),
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: Italic, label: "Italic (Ctrl+I)", onClick: () => {
+              exec("italic");
+              handleInput();
+            } }),
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: Underline, label: "Underline (Ctrl+U)", onClick: () => {
+              exec("underline");
+              handleInput();
+            } }),
+            /* @__PURE__ */ jsx("div", { className: "mx-1 h-4 w-px bg-border" }),
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: List, label: "Bullet list", onClick: () => {
+              exec("insertUnorderedList");
+              handleInput();
+            } }),
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: ListOrdered, label: "Numbered list", onClick: () => {
+              exec("insertOrderedList");
+              handleInput();
+            } }),
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: Pilcrow, label: "Paragraph", onClick: () => {
+              exec("formatBlock", "p");
+              handleInput();
+            } }),
+            /* @__PURE__ */ jsx("div", { className: "mx-1 h-4 w-px bg-border" }),
+            /* @__PURE__ */ jsx(ToolbarButton, { icon: Link$1, label: "Insert link", onClick: handleLinkInsert })
+          ] }),
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              ref: editorRef,
+              contentEditable: true,
+              suppressContentEditableWarning: true,
+              onInput: handleInput,
+              "data-placeholder": placeholder,
+              className: cn(
+                "prose prose-sm prose-invert max-w-none px-3 py-2 outline-none text-sm text-foreground",
+                "min-h-[180px] max-h-[400px] overflow-y-auto",
+                "[&_a]:text-blue-400 [&_a]:underline",
+                "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+                "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none"
+              ),
+              style: { minHeight: `${minHeight}px` }
+            }
+          )
+        ]
+      }
+    );
+  }
+);
+RichEditor.displayName = "RichEditor";
+async function loader$a({
   request,
   params
 }) {
@@ -5612,6 +8295,13 @@ async function loader$5({
       emails: {
         orderBy: {
           lastMessage: "desc"
+        },
+        include: {
+          messages: {
+            orderBy: {
+              sentAt: "desc"
+            }
+          }
         }
       }
     }
@@ -5626,18 +8316,25 @@ async function loader$5({
       name: "asc"
     }
   });
+  let gmailSignature = "";
+  const gmailConnected = !!(user == null ? void 0 : user.gmailTokens);
+  if (gmailConnected) {
+    gmailSignature = await getGmailSignature(userId);
+  }
   return {
     user,
     lead,
     templates,
-    gmailConnected: !!(user == null ? void 0 : user.gmailTokens)
+    gmailConnected,
+    gmailSignature
   };
 }
-async function action$3({
+async function action$7({
   request,
   params
 }) {
-  await requireAuth(request);
+  var _a;
+  const userId = await requireAuth(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
   if (intent === "sendEmail") {
@@ -5646,43 +8343,70 @@ async function action$3({
         id: params.leadId
       }
     });
-    const template = await prisma.emailTemplate.findUnique({
-      where: {
-        id: formData.get("templateId")
-      }
-    });
-    if (!lead || !template) {
+    const subject = formData.get("subject");
+    const bodyHtml = formData.get("bodyHtml");
+    const bodyPlain = formData.get("bodyPlain");
+    if (!(lead == null ? void 0 : lead.email)) {
       return {
-        error: "Lead or template not found."
+        error: "This lead has no email address."
       };
     }
-    const replacements = {
-      company_name: lead.companyName,
-      contact_name: lead.contactName || "",
-      email: lead.email,
-      industry: lead.industry || "",
-      website: lead.website || ""
-    };
-    const parseTemplate = (text) => text.replace(/\{\{(\w+)\}\}/g, (_, key) => replacements[key] || `{{${key}}}`);
-    const subject = parseTemplate(template.subject);
-    const body = parseTemplate(template.body);
-    const gmailThreadId = `local-${Date.now()}`;
-    await prisma.emailThread.create({
-      data: {
-        leadId: lead.id,
-        gmailThreadId,
+    if (!(subject == null ? void 0 : subject.trim()) || !(bodyPlain == null ? void 0 : bodyPlain.trim())) {
+      return {
+        error: "Subject and body are required."
+      };
+    }
+    try {
+      const signature = await getGmailSignature(userId);
+      const finalHtml = signature && !bodyHtml.includes(signature) ? `${bodyHtml}<br><br>${signature}` : bodyHtml;
+      const result = await sendEmail(userId, {
+        to: lead.email,
         subject,
-        snippet: body.substring(0, 200),
-        status: "SENT"
-      }
-    });
-    return {
-      success: true,
-      sent: {
-        subject,
-        snippet: body.substring(0, 100)
-      }
-    };
+        body: bodyPlain,
+        htmlBody: finalHtml
+      });
+      const now = /* @__PURE__ */ new Date();
+      const thread = await prisma.emailThread.create({
+        data: {
+          leadId: lead.id,
+          gmailThreadId: result.gmailThreadId,
+          subject,
+          snippet: bodyPlain.substring(0, 200),
+          status: "SENT",
+          lastMessage: now
+        }
+      });
+      const gmailToken = await prisma.gmailToken.findUnique({
+        where: {
+          userId
+        }
+      });
+      await prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          gmailMessageId: result.gmailMessageId,
+          fromAddress: (gmailToken == null ? void 0 : gmailToken.gmailAddress) || "me",
+          toAddress: lead.email,
+          subject,
+          bodyPlain,
+          bodyHtml: finalHtml,
+          snippet: bodyPlain.substring(0, 200),
+          direction: "sent",
+          sentAt: now
+        }
+      });
+      return {
+        success: true,
+        sent: {
+          subject
+        }
+      };
+    } catch (err) {
+      const message = ((_a = err == null ? void 0 : err.message) == null ? void 0 : _a.includes("has not connected Gmail")) ? "Gmail is not connected. Go to Settings to connect your account." : (err == null ? void 0 : err.message) || "Failed to send email. Please try again.";
+      return {
+        error: message
+      };
+    }
   }
   return {};
 }
@@ -5691,10 +8415,47 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
     user,
     lead,
     templates,
-    gmailConnected
+    gmailConnected,
+    gmailSignature
   } = useLoaderData();
   const actionData = useActionData();
+  const [expandedThread, setExpandedThread] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [subject, setSubject] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const editorRef = useRef(null);
+  const previewRef = useRef(null);
+  const parsePreview = useCallback((text) => {
+    const replacements = {
+      company_name: lead.companyName,
+      contact_name: lead.contactName || "",
+      email: lead.email || "",
+      industry: lead.industry || "",
+      website: lead.website || ""
+    };
+    return text.replace(/\{\{(\w+)\}\}/g, (_, key) => replacements[key] || `{{${key}}}`);
+  }, [lead]);
+  const handleTemplateChange = (templateId) => {
+    var _a, _b;
+    setSelectedTemplate(templateId);
+    const tmpl = templates.find((t) => t.id === templateId);
+    if (tmpl) {
+      setSubject(parsePreview(tmpl.subject));
+      const htmlBody = parsePreview(tmpl.body).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+      setBodyHtml(htmlBody);
+      (_a = editorRef.current) == null ? void 0 : _a.setHTML(htmlBody);
+    } else {
+      setSubject("");
+      setBodyHtml("");
+      (_b = editorRef.current) == null ? void 0 : _b.setHTML("");
+    }
+  };
+  const handleInsertSignature = () => {
+    if (gmailSignature && editorRef.current) {
+      editorRef.current.appendHTML(`<br><br>${gmailSignature}`);
+    }
+  };
+  const previewSrcDoc = bodyHtml ? buildPreviewHtml(gmailSignature && !bodyHtml.includes(gmailSignature) ? `${bodyHtml}<br><br>${gmailSignature}` : bodyHtml) : "";
   return /* @__PURE__ */ jsx(AppShell, {
     user,
     children: /* @__PURE__ */ jsxs("div", {
@@ -5726,38 +8487,68 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
           children: [/* @__PURE__ */ jsx(Badge, {
             variant: "warning",
             children: "Gmail Not Connected"
-          }), /* @__PURE__ */ jsx("p", {
+          }), /* @__PURE__ */ jsxs("p", {
             className: "text-sm text-muted-foreground",
-            children: "Connect your Gmail account in Settings to send emails. Thread tracking still works."
+            children: ["Connect your Gmail account in", " ", /* @__PURE__ */ jsx(Link, {
+              to: "/settings",
+              className: "underline hover:text-foreground",
+              children: "Settings"
+            }), " ", "to send emails."]
           })]
         })
       }), /* @__PURE__ */ jsxs("div", {
-        className: "grid gap-6 lg:grid-cols-3",
+        className: "grid gap-6 lg:grid-cols-2",
         children: [/* @__PURE__ */ jsx("div", {
-          className: "lg:col-span-1",
+          className: "space-y-4",
           children: /* @__PURE__ */ jsxs(Card, {
             children: [/* @__PURE__ */ jsx(CardHeader, {
               children: /* @__PURE__ */ jsx(CardTitle, {
                 className: "text-lg",
-                children: "Send Email"
+                children: "Compose"
               })
             }), /* @__PURE__ */ jsx(CardContent, {
               children: /* @__PURE__ */ jsxs(Form, {
                 method: "post",
                 className: "space-y-4",
+                onSubmit: (e) => {
+                  const form = e.currentTarget;
+                  const plain = form.querySelector('[name="bodyPlain"]');
+                  if (plain && editorRef.current) {
+                    plain.value = editorRef.current.getPlainText();
+                  }
+                  const html = form.querySelector('[name="bodyHtml"]');
+                  if (html && editorRef.current) {
+                    html.value = editorRef.current.getHTML();
+                  }
+                },
                 children: [/* @__PURE__ */ jsx("input", {
                   type: "hidden",
                   name: "intent",
                   value: "sendEmail"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "bodyHtml",
+                  defaultValue: bodyHtml
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "bodyPlain",
+                  defaultValue: ""
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-1.5",
+                  children: [/* @__PURE__ */ jsx("p", {
+                    className: "text-xs font-medium text-muted-foreground uppercase tracking-wider",
+                    children: "To"
+                  }), /* @__PURE__ */ jsx("p", {
+                    className: "text-sm rounded-md bg-muted/50 px-3 py-2 truncate",
+                    children: lead.email || "No email address"
+                  })]
                 }), /* @__PURE__ */ jsxs("div", {
                   className: "space-y-2",
                   children: [/* @__PURE__ */ jsx(Label, {
-                    children: "Select Template"
+                    children: "Load Template"
                   }), /* @__PURE__ */ jsxs(Select, {
-                    name: "templateId",
                     value: selectedTemplate,
-                    onChange: (e) => setSelectedTemplate(e.target.value),
-                    required: true,
+                    onChange: (e) => handleTemplateChange(e.target.value),
                     children: [/* @__PURE__ */ jsx("option", {
                       value: "",
                       children: "Choose a template..."
@@ -5765,6 +8556,37 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
                       value: t.id,
                       children: t.name
                     }, t.id))]
+                  })]
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-2",
+                  children: [/* @__PURE__ */ jsx(Label, {
+                    children: "Subject"
+                  }), /* @__PURE__ */ jsx(Input, {
+                    name: "subject",
+                    value: subject,
+                    onChange: (e) => setSubject(e.target.value),
+                    placeholder: "Email subject...",
+                    required: true
+                  })]
+                }), /* @__PURE__ */ jsxs("div", {
+                  className: "space-y-2",
+                  children: [/* @__PURE__ */ jsxs("div", {
+                    className: "flex items-center justify-between",
+                    children: [/* @__PURE__ */ jsx(Label, {
+                      children: "Message"
+                    }), gmailSignature && /* @__PURE__ */ jsxs("button", {
+                      type: "button",
+                      onClick: handleInsertSignature,
+                      className: "inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors",
+                      children: [/* @__PURE__ */ jsx(PenLine, {
+                        className: "h-3 w-3"
+                      }), "Insert Signature"]
+                    })]
+                  }), /* @__PURE__ */ jsx(RichEditor, {
+                    ref: editorRef,
+                    value: bodyHtml,
+                    onChange: setBodyHtml,
+                    placeholder: "Write your message..."
                   })]
                 }), (actionData == null ? void 0 : actionData.success) && /* @__PURE__ */ jsx("div", {
                   className: "rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400",
@@ -5775,7 +8597,7 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
                 }), /* @__PURE__ */ jsxs(Button, {
                   type: "submit",
                   className: "w-full",
-                  disabled: !gmailConnected,
+                  disabled: !gmailConnected || !subject.trim() || !bodyHtml.replace(/<[^>]*>/g, "").trim(),
                   children: [/* @__PURE__ */ jsx(Send, {
                     className: "mr-2 h-4 w-4"
                   }), "Send Email"]
@@ -5784,56 +8606,150 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
             })]
           })
         }), /* @__PURE__ */ jsxs("div", {
-          className: "lg:col-span-2 space-y-3",
-          children: [/* @__PURE__ */ jsx("h3", {
-            className: "text-lg font-semibold",
-            children: "Email History"
-          }), lead.emails.length === 0 ? /* @__PURE__ */ jsx(Card, {
-            children: /* @__PURE__ */ jsxs(CardContent, {
-              className: "flex flex-col items-center justify-center py-12",
-              children: [/* @__PURE__ */ jsx(Send, {
-                className: "h-12 w-12 text-muted-foreground/50"
-              }), /* @__PURE__ */ jsx("p", {
-                className: "mt-4 text-muted-foreground",
-                children: "No emails sent yet."
+          className: "space-y-4",
+          children: [/* @__PURE__ */ jsxs("div", {
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center justify-between mb-2",
+              children: [/* @__PURE__ */ jsx("h3", {
+                className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider",
+                children: "Preview"
+              }), gmailSignature && /* @__PURE__ */ jsx("span", {
+                className: "text-xs text-muted-foreground",
+                children: "with signature"
               })]
-            })
-          }) : lead.emails.map((thread) => /* @__PURE__ */ jsx(Card, {
-            children: /* @__PURE__ */ jsx(CardContent, {
-              className: "p-4",
-              children: /* @__PURE__ */ jsxs("div", {
-                className: "flex items-center justify-between",
-                children: [/* @__PURE__ */ jsxs("div", {
-                  children: [/* @__PURE__ */ jsx("p", {
-                    className: "font-medium",
-                    children: thread.subject
-                  }), thread.snippet && /* @__PURE__ */ jsx("p", {
-                    className: "mt-1 text-sm text-muted-foreground line-clamp-2",
-                    children: thread.snippet
-                  })]
-                }), /* @__PURE__ */ jsxs("div", {
-                  className: "flex items-center gap-2",
-                  children: [/* @__PURE__ */ jsx(Badge, {
-                    variant: thread.status === "REPLIED" ? "success" : thread.status === "WAITING" ? "warning" : "secondary",
-                    children: thread.status
-                  }), /* @__PURE__ */ jsx("span", {
-                    className: "text-xs text-muted-foreground",
-                    children: new Date(thread.lastMessage).toLocaleDateString()
-                  })]
+            }), /* @__PURE__ */ jsx(Card, {
+              className: "overflow-hidden",
+              children: previewSrcDoc ? /* @__PURE__ */ jsx("iframe", {
+                ref: previewRef,
+                srcDoc: previewSrcDoc,
+                sandbox: "allow-same-origin",
+                title: "Email preview",
+                className: "w-full border-0 bg-white",
+                style: {
+                  minHeight: "200px"
+                },
+                onLoad: () => {
+                  if (previewRef.current) {
+                    try {
+                      const doc = previewRef.current.contentDocument;
+                      if (doc == null ? void 0 : doc.body) {
+                        previewRef.current.style.height = doc.body.scrollHeight + 24 + "px";
+                      }
+                    } catch {
+                    }
+                  }
+                }
+              }) : /* @__PURE__ */ jsxs("div", {
+                className: "flex flex-col items-center justify-center py-16",
+                children: [/* @__PURE__ */ jsx(Send, {
+                  className: "h-10 w-10 text-muted-foreground/20"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "mt-3 text-muted-foreground text-sm",
+                  children: "Start typing to see a preview"
                 })]
               })
-            })
-          }, thread.id))]
+            })]
+          }), /* @__PURE__ */ jsxs("div", {
+            children: [/* @__PURE__ */ jsxs("h3", {
+              className: "text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2",
+              children: ["Email History", lead.emails.length > 0 && /* @__PURE__ */ jsxs("span", {
+                className: "ml-2 font-normal",
+                children: ["(", lead.emails.length, ")"]
+              })]
+            }), /* @__PURE__ */ jsx("div", {
+              className: "space-y-2",
+              children: lead.emails.length === 0 ? /* @__PURE__ */ jsx(Card, {
+                children: /* @__PURE__ */ jsx(CardContent, {
+                  className: "flex flex-col items-center justify-center py-8",
+                  children: /* @__PURE__ */ jsx("p", {
+                    className: "text-muted-foreground text-sm",
+                    children: "No emails sent yet."
+                  })
+                })
+              }) : lead.emails.map((thread) => {
+                const isExpanded = expandedThread === thread.id;
+                return /* @__PURE__ */ jsxs(Card, {
+                  className: "overflow-hidden",
+                  children: [/* @__PURE__ */ jsx("button", {
+                    type: "button",
+                    className: "w-full text-left p-3 hover:bg-muted/30 transition-colors",
+                    onClick: () => setExpandedThread(isExpanded ? null : thread.id),
+                    children: /* @__PURE__ */ jsxs("div", {
+                      className: "flex items-center justify-between gap-3",
+                      children: [/* @__PURE__ */ jsxs("div", {
+                        className: "min-w-0 flex-1",
+                        children: [/* @__PURE__ */ jsx("p", {
+                          className: "text-sm font-medium truncate",
+                          children: thread.subject
+                        }), /* @__PURE__ */ jsx("div", {
+                          className: "flex items-center gap-2 mt-0.5",
+                          children: /* @__PURE__ */ jsx(Badge, {
+                            variant: thread.status === "REPLIED" ? "success" : thread.status === "WAITING" ? "warning" : "secondary",
+                            children: thread.status
+                          })
+                        })]
+                      }), /* @__PURE__ */ jsx("span", {
+                        className: "text-xs text-muted-foreground shrink-0",
+                        children: new Date(thread.lastMessage).toLocaleDateString()
+                      })]
+                    })
+                  }), isExpanded && thread.messages.length > 0 && /* @__PURE__ */ jsx("div", {
+                    className: "border-t border-border/50",
+                    children: thread.messages.map((msg, i) => /* @__PURE__ */ jsxs("div", {
+                      className: `px-3 py-2 text-sm ${i > 0 ? "border-t border-border/30" : ""} ${msg.direction === "sent" ? "bg-blue-500/5" : "bg-muted/20"}`,
+                      children: [/* @__PURE__ */ jsxs("div", {
+                        className: "flex items-center justify-between mb-1",
+                        children: [/* @__PURE__ */ jsx("span", {
+                          className: "text-xs font-medium text-muted-foreground",
+                          children: msg.direction === "sent" ? "You" : msg.fromAddress
+                        }), /* @__PURE__ */ jsx("span", {
+                          className: "text-xs text-muted-foreground",
+                          children: msg.sentAt ? new Date(msg.sentAt).toLocaleString() : new Date(msg.createdAt).toLocaleString()
+                        })]
+                      }), /* @__PURE__ */ jsx("p", {
+                        className: "whitespace-pre-wrap text-foreground/90",
+                        children: msg.bodyPlain || msg.snippet
+                      })]
+                    }, msg.id))
+                  })]
+                }, thread.id);
+              })
+            })]
+          })]
         })]
       })]
     })
   });
 });
-const route15 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+function buildPreviewHtml(bodyContent) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: #ffffff;
+    margin: 0;
+    padding: 12px 16px;
+    word-wrap: break-word;
+  }
+  a { color: #2563eb; }
+  img { max-width: 100%; height: auto; }
+  ul, ol { padding-left: 20px; }
+</style>
+</head>
+<body>${bodyContent}</body>
+</html>`;
+}
+const route20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$3,
+  action: action$7,
   default: leads_$leadId_emails,
-  loader: loader$5
+  loader: loader$a
 }, Symbol.toStringTag, { value: "Module" }));
 function validateApiKey(request) {
   const apiKey = request.headers.get("X-API-Key");
@@ -5850,7 +8766,7 @@ const LeadPayloadSchema = z.object({
   leadSource: z.string().optional().default("SCRAPER"),
   notes: z.string().optional()
 });
-async function loader$4({
+async function loader$9({
   request
 }) {
   if (!validateApiKey(request)) {
@@ -5900,7 +8816,7 @@ async function loader$4({
     offset
   });
 }
-async function action$2({
+async function action$6({
   request
 }) {
   if (!validateApiKey(request)) {
@@ -5995,12 +8911,12 @@ async function action$2({
     });
   }
 }
-const route16 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route21 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$2,
-  loader: loader$4
+  action: action$6,
+  loader: loader$9
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$3({
+async function loader$8({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -6123,10 +9039,10 @@ function StatusBadge({
     children: status
   });
 }
-const route17 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route22 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: imports,
-  loader: loader$3
+  loader: loader$8
 }, Symbol.toStringTag, { value: "Module" }));
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -6283,7 +9199,7 @@ async function processImport(importId) {
   });
   return { imported, skipped, errors };
 }
-async function loader$2({
+async function loader$7({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -6301,7 +9217,7 @@ async function loader$2({
     user
   };
 }
-async function action$1({
+async function action$5({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -6605,11 +9521,11 @@ function autoMap(header) {
   };
   return map[lower] || "";
 }
-const route18 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route23 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$1,
+  action: action$5,
   default: imports_new,
-  loader: loader$2
+  loader: loader$7
 }, Symbol.toStringTag, { value: "Module" }));
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -6627,10 +9543,11 @@ function useTheme() {
   };
   return { theme, toggleTheme };
 }
-async function loader$1({
+async function loader$6({
   request
 }) {
   const userId = await requireAuth(request);
+  const url = new URL(request.url);
   const user = await prisma.user.findUnique({
     where: {
       id: userId
@@ -6643,17 +9560,50 @@ async function loader$1({
     }
   });
   return {
-    user
+    user,
+    gmailStatus: url.searchParams.get("gmail")
   };
 }
+async function action$4({
+  request
+}) {
+  const userId = await requireAuth(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "disconnectGmail") {
+    await prisma.gmailToken.deleteMany({
+      where: {
+        userId
+      }
+    });
+    return {
+      success: true,
+      disconnected: true
+    };
+  }
+  return {};
+}
 const settings = UNSAFE_withComponentProps(function Settings2() {
+  var _a;
   const {
-    user
+    user,
+    gmailStatus
   } = useLoaderData();
   const {
     theme,
     toggleTheme
   } = useTheme();
+  const navigation = useNavigation();
+  const [, setSearchParams] = useSearchParams();
+  const isDisconnecting = navigation.state === "submitting" && ((_a = navigation.formData) == null ? void 0 : _a.get("intent")) === "disconnectGmail";
+  useEffect(() => {
+    if (gmailStatus) {
+      const timer = setTimeout(() => setSearchParams({}, {
+        replace: true
+      }), 4e3);
+      return () => clearTimeout(timer);
+    }
+  }, [gmailStatus, setSearchParams]);
   return /* @__PURE__ */ jsx(AppShell, {
     user,
     children: /* @__PURE__ */ jsxs("div", {
@@ -6782,6 +9732,28 @@ const settings = UNSAFE_withComponentProps(function Settings2() {
               })
             })
           })]
+        }), (user == null ? void 0 : user.role) === "ADMIN" && /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsxs(CardTitle, {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(Database, {
+                className: "h-4 w-4"
+              }), "Database Migrations"]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Apply schema changes without losing data"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsx(Link, {
+              to: "/settings/database",
+              children: /* @__PURE__ */ jsxs(Button, {
+                variant: "outline",
+                className: "w-full",
+                children: [/* @__PURE__ */ jsx(Database, {
+                  className: "mr-2 h-4 w-4"
+                }), "Manage Database"]
+              })
+            })
+          })]
         }), /* @__PURE__ */ jsxs(Card, {
           children: [/* @__PURE__ */ jsxs(CardHeader, {
             children: [/* @__PURE__ */ jsx(CardTitle, {
@@ -6791,7 +9763,10 @@ const settings = UNSAFE_withComponentProps(function Settings2() {
             })]
           }), /* @__PURE__ */ jsxs(CardContent, {
             className: "space-y-4",
-            children: [/* @__PURE__ */ jsxs("div", {
+            children: [gmailStatus && /* @__PURE__ */ jsxs("div", {
+              className: `rounded-md border p-3 text-sm ${gmailStatus === "connected" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : gmailStatus === "denied" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}`,
+              children: [gmailStatus === "connected" && "Gmail connected successfully!", gmailStatus === "denied" && "Gmail connection was denied.", gmailStatus === "disconnected" && "Gmail disconnected.", gmailStatus === "error" && "Something went wrong connecting Gmail."]
+            }), /* @__PURE__ */ jsxs("div", {
               className: "flex items-center justify-between",
               children: [/* @__PURE__ */ jsxs("div", {
                 className: "flex items-center gap-3",
@@ -6818,13 +9793,37 @@ const settings = UNSAFE_withComponentProps(function Settings2() {
                 variant: (user == null ? void 0 : user.gmailTokens) ? "success" : "secondary",
                 children: (user == null ? void 0 : user.gmailTokens) ? "Connected" : "Disconnected"
               })]
-            }), /* @__PURE__ */ jsx(Button, {
-              className: "w-full",
-              variant: (user == null ? void 0 : user.gmailTokens) ? "outline" : "default",
-              onClick: () => {
-                alert("Google OAuth will be configured with GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars");
-              },
-              children: (user == null ? void 0 : user.gmailTokens) ? "Reconnect Gmail" : "Connect Gmail"
+            }), (user == null ? void 0 : user.gmailTokens) ? /* @__PURE__ */ jsxs("div", {
+              className: "flex gap-2",
+              children: [/* @__PURE__ */ jsx(Link, {
+                to: "/auth/google",
+                className: "flex-1",
+                children: /* @__PURE__ */ jsx(Button, {
+                  variant: "outline",
+                  className: "w-full",
+                  children: "Reconnect Gmail"
+                })
+              }), /* @__PURE__ */ jsxs(Form, {
+                method: "post",
+                className: "flex-1",
+                children: [/* @__PURE__ */ jsx("input", {
+                  type: "hidden",
+                  name: "intent",
+                  value: "disconnectGmail"
+                }), /* @__PURE__ */ jsx(Button, {
+                  type: "submit",
+                  variant: "outline",
+                  className: "w-full text-red-400 hover:text-red-300",
+                  disabled: isDisconnecting,
+                  children: isDisconnecting ? "Disconnecting..." : "Disconnect"
+                })]
+              })]
+            }) : /* @__PURE__ */ jsx(Link, {
+              to: "/auth/google",
+              children: /* @__PURE__ */ jsx(Button, {
+                className: "w-full",
+                children: "Connect Gmail"
+              })
             })]
           })]
         }), /* @__PURE__ */ jsxs(Card, {
@@ -6872,12 +9871,13 @@ const settings = UNSAFE_withComponentProps(function Settings2() {
     })
   });
 });
-const route19 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route24 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
+  action: action$4,
   default: settings,
-  loader: loader$1
+  loader: loader$6
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader({
+async function loader$5({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -6908,7 +9908,7 @@ async function loader({
     users: users2
   };
 }
-async function action({
+async function action$3({
   request
 }) {
   await requireAdmin(request);
@@ -7190,13 +10190,1895 @@ const settings_users = UNSAFE_withComponentProps(function UserManagement() {
     })
   });
 });
-const route20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route25 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$3,
+  default: settings_users,
+  loader: loader$5
+}, Symbol.toStringTag, { value: "Module" }));
+const DANGEROUS_PATTERNS = [
+  { pattern: /\bDROP\s+DATABASE\b/i, label: "DROP DATABASE" },
+  { pattern: /\bTRUNCATE\s+/i, label: "TRUNCATE" },
+  { pattern: /\bDROP\s+TABLE\s+(?!IF\s+EXISTS)/i, label: "DROP TABLE without IF EXISTS" },
+  { pattern: /\bDELETE\s+FROM\s+\w+\s*;/i, label: "DELETE without WHERE clause" }
+];
+function checkDangerousSQL(sql) {
+  for (const { pattern, label } of DANGEROUS_PATTERNS) {
+    if (pattern.test(sql)) {
+      return `Potentially dangerous SQL detected: "${label}". Use IF EXISTS for drops, and always include WHERE clauses for deletes.`;
+    }
+  }
+  return null;
+}
+function parseSQLStatements(sql) {
+  return sql.split(";").map((s) => s.trim()).filter((s) => {
+    if (s.length === 0) return false;
+    const withoutComments = s.replace(/--.*/g, "").trim();
+    return withoutComments.length > 0;
+  });
+}
+function discoverMigrationFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((f) => f.endsWith(".sql") && !f.startsWith("README")).sort();
+}
+const MIGRATIONS_DIR = path.resolve(process.cwd(), "migrations");
+async function ensureMigrationTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`_MigrationLog\` (
+      \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+      \`name\` VARCHAR(255) NOT NULL UNIQUE,
+      \`appliedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      \`checksum\` VARCHAR(64) NULL
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
+}
+async function getAppliedMigrations() {
+  await ensureMigrationTable();
+  const rows = await prisma.$queryRaw`
+    SELECT \`name\` FROM \`_MigrationLog\` ORDER BY \`name\` ASC
+  `;
+  return rows.map((r) => r.name);
+}
+async function getMigrationStatus() {
+  const applied = await getAppliedMigrations();
+  const files = discoverMigrationFiles(MIGRATIONS_DIR).map((name) => ({
+    name,
+    filePath: path.join(MIGRATIONS_DIR, name)
+  }));
+  const appliedSet = new Set(applied);
+  const migrations = files.map((f) => ({
+    name: f.name,
+    applied: appliedSet.has(f.name)
+  }));
+  const pending = migrations.filter((m) => !m.applied);
+  return {
+    migrations,
+    pendingCount: pending.length,
+    appliedCount: applied.length,
+    total: files.length
+  };
+}
+async function applyPendingMigrations() {
+  const status = await getMigrationStatus();
+  const pending = status.migrations.filter((m) => !m.applied);
+  if (pending.length === 0) {
+    return { applied: [], errors: [] };
+  }
+  const appliedList = [];
+  const errors = [];
+  for (const migration of pending) {
+    const sql = fs.readFileSync(
+      path.join(MIGRATIONS_DIR, migration.name),
+      "utf-8"
+    );
+    const danger = checkDangerousSQL(sql);
+    if (danger) {
+      errors.push({ migration: migration.name, error: `Blocked: ${danger}` });
+      break;
+    }
+    try {
+      await prisma.$transaction(async (tx) => {
+        const statements = parseSQLStatements(sql);
+        for (const stmt of statements) {
+          await tx.$executeRawUnsafe(stmt);
+        }
+        await tx.$executeRawUnsafe(
+          `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES (?, NOW(3))`,
+          [migration.name]
+        );
+      });
+      appliedList.push(migration.name);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push({ migration: migration.name, error: message });
+      break;
+    }
+  }
+  return { applied: appliedList, errors };
+}
+async function markBaselineApplied() {
+  await ensureMigrationTable();
+  const applied = await getAppliedMigrations();
+  if (applied.includes("000_baseline.sql")) {
+    return false;
+  }
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES (?, NOW(3))`,
+    ["000_baseline.sql"]
+  );
+  return true;
+}
+async function loader$4({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  await markBaselineApplied();
+  const status = await getMigrationStatus();
+  return {
+    user,
+    status
+  };
+}
+async function action$2({
+  request
+}) {
+  await requireAdmin(request);
+  const result = await applyPendingMigrations();
+  return result;
+}
+const settings_database = UNSAFE_withComponentProps(function SettingsDatabase() {
+  var _a, _b, _c;
+  const {
+    user,
+    status
+  } = useLoaderData();
+  const fetcher = useFetcher();
+  const navigation = useNavigation();
+  const isApplying = navigation.state === "submitting" || fetcher.state === "submitting" && ((_a = fetcher.formData) == null ? void 0 : _a.get("intent")) === "applyMigrations";
+  const appliedFromAction = ((_b = fetcher.data) == null ? void 0 : _b.applied) || [];
+  const errorsFromAction = ((_c = fetcher.data) == null ? void 0 : _c.errors) || [];
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx("h1", {
+          className: "text-3xl font-bold tracking-tight",
+          children: "Database Migrations"
+        }), /* @__PURE__ */ jsx("p", {
+          className: "text-muted-foreground",
+          children: "Manage schema changes without affecting existing data"
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-4 md:grid-cols-3",
+        children: [/* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsx(CardContent, {
+            className: "pt-6",
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-3",
+              children: [/* @__PURE__ */ jsx(Database, {
+                className: "h-8 w-8 text-blue-500"
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-2xl font-bold",
+                  children: status.total
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: "Total Migrations"
+                })]
+              })]
+            })
+          })
+        }), /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsx(CardContent, {
+            className: "pt-6",
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-3",
+              children: [/* @__PURE__ */ jsx(CheckCircle2, {
+                className: "h-8 w-8 text-emerald-500"
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-2xl font-bold",
+                  children: status.appliedCount
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: "Applied"
+                })]
+              })]
+            })
+          })
+        }), /* @__PURE__ */ jsx(Card, {
+          children: /* @__PURE__ */ jsx(CardContent, {
+            className: "pt-6",
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-3",
+              children: [status.pendingCount > 0 ? /* @__PURE__ */ jsx(AlertCircle, {
+                className: "h-8 w-8 text-amber-500"
+              }) : /* @__PURE__ */ jsx(CheckCircle2, {
+                className: "h-8 w-8 text-emerald-500"
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-2xl font-bold",
+                  children: status.pendingCount
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: "Pending"
+                })]
+              })]
+            })
+          })
+        })]
+      }), status.pendingCount > 0 && /* @__PURE__ */ jsx(Card, {
+        className: "border-amber-500/30 bg-amber-500/5",
+        children: /* @__PURE__ */ jsx(CardContent, {
+          className: "pt-6",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center justify-between",
+            children: [/* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsxs("p", {
+                className: "font-medium",
+                children: [status.pendingCount, " pending migration", status.pendingCount !== 1 ? "s" : "", " ready to apply"]
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-sm text-muted-foreground",
+                children: "Review the changes below before applying. Migrations run in order and stop on the first error."
+              })]
+            }), /* @__PURE__ */ jsxs(fetcher.Form, {
+              method: "post",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "intent",
+                value: "applyMigrations"
+              }), /* @__PURE__ */ jsxs(Button, {
+                type: "submit",
+                disabled: isApplying,
+                children: [/* @__PURE__ */ jsx(Play, {
+                  className: "mr-2 h-4 w-4"
+                }), isApplying ? "Applying..." : "Apply Migrations"]
+              })]
+            })]
+          })
+        })
+      }), appliedFromAction.length > 0 && /* @__PURE__ */ jsx(Card, {
+        className: "border-emerald-500/30 bg-emerald-500/5",
+        children: /* @__PURE__ */ jsx(CardContent, {
+          className: "pt-6",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-start gap-3",
+            children: [/* @__PURE__ */ jsx(CheckCircle2, {
+              className: "mt-0.5 h-5 w-5 text-emerald-500"
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsxs("p", {
+                className: "font-medium text-emerald-400",
+                children: ["Successfully applied ", appliedFromAction.length, " migration", appliedFromAction.length !== 1 ? "s" : "", ":"]
+              }), /* @__PURE__ */ jsx("ul", {
+                className: "mt-1 list-inside list-disc text-sm text-muted-foreground",
+                children: appliedFromAction.map((m) => /* @__PURE__ */ jsx("li", {
+                  children: m
+                }, m))
+              })]
+            })]
+          })
+        })
+      }), errorsFromAction.length > 0 && /* @__PURE__ */ jsx(Card, {
+        className: "border-red-500/30 bg-red-500/5",
+        children: /* @__PURE__ */ jsx(CardContent, {
+          className: "pt-6",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-start gap-3",
+            children: [/* @__PURE__ */ jsx(AlertCircle, {
+              className: "mt-0.5 h-5 w-5 text-red-500"
+            }), /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "font-medium text-red-400",
+                children: "Migration failed:"
+              }), errorsFromAction.map((e) => /* @__PURE__ */ jsxs("div", {
+                className: "mt-1",
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "text-sm font-medium",
+                  children: e.migration
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-xs text-muted-foreground",
+                  children: e.error
+                })]
+              }, e.migration))]
+            })]
+          })
+        })
+      }), /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsxs(CardHeader, {
+          children: [/* @__PURE__ */ jsx(CardTitle, {
+            children: "Migration History"
+          }), /* @__PURE__ */ jsxs(CardDescription, {
+            children: ["All migration files found in the ", /* @__PURE__ */ jsx("code", {
+              children: "migrations/"
+            }), " folder. Files are applied in alphabetical order."]
+          })]
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: status.migrations.length === 0 ? /* @__PURE__ */ jsxs("p", {
+            className: "text-sm text-muted-foreground",
+            children: ["No migration files found. Add SQL files to the", " ", /* @__PURE__ */ jsx("code", {
+              children: "migrations/"
+            }), " directory."]
+          }) : /* @__PURE__ */ jsx("div", {
+            className: "space-y-2",
+            children: status.migrations.map((m) => /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center justify-between rounded-lg border p-3",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex items-center gap-3",
+                children: /* @__PURE__ */ jsx("code", {
+                  className: "text-sm",
+                  children: m.name
+                })
+              }), /* @__PURE__ */ jsx(Badge, {
+                variant: m.applied ? "success" : "secondary",
+                className: m.applied ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25" : "bg-amber-500/15 text-amber-400 hover:bg-amber-500/25",
+                children: m.applied ? "Applied" : "Pending"
+              })]
+            }, m.name))
+          })
+        })]
+      }), /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          children: /* @__PURE__ */ jsx(CardTitle, {
+            children: "How Migrations Work"
+          })
+        }), /* @__PURE__ */ jsxs(CardContent, {
+          className: "space-y-3 text-sm text-muted-foreground",
+          children: [/* @__PURE__ */ jsxs("p", {
+            children: ["Instead of re-uploading ", /* @__PURE__ */ jsx("code", {
+              children: "database-setup.sql"
+            }), " (which wipes all data), create numbered SQL files in the", " ", /* @__PURE__ */ jsx("code", {
+              children: "migrations/"
+            }), " folder with only the changes you need."]
+          }), /* @__PURE__ */ jsxs("div", {
+            className: "rounded-lg bg-muted p-4",
+            children: [/* @__PURE__ */ jsx("p", {
+              className: "mb-2 font-medium text-foreground",
+              children: "Migration file naming:"
+            }), /* @__PURE__ */ jsx("pre", {
+              className: "text-xs",
+              children: `migrations/
+  000_baseline.sql    ← Already applied (your current schema)
+  001_add_phone.sql   ← Next change to apply
+  002_new_table.sql   ← And so on...`
+            })]
+          }), /* @__PURE__ */ jsx("p", {
+            children: "Each migration runs inside a transaction — if it fails, all changes in that migration are rolled back and no record is inserted. The runner stops on the first error to prevent later migrations from running against a broken schema."
+          }), /* @__PURE__ */ jsxs("p", {
+            className: "font-medium text-foreground",
+            children: ["Always use ", /* @__PURE__ */ jsx("code", {
+              children: "IF NOT EXISTS"
+            }), " for CREATE statements and", " ", /* @__PURE__ */ jsx("code", {
+              children: "IF EXISTS"
+            }), " for DROP statements to keep migrations idempotent."]
+          })]
+        })]
+      })]
+    })
+  });
+});
+const route26 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$2,
+  default: settings_database,
+  loader: loader$4
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$3({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const jobs = await prisma.scraperJob.findMany({
+    orderBy: {
+      createdAt: "desc"
+    },
+    include: {
+      user: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+  return {
+    user,
+    jobs
+  };
+}
+const scraper = UNSAFE_withComponentProps(function ScraperList() {
+  const {
+    user,
+    jobs
+  } = useLoaderData();
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-3xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "Shopify Scraper"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Discover and enrich Australian Shopify store leads"
+          })]
+        }), /* @__PURE__ */ jsx(Link, {
+          to: "/scraper/new",
+          children: /* @__PURE__ */ jsxs(Button, {
+            className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+            children: [/* @__PURE__ */ jsx(Search, {
+              className: "mr-2 h-4 w-4"
+            }), "New Scrape"]
+          })
+        })]
+      }), jobs.length === 0 ? /* @__PURE__ */ jsx(Card, {
+        children: /* @__PURE__ */ jsxs(CardContent, {
+          className: "flex flex-col items-center justify-center py-16",
+          children: [/* @__PURE__ */ jsx(Globe, {
+            className: "h-12 w-12 text-muted-foreground/50"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "mt-4 text-lg font-medium text-muted-foreground",
+            children: "No scraper jobs yet"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Discover Shopify stores or upload a list of URLs to scrape"
+          })]
+        })
+      }) : /* @__PURE__ */ jsx("div", {
+        className: "space-y-3",
+        children: jobs.map((job) => /* @__PURE__ */ jsx(Link, {
+          to: `/scraper/${job.id}`,
+          children: /* @__PURE__ */ jsx(Card, {
+            className: "hover:border-emerald-500/30 transition-colors",
+            children: /* @__PURE__ */ jsxs(CardContent, {
+              className: "flex items-center gap-4 p-4",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 shrink-0",
+                children: /* @__PURE__ */ jsx(Zap, {
+                  className: "h-5 w-5 text-cyan-400"
+                })
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex-1 min-w-0",
+                children: [/* @__PURE__ */ jsx("p", {
+                  className: "font-medium truncate",
+                  children: job.name
+                }), /* @__PURE__ */ jsxs("p", {
+                  className: "text-sm text-muted-foreground",
+                  children: [job.discoveryMode === "GOOGLE_DORK" ? "Google Discovery" : "URL Upload", " by ", job.user.name || job.user.email, " — ", new Date(job.createdAt).toLocaleDateString()]
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-3",
+                children: [/* @__PURE__ */ jsx(ScraperStatusBadge$1, {
+                  status: job.status
+                }), /* @__PURE__ */ jsxs("span", {
+                  className: "text-sm text-muted-foreground",
+                  children: [job.totalImported, "/", job.totalDiscovered, " leads"]
+                })]
+              })]
+            })
+          })
+        }, job.id))
+      })]
+    })
+  });
+});
+function ScraperStatusBadge$1({
+  status
+}) {
+  const config = {
+    PENDING: "bg-slate-500/15 text-slate-400",
+    DISCOVERING: "bg-blue-500/15 text-blue-400",
+    VALIDATING: "bg-cyan-500/15 text-cyan-400",
+    ENRICHING: "bg-amber-500/15 text-amber-400",
+    IMPORTING: "bg-violet-500/15 text-violet-400",
+    COMPLETED: "bg-emerald-500/15 text-emerald-400",
+    FAILED: "bg-red-500/15 text-red-400",
+    CANCELLED: "bg-gray-500/15 text-gray-400"
+  };
+  return /* @__PURE__ */ jsx(Badge, {
+    className: config[status] || config.PENDING,
+    children: status
+  });
+}
+const route27 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  default: scraper,
+  loader: loader$3
+}, Symbol.toStringTag, { value: "Module" }));
+function normalizeUrl(raw) {
+  let url = raw.trim();
+  if (!url) return null;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "https://" + url;
+  }
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return null;
+  }
+}
+function parseUploadedUrls(input) {
+  return input.split(/[\n,]+/).map(normalizeUrl).filter((u) => u !== null);
+}
+function deduplicateUrls(urls) {
+  const seen = /* @__PURE__ */ new Set();
+  return urls.filter((url) => {
+    const key = url.toLowerCase().replace(/\/+$/, "");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+const SHOPIFY_CNAME_SUFFIX = "myshopify.com";
+const SHOPIFY_IP_PREFIXES = ["23.227.38."];
+async function downloadMajesticList() {
+  const url = "https://downloads.majestic.com/majestic_million.csv";
+  console.log("[Scraper] Downloading Majestic Million CSV...");
+  const res = await axios.get(url, {
+    timeout: 12e4,
+    // 2 minutes for ~80MB download
+    responseType: "text"
+  });
+  const lines = res.data.split("\n").filter(Boolean);
+  const domains = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    if (cols.length >= 3) {
+      const rank = parseInt(cols[0], 10);
+      const domain = cols[2].trim().toLowerCase();
+      if (domain && rank) {
+        domains.push({ rank, domain });
+      }
+    }
+  }
+  console.log(`[Scraper] Downloaded ${domains.length} domains from Majestic Million`);
+  return domains;
+}
+const AU_SUFFIXES = [".com.au", ".net.au", ".org.au", ".edu.au", ".au"];
+function filterAustralianDomains(domains) {
+  return domains.filter((d) => AU_SUFFIXES.some((suffix) => d.domain.endsWith(suffix)));
+}
+async function checkShopifyDNS(domain) {
+  try {
+    const cnames = await dns.resolveCname(domain);
+    for (const cname of cnames) {
+      if (cname.toLowerCase().endsWith(SHOPIFY_CNAME_SUFFIX) || cname.toLowerCase().includes("shopify.com")) {
+        return { domain, isShopify: true, cname };
+      }
+    }
+  } catch {
+  }
+  try {
+    const addresses = await dns.resolve4(domain);
+    for (const ip of addresses) {
+      if (SHOPIFY_IP_PREFIXES.some((prefix) => ip.startsWith(prefix))) {
+        return { domain, isShopify: true, ip };
+      }
+    }
+  } catch {
+  }
+  return { domain, isShopify: false };
+}
+async function discoverFromDNS(source = "MAJESTIC", onProgress) {
+  const allDomains = await downloadMajesticList();
+  const auDomains = filterAustralianDomains(allDomains);
+  console.log(`[Scraper] Found ${auDomains.length} Australian domains to scan`);
+  const shopifyDomains = [];
+  const DNS_DELAY_MS = 50;
+  for (let i = 0; i < auDomains.length; i++) {
+    const { domain } = auDomains[i];
+    try {
+      const result = await checkShopifyDNS(domain);
+      if (result.isShopify) {
+        shopifyDomains.push(`https://${domain}`);
+      }
+    } catch {
+    }
+    if ((i + 1) % 100 === 0 && onProgress) {
+      onProgress(i + 1, auDomains.length, shopifyDomains.length);
+    }
+    if (i < auDomains.length - 1) {
+      await sleep$2(DNS_DELAY_MS);
+    }
+  }
+  console.log(
+    `[Scraper] DNS scan complete: ${shopifyDomains.length} Shopify stores found out of ${auDomains.length} Australian domains`
+  );
+  return {
+    urls: shopifyDomains,
+    totalScanned: auDomains.length,
+    totalAuDomains: auDomains.length,
+    source
+  };
+}
+function sleep$2(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function validateShopifyStore(url) {
+  var _a, _b, _c, _d, _e, _f;
+  const result = {
+    isValidShopify: false,
+    isAustralian: false,
+    storeName: null,
+    currency: null,
+    productCount: 0
+  };
+  try {
+    const productsRes = await axios.get(`${url}/products.json?limit=1`, {
+      timeout: 1e4,
+      validateStatus: () => true,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    });
+    if (productsRes.status === 200 && Array.isArray((_a = productsRes.data) == null ? void 0 : _a.products)) {
+      result.isValidShopify = true;
+      const products = productsRes.data.products;
+      if (products.length > 0) {
+        const vendor = (_b = products[0]) == null ? void 0 : _b.vendor;
+        if (vendor && vendor !== "vendor") {
+          result.storeName = vendor;
+        }
+        const prices = (_e = (_d = (_c = products[0]) == null ? void 0 : _c.variants) == null ? void 0 : _d[0]) == null ? void 0 : _e.presentment_prices;
+        if (Array.isArray(prices)) {
+          const audPrice = prices.find(
+            (p) => {
+              var _a2;
+              return ((_a2 = p == null ? void 0 : p.price) == null ? void 0 : _a2.currency_code) === "AUD";
+            }
+          );
+          if (audPrice) {
+            result.isAustralian = true;
+            result.currency = "AUD";
+          }
+        }
+      }
+      try {
+        const countRes = await axios.get(`${url}/products.json?limit=250&page=1`, {
+          timeout: 1e4,
+          validateStatus: () => true,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          }
+        });
+        if (countRes.status === 200 && Array.isArray((_f = countRes.data) == null ? void 0 : _f.products)) {
+          result.productCount = countRes.data.products.length;
+        }
+      } catch {
+      }
+    }
+  } catch {
+  }
+  if (!result.isValidShopify) {
+    try {
+      const homeRes = await axios.get(url, {
+        timeout: 1e4,
+        validateStatus: () => true,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      });
+      if (homeRes.status === 200) {
+        const html = homeRes.data;
+        if (html.includes("Powered by Shopify") || html.includes("shopify.com") || html.includes("cdn.shopify.com") || html.includes("Shopify.theme")) {
+          result.isValidShopify = true;
+        }
+        const $ = cheerio.load(html);
+        const siteName = $('meta[property="og:site_name"]').attr("content") || $("title").text().split("|")[0].split("-")[0].trim();
+        if (siteName && !result.storeName) {
+          result.storeName = siteName;
+        }
+        if (url.includes(".com.au")) {
+          result.isAustralian = true;
+        }
+        if (html.includes("AUD") || html.includes("aud") || html.includes("A$")) {
+          result.isAustralian = true;
+          if (!result.currency) result.currency = "AUD";
+        }
+      }
+    } catch {
+    }
+  }
+  return result;
+}
+async function fetchPageHtml(url, maxRetries) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await axios.get(url, {
+        timeout: 1e4,
+        validateStatus: () => true,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-AU,en;q=0.9"
+        }
+      });
+      if (res.status === 200 && typeof res.data === "string") {
+        return res.data;
+      }
+      if (res.status === 404) return null;
+    } catch {
+    }
+    if (attempt < maxRetries) {
+      await sleep$1(Math.min(1e3 * Math.pow(2, attempt), 5e3));
+    }
+  }
+  return null;
+}
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const JUNK_EMAIL_PATTERNS = [
+  /noreply@/i,
+  /no-reply@/i,
+  /@shopify\.com/i,
+  /@shopifyadmin\.com/i,
+  /notifications@/i,
+  /@mailer\./i,
+  /@email\./i,
+  /@delivery\./i,
+  /@returns\./i,
+  /\.\w{2,4}@[a-z]/i
+];
+const EMAIL_PRIORITY = [
+  "owner@",
+  "founder@",
+  "hello@",
+  "contact@",
+  "info@",
+  "support@",
+  "admin@",
+  "sales@",
+  "team@"
+];
+function extractEmails(html) {
+  const matches = html.match(EMAIL_REGEX) || [];
+  const cleaned = matches.map((e) => e.toLowerCase()).filter((e) => !JUNK_EMAIL_PATTERNS.some((pattern) => pattern.test(e)));
+  return [...new Set(cleaned)];
+}
+function prioritizeEmail(emails2) {
+  if (emails2.length === 0) return null;
+  for (const prefix of EMAIL_PRIORITY) {
+    const match = emails2.find((e) => e.startsWith(prefix));
+    if (match) return match;
+  }
+  return emails2[0];
+}
+function extractSocialLinks(html) {
+  const $ = cheerio.load(html);
+  const result = {
+    facebook: null,
+    instagram: null,
+    twitter: null,
+    linkedin: null,
+    tiktok: null,
+    youtube: null,
+    pinterest: null
+  };
+  const patterns = {
+    facebook: /facebook\.com\/[a-zA-Z0-9._-]+/,
+    instagram: /instagram\.com\/[a-zA-Z0-9._-]+/,
+    twitter: /(?:twitter\.com|x\.com)\/[a-zA-Z0-9._-]+/,
+    linkedin: /linkedin\.com\/(company|in)\/[a-zA-Z0-9._-]+/,
+    tiktok: /tiktok\.com\/@?[a-zA-Z0-9._-]+/,
+    youtube: /youtube\.com\/(c\/|channel\/|@)?[a-zA-Z0-9._-]+/,
+    pinterest: /pinterest\.com\/[a-zA-Z0-9._-]+/
+  };
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href") || "";
+    for (const [platform, regex] of Object.entries(patterns)) {
+      if (!result[platform]) {
+        const match = href.match(regex);
+        if (match) {
+          result[platform] = `https://${match[0]}`;
+        }
+      }
+    }
+  });
+  const fullHtml = $.html();
+  for (const [platform, regex] of Object.entries(patterns)) {
+    if (!result[platform]) {
+      const match = fullHtml.match(regex);
+      if (match) {
+        result[platform] = `https://${match[0]}`;
+      }
+    }
+  }
+  return result;
+}
+const PHONE_REGEX = /(?:\+61|0)(?:[ -]?\d){8,9}/g;
+const JUNK_PHONE_PATTERNS = [
+  /^0400\s?000\s?000/,
+  // Placeholder
+  /^1300\s?000\s?000/,
+  /^1800\s?000\s?000/
+];
+function extractPhones(html) {
+  const matches = html.match(PHONE_REGEX) || [];
+  const cleaned = matches.map((p) => p.replace(/\s+/g, " ").trim()).filter((p) => !JUNK_PHONE_PATTERNS.some((pattern) => pattern.test(p)));
+  return [...new Set(cleaned)];
+}
+function extractABN(html) {
+  const match = html.match(/ABN[\s:]*(\d{2}\s?\d{3}\s?\d{3}\s?\d{3})/i);
+  return match ? match[1].replace(/\s/g, "") : null;
+}
+function extractAddress(html) {
+  const auPatterns = [
+    // "123 Street, Suburb NSW 2000" or "123 Street, Suburb VIC 3000"
+    /(\d+[\w\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Place|Pl|Way|Circuit|Cct)[\w\s]*,?\s*[\w\s]+(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*\d{4})/i,
+    // "Located in Suburb, STATE"
+    /(?:located in|based in|address:?)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,?\s*(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*\d{0,4})/i
+  ];
+  for (const pattern of auPatterns) {
+    const match = html.match(pattern);
+    if ((match == null ? void 0 : match[1]) && match[1].length < 200) {
+      return match[1].trim();
+    }
+  }
+  return null;
+}
+function extractContactName(html) {
+  const $ = cheerio.load(html);
+  const text = $.text();
+  const patterns = [
+    /(?:owned|operated|run|founded|started|created)\s+(?:and\s+)?(?:operated\s+)?by\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/i,
+    /^(?:about|our\s+story)[\s\S]*?([A-Z][a-z]+\s+[A-Z][a-z]+)/m
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if ((match == null ? void 0 : match[1]) && match[1].length < 60 && !/^(The|Our|We|This|Your)/i.test(match[1])) {
+      return match[1].trim();
+    }
+  }
+  return null;
+}
+function extractStoreDescription(html) {
+  const $ = cheerio.load(html);
+  const metaDesc = $('meta[name="description"]').attr("content");
+  if (metaDesc && metaDesc.length > 20 && metaDesc.length < 500) {
+    return metaDesc.trim();
+  }
+  const ogDesc = $('meta[property="og:description"]').attr("content");
+  if (ogDesc && ogDesc.length > 20 && ogDesc.length < 500) {
+    return ogDesc.trim();
+  }
+  return null;
+}
+function extractIndustry(productsJson) {
+  if (!(productsJson == null ? void 0 : productsJson.products)) return null;
+  const types = /* @__PURE__ */ new Set();
+  for (const product of productsJson.products.slice(0, 50)) {
+    if (product.product_type) types.add(product.product_type);
+  }
+  if (types.size > 0) {
+    return [...types].slice(0, 3).join(", ");
+  }
+  return null;
+}
+async function scrapeWithPlaywright(url) {
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15e3 });
+    const text = await page.innerText("body");
+    const mailtoLinks = await page.$$eval(
+      'a[href^="mailto:"]',
+      (els) => els.map((el) => el.href.replace("mailto:", ""))
+    );
+    const emails2 = [...extractEmails(text), ...mailtoLinks];
+    await browser.close();
+    return [...new Set(emails2)];
+  } catch {
+    if (browser) await browser.close();
+    return [];
+  }
+}
+const CONTACT_PAGE_PATHS = [
+  "/pages/contact",
+  "/pages/contact-us",
+  "/pages/about",
+  "/pages/about-us"
+];
+const PRIVACY_PAGE_PATHS = [
+  "/policies/privacy-policy",
+  "/pages/privacy-policy",
+  "/pages/privacy"
+];
+async function enrichStore(url, config, validationData) {
+  var _a, _b;
+  const result = {
+    url,
+    isValidShopify: true,
+    isAustralian: false,
+    storeName: validationData.storeName,
+    storeDescription: null,
+    email: null,
+    emailSource: null,
+    contactName: null,
+    phone: null,
+    address: null,
+    industry: null,
+    productCount: 0,
+    currency: validationData.currency,
+    facebook: null,
+    instagram: null,
+    twitter: null,
+    linkedin: null,
+    tiktok: null,
+    youtube: null,
+    pinterest: null,
+    abn: null,
+    error: null,
+    phase: "ENRICHMENT",
+    usedPlaywright: false
+  };
+  result.isAustralian = validationData.currency === "AUD" || url.includes(".com.au");
+  const allEmails = [];
+  const allPhones = [];
+  let combinedHtml = "";
+  const homeHtml = await fetchPageHtml(url, config.maxRetries);
+  if (homeHtml) {
+    combinedHtml += homeHtml;
+    allEmails.push(...extractEmails(homeHtml).map((e) => ({ email: e, source: "homepage" })));
+    allPhones.push(...extractPhones(homeHtml));
+    const socials = extractSocialLinks(homeHtml);
+    Object.assign(result, socials);
+    result.storeDescription = extractStoreDescription(homeHtml);
+    const name = extractContactName(homeHtml);
+    if (name) result.contactName = name;
+    const abn = extractABN(homeHtml);
+    if (abn) result.abn = abn;
+    const address = extractAddress(homeHtml);
+    if (address) result.address = address;
+  }
+  const pagePaths = [...CONTACT_PAGE_PATHS, ...PRIVACY_PAGE_PATHS];
+  const pageResults = await Promise.allSettled(
+    pagePaths.map((path2) => fetchPageHtml(`${url}${path2}`, config.maxRetries))
+  );
+  for (let i = 0; i < pageResults.length; i++) {
+    const pageResult = pageResults[i];
+    if (pageResult.status !== "fulfilled" || !pageResult.value) continue;
+    const html = pageResult.value;
+    combinedHtml += html;
+    allEmails.push(...extractEmails(html).map((e) => ({ email: e, source: pagePaths[i] })));
+    allPhones.push(...extractPhones(html));
+    const socials = extractSocialLinks(html);
+    for (const [key, val] of Object.entries(socials)) {
+      if (!result[key] && val) {
+        result[key] = val;
+      }
+    }
+    const name = extractContactName(html);
+    if (name && !result.contactName) result.contactName = name;
+    const abn = extractABN(html);
+    if (abn && !result.abn) result.abn = abn;
+    const address = extractAddress(html);
+    if (address && !result.address) result.address = address;
+  }
+  try {
+    const productsRes = await axios.get(`${url}/products.json?limit=50`, {
+      timeout: 8e3,
+      validateStatus: () => true,
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+    });
+    if (productsRes.status === 200 && ((_a = productsRes.data) == null ? void 0 : _a.products)) {
+      result.productCount = productsRes.data.products.length;
+      const industry = extractIndustry(productsRes.data);
+      if (industry) result.industry = industry;
+    }
+  } catch {
+  }
+  if (allEmails.length > 0) {
+    const uniqueEmails = [...new Set(allEmails.map((e) => e.email))];
+    const bestEmail = prioritizeEmail(uniqueEmails);
+    if (bestEmail) {
+      result.email = bestEmail;
+      result.emailSource = ((_b = allEmails.find((e) => e.email === bestEmail)) == null ? void 0 : _b.source) || null;
+    }
+  }
+  if (allPhones.length > 0) {
+    const international = allPhones.find((p) => p.startsWith("+61"));
+    const mobile = allPhones.find((p) => /^04\d{8}/.test(p.replace(/\s/g, "")));
+    result.phone = international || mobile || allPhones[0] || null;
+  }
+  if (!result.email && config.playwrightEnabled) {
+    try {
+      const pwEmails = await scrapeWithPlaywright(`${url}/pages/contact`);
+      if (pwEmails.length > 0) {
+        const clean = pwEmails.filter((e) => !JUNK_EMAIL_PATTERNS.some((p) => p.test(e)));
+        if (clean.length > 0) {
+          result.email = prioritizeEmail(clean);
+          result.emailSource = "playwright";
+          result.usedPlaywright = true;
+        }
+      }
+    } catch {
+    }
+  }
+  if (!result.storeName && combinedHtml) {
+    const $ = cheerio.load(combinedHtml);
+    const title = $("title").text().split(/[-|–—]/)[0].trim();
+    if (title && title.length < 100) result.storeName = title;
+  }
+  return result;
+}
+function sleep$1(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+const DEFAULT_SCRAPER_CONFIG = {
+  delay: { min: 500, max: 1500 },
+  batchSize: 30,
+  batchPause: 1e4,
+  concurrency: 5,
+  respectRobots: true,
+  playwrightEnabled: true,
+  maxRetries: 3
+};
+async function runScraperPipeline(jobId) {
+  const job = await prisma.scraperJob.findUnique({ where: { id: jobId } });
+  if (!job) return;
+  const config = job.config ? { ...DEFAULT_SCRAPER_CONFIG, ...job.config } : DEFAULT_SCRAPER_CONFIG;
+  const errors = [];
+  const updateJob = (data2) => prisma.scraperJob.update({ where: { id: jobId }, data: data2 });
+  const addError = (url, phase, error) => {
+    errors.push({ url, phase, error, timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+  };
+  let imported = 0;
+  let skipped = 0;
+  try {
+    await updateJob({ status: "DISCOVERING", startedAt: /* @__PURE__ */ new Date() });
+    let discoveredUrls;
+    if (job.discoveryMode === "URL_UPLOAD") {
+      discoveredUrls = parseUploadedUrls(job.uploadedUrls || "");
+    } else if (job.discoveryMode === "DNS_SCAN") {
+      const result = await discoverFromDNS("MAJESTIC", async (checked, total, found) => {
+        await updateJob({ totalDiscovered: found });
+      });
+      discoveredUrls = result.urls;
+    } else {
+      discoveredUrls = [];
+    }
+    discoveredUrls = deduplicateUrls(discoveredUrls);
+    await updateJob({
+      discoveredUrls,
+      totalDiscovered: discoveredUrls.length,
+      status: "ENRICHING"
+      // Skip separate VALIDATING status — validate + enrich in one step
+    });
+    if (discoveredUrls.length === 0) {
+      await updateJob({ status: "COMPLETED", completedAt: /* @__PURE__ */ new Date() });
+      return;
+    }
+    const concurrency = config.concurrency || 5;
+    for (let batchStart = 0; batchStart < discoveredUrls.length; batchStart += concurrency) {
+      const current = await prisma.scraperJob.findUnique({ where: { id: jobId } });
+      if ((current == null ? void 0 : current.status) === "CANCELLED") return;
+      const batchUrls = discoveredUrls.slice(batchStart, batchStart + concurrency);
+      const batchResults = await Promise.allSettled(
+        batchUrls.map(async (url) => {
+          const validation = await validateShopifyStore(url);
+          if (!validation.isValidShopify) {
+            return { type: "skipped", url, reason: "not shopify" };
+          }
+          const store = await enrichStore(url, config, {
+            storeName: validation.storeName,
+            currency: validation.currency
+          });
+          return { type: "store", store, productCount: validation.productCount };
+        })
+      );
+      for (const batchResult of batchResults) {
+        if (batchResult.status === "rejected") {
+          const url = batchUrls[batchResults.indexOf(batchResult)] || "unknown";
+          addError(url, "ENRICHMENT", String(batchResult.reason));
+          continue;
+        }
+        const result = batchResult.value;
+        if (result.type === "skipped") {
+          skipped++;
+          continue;
+        }
+        const store = result.store;
+        store.productCount = result.productCount;
+        try {
+          await importStore(store, jobId, job.userId);
+          imported++;
+        } catch (err) {
+          addError(store.url, "IMPORT", String(err));
+          skipped++;
+        }
+      }
+      await updateJob({
+        totalEnriched: imported + skipped,
+        totalImported: imported,
+        totalSkipped: skipped,
+        totalFailed: errors.length,
+        errors
+      });
+      if (batchStart + concurrency < discoveredUrls.length) {
+        await sleep(randomDelay(config.delay));
+      }
+      if ((batchStart + concurrency) % config.batchSize === 0) {
+        await sleep(config.batchPause);
+      }
+    }
+    await updateJob({
+      status: "COMPLETED",
+      completedAt: /* @__PURE__ */ new Date(),
+      totalImported: imported,
+      totalSkipped: skipped,
+      totalFailed: errors.length,
+      errors
+    });
+  } catch (err) {
+    await updateJob({
+      status: "FAILED",
+      completedAt: /* @__PURE__ */ new Date(),
+      totalImported: imported,
+      totalSkipped: skipped,
+      totalFailed: errors.length,
+      errors: [...errors, {
+        url: "pipeline",
+        phase: "DISCOVERY",
+        error: String(err),
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }]
+    });
+  }
+}
+async function importStore(store, jobId, userId) {
+  var _a;
+  if (!store.email && !store.storeName) {
+    throw new Error("No email or company name");
+  }
+  if (store.email) {
+    const existing = await prisma.lead.findUnique({
+      where: { email: store.email }
+    });
+    if (existing) {
+      const updateData = {};
+      if (store.storeName && !existing.companyName) updateData.companyName = store.storeName;
+      if (store.contactName && !existing.contactName) updateData.contactName = store.contactName;
+      if (store.industry && !existing.industry) updateData.industry = store.industry;
+      if (store.phone && !((_a = existing.notes) == null ? void 0 : _a.includes(store.phone))) updateData.notes = (existing.notes || "") + `
+Phone: ${store.phone}`;
+      if (store.facebook && !existing.facebook) updateData.facebook = store.facebook;
+      if (store.instagram && !existing.instagram) updateData.instagram = store.instagram;
+      if (store.twitter && !existing.twitter) updateData.twitter = store.twitter;
+      if (store.linkedin && !existing.linkedin) updateData.linkedin = store.linkedin;
+      if (store.tiktok) updateData.notes = (updateData.notes || existing.notes || "") + `
+TikTok: ${store.tiktok}`;
+      if (store.youtube) updateData.notes = (updateData.notes || existing.notes || "") + `
+YouTube: ${store.youtube}`;
+      if (store.pinterest) updateData.notes = (updateData.notes || existing.notes || "") + `
+Pinterest: ${store.pinterest}`;
+      updateData.techStack = "Shopify";
+      updateData.scraperJobId = jobId;
+      await prisma.lead.update({ where: { id: existing.id }, data: updateData });
+      await logActivity({
+        leadId: existing.id,
+        action: "LEAD_SCRAPED",
+        description: `Lead enriched via Shopify scraper: ${store.url}`,
+        metadata: { source: "SHOPIFY_SCRAPER", storeUrl: store.url }
+      });
+      throw new Error("Duplicate — enriched existing lead");
+    }
+  }
+  const domain = new URL(store.url).hostname.replace("www.", "");
+  const existingByDomain = await prisma.lead.findFirst({
+    where: { website: { contains: domain } }
+  });
+  if (existingByDomain) {
+    throw new Error("Duplicate domain");
+  }
+  const noteLines = [`Auto-scraped from Shopify store: ${store.url}`];
+  if (store.abn) noteLines.push(`ABN: ${store.abn}`);
+  if (store.phone) noteLines.push(`Phone: ${store.phone}`);
+  if (store.address) noteLines.push(`Address: ${store.address}`);
+  if (store.productCount) noteLines.push(`Products: ~${store.productCount}`);
+  if (store.tiktok) noteLines.push(`TikTok: ${store.tiktok}`);
+  if (store.youtube) noteLines.push(`YouTube: ${store.youtube}`);
+  if (store.pinterest) noteLines.push(`Pinterest: ${store.pinterest}`);
+  if (store.storeDescription) noteLines.push(`Description: ${store.storeDescription.substring(0, 300)}`);
+  const lead = await prisma.lead.create({
+    data: {
+      companyName: store.storeName || domain,
+      website: store.url,
+      contactName: store.contactName,
+      email: store.email || `${domain.replace(/\.[a-z.]+$/, "")}@placeholder.placeholder`,
+      industry: store.industry,
+      techStack: "Shopify",
+      leadSource: "SHOPIFY_SCRAPER",
+      status: "INBOX",
+      stage: "SOURCED",
+      temperature: "COLD",
+      facebook: store.facebook,
+      instagram: store.instagram,
+      twitter: store.twitter,
+      linkedin: store.linkedin,
+      notes: store.email ? noteLines.join("\n") : `No email found. ${noteLines.join("\n")}`,
+      scraperJobId: jobId,
+      createdById: userId
+    }
+  });
+  await logActivity({
+    leadId: lead.id,
+    userId,
+    action: "LEAD_SCRAPED",
+    description: `Lead created via Shopify scraper: ${store.url}`,
+    metadata: {
+      source: "SHOPIFY_SCRAPER",
+      storeUrl: store.url,
+      email: store.email,
+      abn: store.abn,
+      phone: store.phone
+    }
+  });
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function randomDelay(range) {
+  return Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+}
+async function loader$2({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  return {
+    user
+  };
+}
+async function action$1({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "url_upload") {
+    const urls = formData.get("urls");
+    const name = formData.get("name") || "URL Upload Scrape";
+    if (!(urls == null ? void 0 : urls.trim())) {
+      return {
+        error: "Please enter at least one URL"
+      };
+    }
+    const job = await prisma.scraperJob.create({
+      data: {
+        name,
+        discoveryMode: "URL_UPLOAD",
+        uploadedUrls: urls,
+        userId,
+        config: {
+          delay: {
+            min: 1e3,
+            max: 3e3
+          },
+          batchSize: 30,
+          batchPause: 1e4,
+          respectRobots: true,
+          playwrightEnabled: true,
+          maxRetries: 3
+        }
+      }
+    });
+    runScraperPipeline(job.id).catch(console.error);
+    return redirect(`/scraper/${job.id}`);
+  }
+  if (intent === "dns_scan") {
+    const name = formData.get("name") || "DNS Scan — Australian Shopify Stores";
+    const job = await prisma.scraperJob.create({
+      data: {
+        name,
+        discoveryMode: "DNS_SCAN",
+        userId,
+        config: {
+          delay: {
+            min: 1e3,
+            max: 3e3
+          },
+          batchSize: 30,
+          batchPause: 1e4,
+          respectRobots: true,
+          playwrightEnabled: true,
+          maxRetries: 3
+        }
+      }
+    });
+    runScraperPipeline(job.id).catch(console.error);
+    return redirect(`/scraper/${job.id}`);
+  }
+  return {
+    error: "Invalid action"
+  };
+}
+const scraper_new = UNSAFE_withComponentProps(function ScraperNew() {
+  const {
+    user
+  } = useLoaderData();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-3xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/scraper",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-2xl font-bold tracking-tight",
+            children: "New Scrape"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-sm text-muted-foreground",
+            children: "Choose how to discover Shopify stores"
+          })]
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid gap-6 md:grid-cols-2",
+        children: [/* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(Upload, {
+                className: "h-5 w-5 text-emerald-400"
+              }), /* @__PURE__ */ jsx(CardTitle, {
+                className: "text-lg",
+                children: "Upload URLs"
+              })]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Paste a list of Shopify store URLs to scrape"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsxs(Form, {
+              method: "post",
+              className: "space-y-4",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "intent",
+                value: "url_upload"
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("label", {
+                  className: "mb-1.5 block text-sm font-medium",
+                  children: "Job Name"
+                }), /* @__PURE__ */ jsx("input", {
+                  name: "name",
+                  type: "text",
+                  placeholder: "e.g. Australian Fashion Stores",
+                  className: "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsxs("label", {
+                  className: "mb-1.5 block text-sm font-medium",
+                  children: ["Store URLs ", /* @__PURE__ */ jsx("span", {
+                    className: "text-red-400",
+                    children: "*"
+                  })]
+                }), /* @__PURE__ */ jsx("textarea", {
+                  name: "urls",
+                  rows: 8,
+                  placeholder: "https://store.com.au\nhttps://anotherstore.com\nhttps://mystore.myshopify.com",
+                  className: "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50",
+                  required: true
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "mt-1 text-xs text-muted-foreground",
+                  children: "One URL per line. Include https:// prefix."
+                })]
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                disabled: isSubmitting,
+                className: "w-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25",
+                children: isSubmitting ? "Starting..." : "Start Scrape"
+              })]
+            })
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(Globe, {
+                className: "h-5 w-5 text-blue-400"
+              }), /* @__PURE__ */ jsx(CardTitle, {
+                className: "text-lg",
+                children: "DNS Scan"
+              })]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              children: "Auto-discover Australian Shopify stores via DNS — free, no API keys"
+            })]
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: /* @__PURE__ */ jsxs(Form, {
+              method: "post",
+              className: "space-y-4",
+              children: [/* @__PURE__ */ jsx("input", {
+                type: "hidden",
+                name: "intent",
+                value: "dns_scan"
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("label", {
+                  className: "mb-1.5 block text-sm font-medium",
+                  children: "Job Name"
+                }), /* @__PURE__ */ jsx("input", {
+                  name: "name",
+                  type: "text",
+                  placeholder: "e.g. AU Shopify DNS Scan",
+                  className: "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                className: "space-y-2 rounded-lg border border-border p-3 text-xs text-muted-foreground",
+                children: [/* @__PURE__ */ jsxs("p", {
+                  children: ["Downloads the ", /* @__PURE__ */ jsx("span", {
+                    className: "text-foreground font-medium",
+                    children: "Majestic Million"
+                  }), " (top 1M domains, free)"]
+                }), /* @__PURE__ */ jsxs("p", {
+                  children: ["Filters for ", /* @__PURE__ */ jsx("span", {
+                    className: "text-foreground font-medium",
+                    children: "~8,600 .com.au"
+                  }), " domains"]
+                }), /* @__PURE__ */ jsxs("p", {
+                  children: ["DNS-checks each for ", /* @__PURE__ */ jsx("span", {
+                    className: "text-foreground font-medium",
+                    children: "Shopify CNAME"
+                  }), " signature"]
+                }), /* @__PURE__ */ jsx("p", {
+                  children: "Then scrapes contact pages for owner details"
+                }), /* @__PURE__ */ jsx("p", {
+                  className: "text-emerald-400 font-medium pt-1",
+                  children: "100% free — no API keys, no credit card"
+                })]
+              }), /* @__PURE__ */ jsx(Button, {
+                type: "submit",
+                disabled: isSubmitting,
+                className: "w-full bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25",
+                children: isSubmitting ? "Starting..." : "Scan Australian Shopify Stores"
+              })]
+            })
+          })]
+        })]
+      })]
+    })
+  });
+});
+const route28 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$1,
+  default: scraper_new,
+  loader: loader$2
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader$1({
+  request,
+  params
+}) {
+  const userId = await requireAdmin(request);
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  });
+  const job = await prisma.scraperJob.findUnique({
+    where: {
+      id: params.jobId
+    },
+    include: {
+      user: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+  if (!job) {
+    throw new Response("Not found", {
+      status: 404
+    });
+  }
+  const leads = await prisma.lead.findMany({
+    where: {
+      scraperJobId: job.id
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true,
+      companyName: true,
+      contactName: true,
+      email: true,
+      industry: true,
+      website: true,
+      temperature: true,
+      stage: true,
+      status: true
+    }
+  });
+  return {
+    user,
+    job,
+    leads
+  };
+}
+async function action({
+  request,
+  params
+}) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "cancel") {
+    await prisma.scraperJob.update({
+      where: {
+        id: params.jobId
+      },
+      data: {
+        status: "CANCELLED",
+        completedAt: /* @__PURE__ */ new Date()
+      }
+    });
+    return {
+      success: true
+    };
+  }
+  return {
+    success: false
+  };
+}
+const scraper_$jobId = UNSAFE_withComponentProps(function ScraperJobDetail() {
+  const {
+    user,
+    job,
+    leads
+  } = useLoaderData();
+  const fetcher = useFetcher();
+  const revalidator = useRevalidator();
+  const navigate = useNavigate();
+  const isActive = !["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
+  const intervalRef = useRef(null);
+  useEffect(() => {
+    if (isActive) {
+      intervalRef.current = setInterval(() => {
+        revalidator.revalidate();
+      }, 5e3);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isActive, revalidator]);
+  const errors = job.errors || [];
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "mx-auto max-w-4xl space-y-6",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          className: "flex items-center gap-4",
+          children: [/* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            onClick: () => navigate("/scraper"),
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          }), /* @__PURE__ */ jsxs("div", {
+            children: [/* @__PURE__ */ jsx("h1", {
+              className: "text-2xl font-bold tracking-tight",
+              children: job.name
+            }), /* @__PURE__ */ jsxs("p", {
+              className: "text-sm text-muted-foreground",
+              children: [job.discoveryMode === "GOOGLE_DORK" ? "Google Discovery" : "URL Upload", " by ", job.user.name || job.user.email, " — ", new Date(job.createdAt).toLocaleString()]
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "flex items-center gap-3",
+          children: [/* @__PURE__ */ jsx(ScraperStatusBadge, {
+            status: job.status
+          }), isActive && /* @__PURE__ */ jsxs(fetcher.Form, {
+            method: "post",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "cancel"
+            }), /* @__PURE__ */ jsx(Button, {
+              type: "submit",
+              variant: "outline",
+              size: "sm",
+              className: "text-red-400 border-red-500/20 hover:bg-red-500/10",
+              children: "Cancel"
+            })]
+          })]
+        })]
+      }), isActive && /* @__PURE__ */ jsx(Card, {
+        children: /* @__PURE__ */ jsx(CardContent, {
+          className: "p-4",
+          children: /* @__PURE__ */ jsxs("div", {
+            className: "flex items-center gap-3",
+            children: [/* @__PURE__ */ jsx(Loader2, {
+              className: "h-5 w-5 animate-spin text-emerald-400"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "flex-1",
+              children: [/* @__PURE__ */ jsxs("p", {
+                className: "text-sm font-medium",
+                children: [job.status === "DISCOVERING" && "Discovering store URLs...", job.status === "VALIDATING" && "Validating Shopify stores...", job.status === "ENRICHING" && "Scraping contact details...", job.status === "IMPORTING" && "Importing leads...", job.status === "PENDING" && "Starting pipeline..."]
+              }), /* @__PURE__ */ jsx("div", {
+                className: "mt-2 h-2 rounded-full bg-muted overflow-hidden",
+                children: /* @__PURE__ */ jsx("div", {
+                  className: "h-full bg-emerald-500 transition-all duration-500",
+                  style: {
+                    width: `${job.totalDiscovered > 0 ? Math.round((job.totalValid + job.totalSkipped + job.totalFailed) / job.totalDiscovered * 100) : 0}%`
+                  }
+                })
+              })]
+            })]
+          })
+        })
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6",
+        children: [/* @__PURE__ */ jsx(StatCard, {
+          label: "Discovered",
+          value: job.totalDiscovered,
+          icon: /* @__PURE__ */ jsx(Globe, {
+            className: "h-4 w-4 text-blue-400"
+          }),
+          color: "text-blue-400"
+        }), /* @__PURE__ */ jsx(StatCard, {
+          label: "Valid",
+          value: job.totalValid,
+          icon: /* @__PURE__ */ jsx(Check, {
+            className: "h-4 w-4 text-cyan-400"
+          }),
+          color: "text-cyan-400"
+        }), /* @__PURE__ */ jsx(StatCard, {
+          label: "Enriched",
+          value: job.totalEnriched,
+          icon: /* @__PURE__ */ jsx(Globe, {
+            className: "h-4 w-4 text-amber-400"
+          }),
+          color: "text-amber-400"
+        }), /* @__PURE__ */ jsx(StatCard, {
+          label: "Imported",
+          value: job.totalImported,
+          icon: /* @__PURE__ */ jsx(Check, {
+            className: "h-4 w-4 text-emerald-400"
+          }),
+          color: "text-emerald-400"
+        }), /* @__PURE__ */ jsx(StatCard, {
+          label: "Skipped",
+          value: job.totalSkipped,
+          icon: /* @__PURE__ */ jsx(Clock, {
+            className: "h-4 w-4 text-slate-400"
+          }),
+          color: "text-slate-400"
+        }), /* @__PURE__ */ jsx(StatCard, {
+          label: "Failed",
+          value: job.totalFailed,
+          icon: /* @__PURE__ */ jsx(AlertTriangle, {
+            className: "h-4 w-4 text-red-400"
+          }),
+          color: "text-red-400"
+        })]
+      }), leads.length > 0 && /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          children: /* @__PURE__ */ jsxs(CardTitle, {
+            className: "text-lg",
+            children: ["Leads Created (", leads.length, ")"]
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsx("div", {
+            className: "overflow-x-auto",
+            children: /* @__PURE__ */ jsxs("table", {
+              className: "w-full text-sm",
+              children: [/* @__PURE__ */ jsx("thead", {
+                children: /* @__PURE__ */ jsxs("tr", {
+                  className: "border-b border-border",
+                  children: [/* @__PURE__ */ jsx("th", {
+                    className: "py-2 pr-4 text-left font-medium text-muted-foreground",
+                    children: "Company"
+                  }), /* @__PURE__ */ jsx("th", {
+                    className: "py-2 pr-4 text-left font-medium text-muted-foreground",
+                    children: "Contact"
+                  }), /* @__PURE__ */ jsx("th", {
+                    className: "py-2 pr-4 text-left font-medium text-muted-foreground",
+                    children: "Email"
+                  }), /* @__PURE__ */ jsx("th", {
+                    className: "py-2 pr-4 text-left font-medium text-muted-foreground",
+                    children: "Industry"
+                  }), /* @__PURE__ */ jsx("th", {
+                    className: "py-2 pr-4 text-left font-medium text-muted-foreground",
+                    children: "Status"
+                  })]
+                })
+              }), /* @__PURE__ */ jsx("tbody", {
+                children: leads.map((lead) => /* @__PURE__ */ jsxs("tr", {
+                  className: "border-b border-border/50 hover:bg-muted/30",
+                  children: [/* @__PURE__ */ jsx("td", {
+                    className: "py-2 pr-4",
+                    children: /* @__PURE__ */ jsx(Link, {
+                      to: `/inbox/${lead.id}`,
+                      className: "font-medium text-emerald-400 hover:underline",
+                      children: lead.companyName
+                    })
+                  }), /* @__PURE__ */ jsx("td", {
+                    className: "py-2 pr-4 text-muted-foreground",
+                    children: lead.contactName || "—"
+                  }), /* @__PURE__ */ jsx("td", {
+                    className: "py-2 pr-4 text-muted-foreground",
+                    children: lead.email
+                  }), /* @__PURE__ */ jsx("td", {
+                    className: "py-2 pr-4 text-muted-foreground",
+                    children: lead.industry || "—"
+                  }), /* @__PURE__ */ jsx("td", {
+                    className: "py-2 pr-4",
+                    children: /* @__PURE__ */ jsx(Badge, {
+                      className: "text-xs bg-blue-500/15 text-blue-400",
+                      children: lead.status
+                    })
+                  })]
+                }, lead.id))
+              })]
+            })
+          })
+        })]
+      }), errors.length > 0 && /* @__PURE__ */ jsxs(Card, {
+        children: [/* @__PURE__ */ jsx(CardHeader, {
+          children: /* @__PURE__ */ jsxs(CardTitle, {
+            className: "text-lg text-red-400",
+            children: ["Errors (", errors.length, ")"]
+          })
+        }), /* @__PURE__ */ jsx(CardContent, {
+          children: /* @__PURE__ */ jsx("div", {
+            className: "max-h-64 overflow-y-auto space-y-2",
+            children: errors.map((err, i) => /* @__PURE__ */ jsxs("div", {
+              className: "rounded-lg border border-red-500/10 bg-red-500/5 p-3 text-sm",
+              children: [/* @__PURE__ */ jsx("p", {
+                className: "font-medium text-red-400",
+                children: err.phase
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-muted-foreground break-all",
+                children: err.url
+              }), /* @__PURE__ */ jsx("p", {
+                className: "text-muted-foreground/70 text-xs",
+                children: err.error
+              })]
+            }, i))
+          })
+        })]
+      })]
+    })
+  });
+});
+function StatCard({
+  label,
+  value,
+  icon,
+  color
+}) {
+  return /* @__PURE__ */ jsx(Card, {
+    children: /* @__PURE__ */ jsxs(CardContent, {
+      className: "p-3",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-2",
+        children: [icon, /* @__PURE__ */ jsx("span", {
+          className: `text-xl font-bold ${color}`,
+          children: value
+        })]
+      }), /* @__PURE__ */ jsx("p", {
+        className: "text-xs text-muted-foreground mt-1",
+        children: label
+      })]
+    })
+  });
+}
+function ScraperStatusBadge({
+  status
+}) {
+  const config = {
+    PENDING: "bg-slate-500/15 text-slate-400",
+    DISCOVERING: "bg-blue-500/15 text-blue-400",
+    VALIDATING: "bg-cyan-500/15 text-cyan-400",
+    ENRICHING: "bg-amber-500/15 text-amber-400",
+    IMPORTING: "bg-violet-500/15 text-violet-400",
+    COMPLETED: "bg-emerald-500/15 text-emerald-400",
+    FAILED: "bg-red-500/15 text-red-400",
+    CANCELLED: "bg-gray-500/15 text-gray-400"
+  };
+  return /* @__PURE__ */ jsx(Badge, {
+    className: config[status] || config.PENDING,
+    children: status
+  });
+}
+const route29 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   action,
-  default: settings_users,
+  default: scraper_$jobId,
+  loader: loader$1
+}, Symbol.toStringTag, { value: "Module" }));
+async function loader({
+  request
+}) {
+  await requireAuth(request);
+  const url = new URL(request.url);
+  const jobId = url.searchParams.get("jobId");
+  if (!jobId) {
+    return Response.json({
+      error: "jobId is required"
+    }, {
+      status: 400
+    });
+  }
+  const job = await prisma.scraperJob.findUnique({
+    where: {
+      id: jobId
+    },
+    select: {
+      status: true,
+      totalDiscovered: true,
+      totalValid: true,
+      totalEnriched: true,
+      totalImported: true,
+      totalSkipped: true,
+      totalFailed: true
+    }
+  });
+  if (!job) {
+    return Response.json({
+      error: "Job not found"
+    }, {
+      status: 404
+    });
+  }
+  return Response.json(job);
+}
+const route30 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
   loader
 }, Symbol.toStringTag, { value: "Module" }));
-const serverManifest = { "entry": { "module": "/assets/entry.client-Cf8DQAXV.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/index-D5EkznqJ.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-DOF9vhIE.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/index-D5EkznqJ.js"], "css": ["/assets/root-CinWZphP.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bo20sNer.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-HM0a59ln.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/card-C3L9rzPh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-BalBBLHP.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/card-C3L9rzPh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-C5SNzPZn.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/card-C3L9rzPh.js", "/assets/button-ClmldBSp.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-D2V7s-tc.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/plus-B4IOKfYt.js", "/assets/circle-check-VaBaa3eC.js", "/assets/circle-x-KFTUZ4_d.js", "/assets/snowflake-Car_A4zj.js", "/assets/sun-CILWh-Ae.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-DxenqCqP.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js", "/assets/textarea-uFYPWP4f.js", "/assets/activity-log-rkV-XdbN.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-x-KFTUZ4_d.js", "/assets/user-BESmp7-9.js", "/assets/twitter-Db5haj_P.js", "/assets/activity-BMei8L_c.js", "/assets/clock-BvW-YK-K.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-DSKV7Vw9.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/card-C3L9rzPh.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js", "/assets/twitter-Db5haj_P.js", "/assets/snowflake-Car_A4zj.js", "/assets/sun-CILWh-Ae.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-B-N21Hls.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/select-YHO60Sps.js", "/assets/badge-DM9JvGuT.js", "/assets/card-C3L9rzPh.js", "/assets/plus-B4IOKfYt.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-BwabB2MA.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/textarea-uFYPWP4f.js", "/assets/card-C3L9rzPh.js", "/assets/snowflake-Car_A4zj.js", "/assets/sun-CILWh-Ae.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-ypYSgXri.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/badge-DM9JvGuT.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/user-BESmp7-9.js", "/assets/activity-BMei8L_c.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-CxEc2aXp.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-CaENru8f.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/badge-DM9JvGuT.js", "/assets/index-D5EkznqJ.js", "/assets/card-C3L9rzPh.js", "/assets/dialog-BzoRca-0.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/activity-log-rkV-XdbN.js", "/assets/user-BESmp7-9.js", "/assets/clock-BvW-YK-K.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-X43o8bGd.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/card-C3L9rzPh.js", "/assets/button-ClmldBSp.js", "/assets/clock-BvW-YK-K.js", "/assets/send-CEDEi0A3.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-DDRsUw1B.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/textarea-uFYPWP4f.js", "/assets/card-C3L9rzPh.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/plus-B4IOKfYt.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-0UMF1RFX.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js", "/assets/select-YHO60Sps.js", "/assets/label-CVtPrSA-.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/send-CEDEi0A3.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-DZ764gqf.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-08tNqWNl.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/circle-check-VaBaa3eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-Bo0q9yYm.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/card-C3L9rzPh.js", "/assets/badge-DM9JvGuT.js", "/assets/sun-CILWh-Ae.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-BEfYT98d.js", "imports": ["/assets/chunk-QFMPRPBF-DrQiBxVt.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-suiERLiz.js", "/assets/button-ClmldBSp.js", "/assets/input-CFLs3X-R.js", "/assets/label-CVtPrSA-.js", "/assets/badge-DM9JvGuT.js", "/assets/card-C3L9rzPh.js", "/assets/select-YHO60Sps.js", "/assets/dialog-BzoRca-0.js", "/assets/arrow-left-OYSwtWhO.js", "/assets/plus-B4IOKfYt.js", "/assets/trash-2-BfyvDzO5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-3cac2ee0.js", "version": "3cac2ee0", "sri": void 0 };
+const serverManifest = { "entry": { "module": "/assets/entry.client-DzhSES-t.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/index-DH5fzlx_.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-C-qFOJ0y.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/index-DH5fzlx_.js"], "css": ["/assets/root-EwSWaoc2.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bc2rciz4.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-BEVhmcp3.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/card-CrXhPay-.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-p9ZfyHIs.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/card-CrXhPay-.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-D1aCtxT-.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/card-CrXhPay-.js", "/assets/button-sPpOChyX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-CAg0wLD8.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/activity-log-C5qbkjuf.js", "/assets/app-shell-Dc0X34p4.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/button-sPpOChyX.js", "/assets/target-ClsQ9jMQ.js", "/assets/circle-x-BNy4gsLc.js", "/assets/chevron-down-GMlM4b3t.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-DZiRva0F.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/plus-dcNeolG2.js", "/assets/chevron-down-GMlM4b3t.js", "/assets/circle-check-CgbfCvDv.js", "/assets/circle-x-BNy4gsLc.js", "/assets/snowflake-Bg5_Jsxe.js", "/assets/sun-CIXMeEgF.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-DyLlqi1r.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/textarea-BeL_P5nS.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/activity-log-C5qbkjuf.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/circle-x-BNy4gsLc.js", "/assets/user-CUDsv6cL.js", "/assets/twitter-wd9wN8mS.js", "/assets/activity-DTU-WZV2.js", "/assets/clock-db36JuSw.js", "/assets/send-CtYtU3-n.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-CDLJqzXi.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/textarea-BeL_P5nS.js", "/assets/card-CrXhPay-.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/circle-check-CgbfCvDv.js", "/assets/twitter-wd9wN8mS.js", "/assets/snowflake-Bg5_Jsxe.js", "/assets/sun-CIXMeEgF.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-BP-4wASW.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/textarea-BeL_P5nS.js", "/assets/select-eOyaiEsl.js", "/assets/badge-Srg19oim.js", "/assets/card-CrXhPay-.js", "/assets/plus-dcNeolG2.js", "/assets/trash-2-BD7MvCvg.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-gjNfGUdV.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/textarea-BeL_P5nS.js", "/assets/card-CrXhPay-.js", "/assets/snowflake-Bg5_Jsxe.js", "/assets/sun-CIXMeEgF.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/circle-check-CgbfCvDv.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-C2U6Xjmi.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/badge-Srg19oim.js", "/assets/card-CrXhPay-.js", "/assets/select-eOyaiEsl.js", "/assets/user-CUDsv6cL.js", "/assets/activity-DTU-WZV2.js", "/assets/target-ClsQ9jMQ.js", "/assets/trash-2-BD7MvCvg.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-C3Dg0Tve.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/card-CrXhPay-.js", "/assets/select-eOyaiEsl.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/circle-check-CgbfCvDv.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-DuUr6sh2.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/badge-Srg19oim.js", "/assets/index-DH5fzlx_.js", "/assets/card-CrXhPay-.js", "/assets/dialog-BCr17MCU.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/textarea-BeL_P5nS.js", "/assets/activity-log-C5qbkjuf.js", "/assets/user-CUDsv6cL.js", "/assets/globe-CYzjnfak.js", "/assets/link-Ck14JEgK.js", "/assets/arrow-right-IJ7hGFwu.js", "/assets/clock-db36JuSw.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-BO0HMX2n.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/card-CrXhPay-.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/send-CtYtU3-n.js", "/assets/circle-alert-In1IHFu_.js", "/assets/loader-circle-Bm4FAE_u.js", "/assets/arrow-right-IJ7hGFwu.js", "/assets/clock-db36JuSw.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-BJhnuNoS.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/textarea-BeL_P5nS.js", "/assets/card-CrXhPay-.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/plus-dcNeolG2.js", "/assets/trash-2-BD7MvCvg.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-C1X32ikZ.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/textarea-BeL_P5nS.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/reply-DOoqVBGe.js", "/assets/send-CtYtU3-n.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-DOccNke7.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/textarea-BeL_P5nS.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/reply-DOoqVBGe.js", "/assets/send-CtYtU3-n.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-DkUSinua.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/select-eOyaiEsl.js", "/assets/label-DZ2LAIB8.js", "/assets/input-UboQyGph.js", "/assets/link-Ck14JEgK.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/send-CtYtU3-n.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-DmQjpu2c.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-Drj-9_fN.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/select-eOyaiEsl.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/circle-check-CgbfCvDv.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-CbbaRViq.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/sun-CIXMeEgF.js", "/assets/database-C2Y-OgRq.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-4MSsAIqy.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/input-UboQyGph.js", "/assets/label-DZ2LAIB8.js", "/assets/badge-Srg19oim.js", "/assets/card-CrXhPay-.js", "/assets/select-eOyaiEsl.js", "/assets/dialog-BCr17MCU.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/plus-dcNeolG2.js", "/assets/trash-2-BD7MvCvg.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database-DBsBxIsa.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/database-C2Y-OgRq.js", "/assets/circle-check-CgbfCvDv.js", "/assets/circle-alert-In1IHFu_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-CNrbnRAd.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/globe-CYzjnfak.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-Dbl5P6wF.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/globe-CYzjnfak.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-BMeELdW-.js", "imports": ["/assets/chunk-QFMPRPBF-BwS0hJ2s.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dc0X34p4.js", "/assets/button-sPpOChyX.js", "/assets/card-CrXhPay-.js", "/assets/badge-Srg19oim.js", "/assets/arrow-left-CXuBDPRU.js", "/assets/loader-circle-Bm4FAE_u.js", "/assets/globe-CYzjnfak.js", "/assets/clock-db36JuSw.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-1d69fbfb.js", "version": "1d69fbfb", "sri": void 0 };
 const assetsBuildDirectory = "build\\client";
 const basename = "/";
 const future = { "unstable_optimizeDeps": false, "unstable_passThroughRequests": false, "unstable_subResourceIntegrity": false, "unstable_trailingSlashAwareDataRequests": false, "unstable_previewServerPrerendering": false, "v8_middleware": false, "v8_splitRouteModules": false, "v8_viteEnvironmentApi": false };
@@ -7239,13 +12121,37 @@ const routes = {
     caseSensitive: void 0,
     module: route3
   },
+  "routes/auth.google": {
+    id: "routes/auth.google",
+    parentId: "root",
+    path: "auth/google",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route4
+  },
+  "routes/auth.google.callback": {
+    id: "routes/auth.google.callback",
+    parentId: "root",
+    path: "auth/google/callback",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route5
+  },
   "routes/dashboard": {
     id: "routes/dashboard",
     parentId: "root",
     path: "dashboard",
     index: void 0,
     caseSensitive: void 0,
-    module: route4
+    module: route6
+  },
+  "routes/analytics": {
+    id: "routes/analytics",
+    parentId: "root",
+    path: "analytics",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route7
   },
   "routes/inbox": {
     id: "routes/inbox",
@@ -7253,7 +12159,7 @@ const routes = {
     path: "inbox",
     index: void 0,
     caseSensitive: void 0,
-    module: route5
+    module: route8
   },
   "routes/inbox.$leadId": {
     id: "routes/inbox.$leadId",
@@ -7261,7 +12167,7 @@ const routes = {
     path: "inbox/:leadId",
     index: void 0,
     caseSensitive: void 0,
-    module: route6
+    module: route9
   },
   "routes/leads.new": {
     id: "routes/leads.new",
@@ -7269,7 +12175,7 @@ const routes = {
     path: "leads/new",
     index: void 0,
     caseSensitive: void 0,
-    module: route7
+    module: route10
   },
   "routes/verification.criteria": {
     id: "routes/verification.criteria",
@@ -7277,7 +12183,7 @@ const routes = {
     path: "verification/criteria",
     index: void 0,
     caseSensitive: void 0,
-    module: route8
+    module: route11
   },
   "routes/verification.$leadId": {
     id: "routes/verification.$leadId",
@@ -7285,7 +12191,7 @@ const routes = {
     path: "verification/:leadId",
     index: void 0,
     caseSensitive: void 0,
-    module: route9
+    module: route12
   },
   "routes/users": {
     id: "routes/users",
@@ -7293,7 +12199,7 @@ const routes = {
     path: "users",
     index: void 0,
     caseSensitive: void 0,
-    module: route10
+    module: route13
   },
   "routes/users.new": {
     id: "routes/users.new",
@@ -7301,7 +12207,7 @@ const routes = {
     path: "users/new",
     index: void 0,
     caseSensitive: void 0,
-    module: route11
+    module: route14
   },
   "routes/pipeline": {
     id: "routes/pipeline",
@@ -7309,7 +12215,7 @@ const routes = {
     path: "pipeline",
     index: void 0,
     caseSensitive: void 0,
-    module: route12
+    module: route15
   },
   "routes/emails": {
     id: "routes/emails",
@@ -7317,7 +12223,7 @@ const routes = {
     path: "emails",
     index: void 0,
     caseSensitive: void 0,
-    module: route13
+    module: route16
   },
   "routes/emails.templates": {
     id: "routes/emails.templates",
@@ -7325,7 +12231,23 @@ const routes = {
     path: "emails/templates",
     index: void 0,
     caseSensitive: void 0,
-    module: route14
+    module: route17
+  },
+  "routes/emails.threads.$threadId": {
+    id: "routes/emails.threads.$threadId",
+    parentId: "root",
+    path: "emails/threads/:threadId",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route18
+  },
+  "routes/emails.inbox.$messageId": {
+    id: "routes/emails.inbox.$messageId",
+    parentId: "root",
+    path: "emails/inbox/:messageId",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route19
   },
   "routes/leads.$leadId.emails": {
     id: "routes/leads.$leadId.emails",
@@ -7333,7 +12255,7 @@ const routes = {
     path: "leads/:leadId/emails",
     index: void 0,
     caseSensitive: void 0,
-    module: route15
+    module: route20
   },
   "routes/api.leads": {
     id: "routes/api.leads",
@@ -7341,7 +12263,7 @@ const routes = {
     path: "api/leads",
     index: void 0,
     caseSensitive: void 0,
-    module: route16
+    module: route21
   },
   "routes/imports": {
     id: "routes/imports",
@@ -7349,7 +12271,7 @@ const routes = {
     path: "imports",
     index: void 0,
     caseSensitive: void 0,
-    module: route17
+    module: route22
   },
   "routes/imports.new": {
     id: "routes/imports.new",
@@ -7357,7 +12279,7 @@ const routes = {
     path: "imports/new",
     index: void 0,
     caseSensitive: void 0,
-    module: route18
+    module: route23
   },
   "routes/settings": {
     id: "routes/settings",
@@ -7365,7 +12287,7 @@ const routes = {
     path: "settings",
     index: void 0,
     caseSensitive: void 0,
-    module: route19
+    module: route24
   },
   "routes/settings.users": {
     id: "routes/settings.users",
@@ -7373,7 +12295,47 @@ const routes = {
     path: "settings/users",
     index: void 0,
     caseSensitive: void 0,
-    module: route20
+    module: route25
+  },
+  "routes/settings.database": {
+    id: "routes/settings.database",
+    parentId: "root",
+    path: "settings/database",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route26
+  },
+  "routes/scraper": {
+    id: "routes/scraper",
+    parentId: "root",
+    path: "scraper",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route27
+  },
+  "routes/scraper.new": {
+    id: "routes/scraper.new",
+    parentId: "root",
+    path: "scraper/new",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route28
+  },
+  "routes/scraper.$jobId": {
+    id: "routes/scraper.$jobId",
+    parentId: "root",
+    path: "scraper/:jobId",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route29
+  },
+  "routes/api.scraper": {
+    id: "routes/api.scraper",
+    parentId: "root",
+    path: "api/scraper",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route30
   }
 };
 const allowedActionOrigins = false;

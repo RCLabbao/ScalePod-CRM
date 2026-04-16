@@ -19,6 +19,7 @@ model User {
 
   gmailTokens   GmailToken?
   verifications LeadVerification[]
+  scraperJobs   ScraperJob[]
   leadImports   LeadImport[]
 
   // Accountability relations
@@ -31,14 +32,16 @@ model User {
 }
 
 model GmailToken {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshToken String
-  accessToken  String?
-  expiryDate   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken  String    @db.Text
+  accessToken   String?   @db.Text
+  expiryDate    DateTime?
+  gmailAddress  String?
+  lastHistoryId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model Lead {
@@ -63,6 +66,7 @@ model Lead {
   notes            String?             @db.Text
   referralPartnerId String?            // FK to ReferralPartner
   importId         String?             // FK to LeadImport
+  scraperJobId     String?             // FK to ScraperJob
 
   // Accountability fields
   createdById      String?
@@ -81,6 +85,7 @@ model Lead {
   webhookLogs      WebhookLog[]
   referralPartner  ReferralPartner?    @relation(fields: [referralPartnerId], references: [id])
   import           LeadImport?         @relation(fields: [importId], references: [id])
+  scraperJob       ScraperJob?         @relation(fields: [scraperJobId], references: [id])
 
   // Accountability relations
   createdBy        User?               @relation("LeadCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -122,15 +127,38 @@ model ActivityLog {
 
 model EmailThread {
   id             String   @id @default(cuid())
-  leadId         String
-  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
   gmailThreadId  String   @unique
-  subject        String
+  subject        String?
   snippet        String?  @db.Text
   lastMessage    DateTime @default(now())
   status         String   @default("SENT") // SENT, REPLIED, WAITING
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  messages EmailMessage[]
+}
+
+model EmailMessage {
+  id              String    @id @default(cuid())
+  threadId        String
+  thread          EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  gmailMessageId  String    @unique
+  fromAddress     String?
+  toAddress       String?   @db.Text
+  subject         String?
+  bodyPlain       String?   @db.LongText
+  bodyHtml        String?   @db.LongText
+  snippet         String?   @db.Text
+  labelIds        Json?
+  direction       String    @default("received") // received, sent, draft
+  readAt          DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([threadId])
+  @@index([direction])
 }
 
 model EmailTemplate {
@@ -326,4 +354,43 @@ model ReferralPartner {
   updatedAt DateTime @updatedAt
 
   referrals Lead[]
+}
+
+// ── Feature 7: Shopify Store Scraper ─────────────────
+
+model ScraperJob {
+  id              String   @id @default(cuid())
+  name            String
+  discoveryMode   String                    // "URL_UPLOAD" or "GOOGLE_DORK"
+  status          String   @default("PENDING") // PENDING, DISCOVERING, VALIDATING, ENRICHING, IMPORTING, COMPLETED, FAILED, CANCELLED
+
+  // Counts
+  totalDiscovered Int      @default(0)
+  totalValid      Int      @default(0)
+  totalEnriched   Int      @default(0)
+  totalImported   Int      @default(0)
+  totalSkipped    Int      @default(0)
+  totalFailed     Int      @default(0)
+
+  // Discovery data
+  discoveredUrls  Json?
+  serpApiQueries  Json?
+  uploadedUrls    String?  @db.LongText
+
+  // Error tracking
+  errors          Json?
+
+  // Config
+  config          Json?    // { delay, batchSize, respectRobots, playwrightEnabled }
+
+  // Timing
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  leads           Lead[]
 }
