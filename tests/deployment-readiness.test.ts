@@ -5,6 +5,29 @@ import * as path from "node:path";
 const PROJECT_ROOT = path.resolve(process.cwd());
 const BUILD_DIR = path.join(PROJECT_ROOT, "build");
 
+/**
+ * Read the full server build content.
+ * React Router may code-split into build/server/assets/server-build-*.js,
+ * so we read both the entry point and all asset chunks.
+ */
+function getServerBuildContent(): string {
+  const parts: string[] = [];
+
+  const indexPath = path.join(BUILD_DIR, "server", "index.js");
+  if (fs.existsSync(indexPath)) parts.push(fs.readFileSync(indexPath, "utf-8"));
+
+  const assetsDir = path.join(BUILD_DIR, "server", "assets");
+  if (fs.existsSync(assetsDir)) {
+    for (const file of fs.readdirSync(assetsDir)) {
+      if (file.endsWith(".js")) {
+        parts.push(fs.readFileSync(path.join(assetsDir, file), "utf-8"));
+      }
+    }
+  }
+
+  return parts.join("\n");
+}
+
 // ── Build Artifacts ────────────────────────────────
 
 describe("Build output exists", () => {
@@ -28,11 +51,7 @@ describe("Build output exists", () => {
   });
 
   it("server build contains our new route (settings.database)", () => {
-    const serverBuild = fs.readFileSync(
-      path.join(BUILD_DIR, "server", "index.js"),
-      "utf-8"
-    );
-    // The route string should appear in the server bundle
+    const serverBuild = getServerBuildContent();
     expect(serverBuild).toContain("settings/database");
   });
 });
@@ -75,25 +94,20 @@ describe("Migration files are deployment-ready", () => {
   });
 });
 
-// ── No Dev-Only Code in Production Build ───────────
+// ── Server Build Content Checks ────────────────────
 
 describe("Server build does not reference dev-only modules", () => {
-  const serverBuild = fs.readFileSync(
-    path.join(BUILD_DIR, "server", "index.js"),
-    "utf-8"
-  );
+  const serverBuild = getServerBuildContent();
 
   it("does not import vitest", () => {
     expect(serverBuild).not.toContain("from \"vitest\"");
   });
 
   it("includes the migration module", () => {
-    // Check that our migration utilities are bundled
     expect(serverBuild).toContain("_MigrationLog");
   });
 
   it("includes the Database icon import for the settings page", () => {
-    // Verify the settings page link was built into the bundle
     expect(serverBuild).toContain("Database");
   });
 });

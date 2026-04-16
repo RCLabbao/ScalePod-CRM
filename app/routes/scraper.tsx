@@ -14,10 +14,24 @@ export async function loader({ request }: { request: Request }) {
     select: { name: true, email: true, role: true },
   });
 
-  const jobs = await prisma.scraperJob.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { user: { select: { name: true, email: true } } },
-  });
+  let jobs: any[] = [];
+  try {
+    jobs = await prisma.scraperJob.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    // Fetch user names separately to avoid relation include issues
+    if (jobs.length > 0) {
+      const userIds = [...new Set(jobs.map((j: any) => j.userId))];
+      const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, name: true, email: true },
+      });
+      const userMap = new Map(users.map((u: any) => [u.id, u]));
+      jobs = jobs.map((j: any) => ({ ...j, user: userMap.get(j.userId) || { name: "Unknown", email: "" } }));
+    }
+  } catch (err) {
+    console.error("[scraper] Failed to load jobs:", err);
+  }
 
   return { user, jobs };
 }

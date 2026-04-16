@@ -18,30 +18,45 @@ export async function loader({ request, params }: { request: Request; params: { 
 
   const job = await prisma.scraperJob.findUnique({
     where: { id: params.jobId },
-    include: { user: { select: { name: true, email: true } } },
   });
 
   if (!job) {
     throw new Response("Not found", { status: 404 });
   }
 
-  const leads = await prisma.lead.findMany({
-    where: { scraperJobId: job.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      companyName: true,
-      contactName: true,
-      email: true,
-      industry: true,
-      website: true,
-      temperature: true,
-      stage: true,
-      status: true,
-    },
-  });
+  // Fetch job creator separately
+  let jobUser: { name: string; email: string } | null = null;
+  try {
+    jobUser = await prisma.user.findUnique({
+      where: { id: job.userId },
+      select: { name: true, email: true },
+    });
+  } catch (err) {
+    console.error("[scraper/job] Failed to load job user:", err);
+  }
 
-  return { user, job, leads };
+  let leads: any[] = [];
+  try {
+    leads = await prisma.lead.findMany({
+      where: { scraperJobId: job.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        companyName: true,
+        contactName: true,
+        email: true,
+        industry: true,
+        website: true,
+        temperature: true,
+        stage: true,
+        status: true,
+      },
+    });
+  } catch (err) {
+    console.error("[scraper/job] Failed to load leads:", err);
+  }
+
+  return { user, job: { ...job, user: jobUser || { name: "Unknown", email: "" } }, leads };
 }
 
 export async function action({ request, params }: { request: Request; params: { jobId: string } }) {

@@ -6,7 +6,6 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Upload, Globe, ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
-import { runScraperPipeline } from "../lib/scraper/pipeline";
 
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAdmin(request);
@@ -48,7 +47,12 @@ export async function action({ request }: { request: Request }) {
       },
     });
 
-    runScraperPipeline(job.id).catch(console.error);
+    // Dynamic import so Playwright isn't loaded until actually needed
+    import("../lib/scraper/pipeline").then(({ runScraperPipeline }) => {
+      runScraperPipeline(job.id).catch(console.error);
+    }).catch((err) => {
+      console.error("[scraper/new] Failed to load pipeline:", err);
+    });
     return redirect(`/scraper/${job.id}`);
   }
 
@@ -71,7 +75,11 @@ export async function action({ request }: { request: Request }) {
       },
     });
 
-    runScraperPipeline(job.id).catch(console.error);
+    import("../lib/scraper/pipeline").then(({ runScraperPipeline }) => {
+      runScraperPipeline(job.id).catch(console.error);
+    }).catch((err) => {
+      console.error("[scraper/new] Failed to load pipeline:", err);
+    });
     return redirect(`/scraper/${job.id}`);
   }
 
