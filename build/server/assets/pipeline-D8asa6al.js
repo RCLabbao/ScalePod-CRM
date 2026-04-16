@@ -1,8 +1,7 @@
-import { p as prisma, l as logActivity } from "./server-build-D9j8PFnd.js";
+import { p as prisma, l as logActivity } from "./server-build-BI9aMeip.js";
 import dns from "node:dns/promises";
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { chromium } from "playwright";
 import "react/jsx-runtime";
 import "isbot";
 import "react-dom/server";
@@ -395,6 +394,7 @@ function extractIndustry(productsJson) {
 async function scrapeWithPlaywright(url) {
   let browser;
   try {
+    const { chromium } = await import("playwright");
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15e3 });

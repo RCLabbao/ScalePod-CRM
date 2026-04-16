@@ -95,27 +95,49 @@ export async function loader({ request }: { request: Request }) {
   // ── Stage History ──
   // Fetch ALL stage history (no date filter) so we can find each lead's
   // FIRST arrival at every stage — then apply date filter to those first arrivals.
-  const rawHistory = await prisma.stageHistory.findMany({
-    include: {
-      lead: {
-        select: {
-          id: true,
-          companyName: true,
-          contactName: true,
-          email: true,
-          stage: true,
-          leadSource: true,
-        },
-      },
-      changedBy: { select: { id: true, name: true } },
-    },
-    orderBy: { changedAt: "asc" },
-  });
+  let rawHistory: any[] = [];
+  let leadsMap = new Map<string, any>();
+  let usersMap = new Map<string, { id: string; name: string }>();
+
+  try {
+    rawHistory = await prisma.stageHistory.findMany({
+      orderBy: { changedAt: "asc" },
+    });
+
+    // Fetch related data separately to avoid relation include issues on live
+    if (rawHistory.length > 0) {
+      const leadIds = [...new Set(rawHistory.map((h: any) => h.leadId))];
+      const changedByIds = [...new Set(rawHistory.map((h: any) => h.changedById).filter(Boolean))];
+
+      const [leads, changedByUsers] = await Promise.all([
+        prisma.lead.findMany({
+          where: { id: { in: leadIds } },
+          select: { id: true, companyName: true, contactName: true, email: true, stage: true, leadSource: true },
+        }),
+        prisma.user.findMany({
+          where: { id: { in: changedByIds } },
+          select: { id: true, name: true },
+        }),
+      ]);
+
+      leadsMap = new Map(leads.map((l: any) => [l.id, l]));
+      usersMap = new Map(changedByUsers.map((u: any) => [u.id, u]));
+    }
+  } catch (err) {
+    console.error("[analytics] Failed to load stage history:", err);
+  }
+
+  // Enrich raw history with related data
+  const enrichedHistory = rawHistory.map((h: any) => ({
+    ...h,
+    lead: leadsMap.get(h.leadId) || null,
+    changedBy: h.changedById ? usersMap.get(h.changedById) || null : null,
+  }));
 
   // Deduplicate: keep only the FIRST time each lead reached each stage.
   // Map key = `${leadId}::${toStage}` → keep earliest record.
-  const firstArrivalMap = new Map<string, (typeof rawHistory)[number]>();
-  for (const h of rawHistory) {
+  const firstArrivalMap = new Map<string, (typeof enrichedHistory)[number]>();
+  for (const h of enrichedHistory) {
     const key = `${h.leadId}::${h.toStage}`;
     if (!firstArrivalMap.has(key)) {
       firstArrivalMap.set(key, h);
@@ -163,17 +185,28 @@ export async function loader({ request }: { request: Request }) {
   }
 
   // ── Lead source breakdown ──
-  const leadSources = await prisma.lead.groupBy({
-    by: ["leadSource"],
-    _count: { id: true },
-    orderBy: { _count: { id: "desc" } },
-    ...(startDate ? { where: { createdAt: { gte: startDate } } } : {}),
-  });
+  let leadSources: { source: string; count: number }[] = [];
+  try {
+    const sources = await prisma.lead.groupBy({
+      by: ["leadSource"],
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      ...(startDate ? { where: { createdAt: { gte: startDate } } } : {}),
+    });
+    leadSources = sources.map((s) => ({ source: s.leadSource || "Unknown", count: s._count.id }));
+  } catch (err) {
+    console.error("[analytics] Failed to load lead sources:", err);
+  }
 
   // ── Team performance (also deduplicated — count unique leads per user per stage) ──
-  const allUsers = await prisma.user.findMany({
-    select: { id: true, name: true, email: true },
-  });
+  let allUsers: any[] = [];
+  try {
+    allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+    });
+  } catch (err) {
+    console.error("[analytics] Failed to load users:", err);
+  }
   const teamStats = allUsers
     .map((u) => {
       const contacted = stageHistory.filter(
@@ -197,14 +230,24 @@ export async function loader({ request }: { request: Request }) {
   const contactedHistory = stageHistory.filter((h) => h.toStage === "FIRST_CONTACT");
 
   // ── Total leads in period ──
-  const totalLeads = await prisma.lead.count(
-    startDate ? { where: { createdAt: { gte: startDate } } } : {}
-  );
+  let totalLeads = 0;
+  try {
+    totalLeads = await prisma.lead.count(
+      startDate ? { where: { createdAt: { gte: startDate } } } : {}
+    );
+  } catch (err) {
+    console.error("[analytics] Failed to count leads:", err);
+  }
 
   // ── Email stats ──
-  const totalEmailsSent = await prisma.emailMessage.count({
-    where: { direction: "sent", ...(startDate ? { createdAt: { gte: startDate } } : {}) },
-  });
+  let totalEmailsSent = 0;
+  try {
+    totalEmailsSent = await prisma.emailMessage.count({
+      where: { direction: "sent", ...(startDate ? { createdAt: { gte: startDate } } : {}) },
+    });
+  } catch (err) {
+    console.error("[analytics] Failed to count emails:", err);
+  }
 
   return {
     user,
@@ -215,7 +258,7 @@ export async function loader({ request }: { request: Request }) {
     lost,
     winRate,
     monthlyTrends,
-    leadSources: leadSources.map((s) => ({ source: s.leadSource || "Unknown", count: s._count.id })),
+    leadSources,
     teamStats,
     wonHistory,
     lostHistory,

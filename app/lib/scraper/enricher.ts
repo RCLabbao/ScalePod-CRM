@@ -1,6 +1,5 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { chromium } from "playwright";
 import type { ScraperConfig, StoreResult } from "./types";
 
 // ── Page Fetching ────────────────────────────────────────
@@ -256,6 +255,7 @@ function extractIndustry(productsJson: any): string | null {
 async function scrapeWithPlaywright(url: string): Promise<string[]> {
   let browser;
   try {
+    const { chromium } = await import("playwright");
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });

@@ -1366,9 +1366,24 @@ async function loader$n({
   const customTo = url.searchParams.get("to") || void 0;
   const startDate = rangeToStartDate(range, customFrom);
   const endDate = customTo ? new Date(customTo) : void 0;
-  const rawHistory = await prisma.stageHistory.findMany({
-    include: {
-      lead: {
+  let rawHistory = [];
+  let leadsMap = /* @__PURE__ */ new Map();
+  let usersMap = /* @__PURE__ */ new Map();
+  try {
+    rawHistory = await prisma.stageHistory.findMany({
+      orderBy: {
+        changedAt: "asc"
+      }
+    });
+    if (rawHistory.length > 0) {
+      const leadIds = [...new Set(rawHistory.map((h) => h.leadId))];
+      const changedByIds = [...new Set(rawHistory.map((h) => h.changedById).filter(Boolean))];
+      const [leads, changedByUsers] = await Promise.all([prisma.lead.findMany({
+        where: {
+          id: {
+            in: leadIds
+          }
+        },
         select: {
           id: true,
           companyName: true,
@@ -1377,20 +1392,30 @@ async function loader$n({
           stage: true,
           leadSource: true
         }
-      },
-      changedBy: {
+      }), prisma.user.findMany({
+        where: {
+          id: {
+            in: changedByIds
+          }
+        },
         select: {
           id: true,
           name: true
         }
-      }
-    },
-    orderBy: {
-      changedAt: "asc"
+      })]);
+      leadsMap = new Map(leads.map((l) => [l.id, l]));
+      usersMap = new Map(changedByUsers.map((u) => [u.id, u]));
     }
-  });
+  } catch (err) {
+    console.error("[analytics] Failed to load stage history:", err);
+  }
+  const enrichedHistory = rawHistory.map((h) => ({
+    ...h,
+    lead: leadsMap.get(h.leadId) || null,
+    changedBy: h.changedById ? usersMap.get(h.changedById) || null : null
+  }));
   const firstArrivalMap = /* @__PURE__ */ new Map();
-  for (const h of rawHistory) {
+  for (const h of enrichedHistory) {
     const key = `${h.leadId}::${h.toStage}`;
     if (!firstArrivalMap.has(key)) {
       firstArrivalMap.set(key, h);
@@ -1428,31 +1453,45 @@ async function loader$n({
       lost: stageHistory.filter((h) => h.toStage === "CLOSED_LOST" && inRange(h.changedAt)).length
     });
   }
-  const leadSources = await prisma.lead.groupBy({
-    by: ["leadSource"],
-    _count: {
-      id: true
-    },
-    orderBy: {
+  let leadSources = [];
+  try {
+    const sources = await prisma.lead.groupBy({
+      by: ["leadSource"],
       _count: {
-        id: "desc"
-      }
-    },
-    ...startDate ? {
-      where: {
-        createdAt: {
-          gte: startDate
+        id: true
+      },
+      orderBy: {
+        _count: {
+          id: "desc"
         }
+      },
+      ...startDate ? {
+        where: {
+          createdAt: {
+            gte: startDate
+          }
+        }
+      } : {}
+    });
+    leadSources = sources.map((s) => ({
+      source: s.leadSource || "Unknown",
+      count: s._count.id
+    }));
+  } catch (err) {
+    console.error("[analytics] Failed to load lead sources:", err);
+  }
+  let allUsers = [];
+  try {
+    allUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true
       }
-    } : {}
-  });
-  const allUsers = await prisma.user.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true
-    }
-  });
+    });
+  } catch (err) {
+    console.error("[analytics] Failed to load users:", err);
+  }
   const teamStats = allUsers.map((u) => {
     const contacted = stageHistory.filter((h) => h.changedById === u.id && h.toStage === "FIRST_CONTACT").length;
     const dealsWon = stageHistory.filter((h) => h.changedById === u.id && h.toStage === "CLOSED_WON").length;
@@ -1469,23 +1508,33 @@ async function loader$n({
   const lostHistory = stageHistory.filter((h) => h.toStage === "CLOSED_LOST");
   const proposalHistory = stageHistory.filter((h) => h.toStage === "PROPOSAL_SENT");
   const contactedHistory = stageHistory.filter((h) => h.toStage === "FIRST_CONTACT");
-  const totalLeads = await prisma.lead.count(startDate ? {
-    where: {
-      createdAt: {
-        gte: startDate
-      }
-    }
-  } : {});
-  const totalEmailsSent = await prisma.emailMessage.count({
-    where: {
-      direction: "sent",
-      ...startDate ? {
+  let totalLeads = 0;
+  try {
+    totalLeads = await prisma.lead.count(startDate ? {
+      where: {
         createdAt: {
           gte: startDate
         }
-      } : {}
-    }
-  });
+      }
+    } : {});
+  } catch (err) {
+    console.error("[analytics] Failed to count leads:", err);
+  }
+  let totalEmailsSent = 0;
+  try {
+    totalEmailsSent = await prisma.emailMessage.count({
+      where: {
+        direction: "sent",
+        ...startDate ? {
+          createdAt: {
+            gte: startDate
+          }
+        } : {}
+      }
+    });
+  } catch (err) {
+    console.error("[analytics] Failed to count emails:", err);
+  }
   return {
     user,
     range,
@@ -1495,10 +1544,7 @@ async function loader$n({
     lost,
     winRate,
     monthlyTrends,
-    leadSources: leadSources.map((s) => ({
-      source: s.leadSource || "Unknown",
-      count: s._count.id
-    })),
+    leadSources,
     teamStats,
     wonHistory,
     lostHistory,
@@ -10828,7 +10874,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-CmMM6mOr.js").then(({
+    import("./pipeline-D8asa6al.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -10857,7 +10903,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-CmMM6mOr.js").then(({
+    import("./pipeline-D8asa6al.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
