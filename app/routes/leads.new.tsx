@@ -1,6 +1,7 @@
-import { Form, useLoaderData, useActionData, useNavigate } from "react-router";
+import { Form, useLoaderData, useActionData, useNavigate, useSearchParams } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
+import { redirect } from "react-router";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -129,27 +130,39 @@ export async function action({ request }: { request: Request }) {
     },
   });
 
-  return {
-    success: true,
+  const params = new URLSearchParams({
+    success: "true",
     leadId: lead.id,
     companyName: lead.companyName,
     temperature: result.temperature,
-    score: result.score,
-    maxScore: result.maxScore,
-    percentage: result.percentage,
-  };
+    score: String(Math.round(result.score)),
+    maxScore: String(Math.round(result.maxScore)),
+    percentage: String(Math.round(result.percentage)),
+  });
+
+  return redirect(`/leads/new?${params.toString()}`);
 }
 
 export default function NewLead() {
   const { user, criteria } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const successData = searchParams.get("success") === "true" ? {
+    leadId: searchParams.get("leadId") || "",
+    companyName: searchParams.get("companyName") || "",
+    temperature: searchParams.get("temperature") || "COLD",
+    score: Number(searchParams.get("score")) || 0,
+    maxScore: Number(searchParams.get("maxScore")) || 0,
+    percentage: Number(searchParams.get("percentage")) || 0,
+  } : null;
 
   useEffect(() => {
-    if (actionData?.success) {
+    if (successData) {
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     }
-  }, [actionData]);
+  }, [successData]);
 
   return (
     <AppShell user={user!}>
@@ -170,36 +183,36 @@ export default function NewLead() {
         </div>
 
         {/* Success banner */}
-        {actionData?.success && (
+        {successData && (
           <Card className={`border-2 ${
-            actionData.temperature === "HOT"
+            successData.temperature === "HOT"
               ? "border-red-500/40 bg-red-500/5"
-              : actionData.temperature === "WARM"
+              : successData.temperature === "WARM"
               ? "border-amber-500/40 bg-amber-500/5"
               : "border-blue-500/40 bg-blue-500/5"
           }`}>
             <CardContent className="flex items-center gap-4 p-5">
               <CheckCircle2 className={`h-8 w-8 shrink-0 ${
-                actionData.temperature === "HOT"
+                successData.temperature === "HOT"
                   ? "text-red-400"
-                  : actionData.temperature === "WARM"
+                  : successData.temperature === "WARM"
                   ? "text-amber-400"
                   : "text-blue-400"
               }`} />
               <div className="flex-1">
                 <p className="font-semibold">
-                  {actionData.companyName} added successfully!
+                  {successData.companyName} added successfully!
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Score: {Math.round(actionData.score!)}/{Math.round(actionData.maxScore!)} ({Math.round(actionData.percentage!)}%) —{" "}
-                  <TemperatureBadge temperature={actionData.temperature!} />
+                  Score: {successData.score}/{successData.maxScore} ({successData.percentage}%) —{" "}
+                  <TemperatureBadge temperature={successData.temperature} />
                 </p>
               </div>
               <div className="flex gap-2">
-                <Link to={`/inbox/${actionData.leadId}`}>
+                <Link to={`/inbox/${successData.leadId}`}>
                   <Button variant="outline" size="sm">View Lead</Button>
                 </Link>
-                <Button size="sm" onClick={() => navigate("/leads/new", { replace: true })}>
+                <Button size="sm" onClick={() => { setSearchParams({}, { replace: true }); }}>
                   Add Another
                 </Button>
               </div>
