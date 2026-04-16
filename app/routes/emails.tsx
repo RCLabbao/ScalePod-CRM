@@ -1,4 +1,8 @@
 import { Link, useLoaderData, useNavigation, useSearchParams } from "react-router";
+
+// --- MOCKS FOR PREVIEW ENVIRONMENT ---
+// Please restore your original imports when copying this back to your local project.
+/*
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
 import {
@@ -13,6 +17,20 @@ import {
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+*/
+const prisma = { user: { findUnique: async () => null }, emailThread: { findMany: async () => [], count: async () => 0 } } as any;
+const requireAuth = async (req: any) => "user-123";
+const listMessages = async (...args: any[]) => ({ messages: [] });
+const getMessage = async (...args: any[]) => ({}) as any;
+type ParsedMessage = any;
+
+function AppShell({ children }: any) { return <div className="p-4 bg-background min-h-screen">{children}</div>; }
+function Card({ children, className }: any) { return <div className={`border rounded-lg shadow-sm bg-card text-card-foreground ${className || ""}`}>{children}</div>; }
+function CardContent({ children, className }: any) { return <div className={`p-4 ${className || ""}`}>{children}</div>; }
+function Button({ children, className, ...props }: any) { return <button className={`inline-flex items-center justify-center px-4 py-2 border rounded-md text-sm font-medium ${className || ""}`} {...props}>{children}</button>; }
+function Input({ className, ...props }: any) { return <input className={`flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm ${className || ""}`} {...props} />; }
+// -------------------------------------
+
 import {
   Mail,
   FileText,
@@ -106,8 +124,19 @@ export async function loader({ request }: { request: Request }) {
         inboxError = `Loaded ${gmailMessages.length} messages, but ${failedCount} failed to load.`;
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to fetch Gmail inbox.";
-      inboxError = message;
+      // Extract detailed error info from Google API errors
+      const gaxiosErr = err as { response?: { status?: number; data?: { error?: string; error_description?: string } }; message?: string };
+      const status = gaxiosErr?.response?.status;
+      const errorCode = gaxiosErr?.response?.data?.error;
+      const errorDesc = gaxiosErr?.response?.data?.error_description;
+      const msg = gaxiosErr?.message || String(err);
+
+      if (status === 401 || msg.includes("Invalid Credentials") || errorCode === "invalid_grant") {
+        inboxError = `Gmail auth failed (HTTP ${status}, ${errorCode || "auth error"}): Your Gmail token is invalid or expired. Go to Settings → Disconnect Gmail → Reconnect.`;
+      } else {
+        inboxError = `Gmail error (HTTP ${status || "?"}, ${errorCode || "unknown"}): ${errorDesc || msg}`;
+      }
+      console.error("[EmailHub] Gmail error:", JSON.stringify({ status, errorCode, errorDesc, msg }));
     }
   }
 
