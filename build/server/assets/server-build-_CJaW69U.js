@@ -7,14 +7,14 @@ import { FormStrategy } from "remix-auth-form";
 import pkg from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import * as React from "react";
-import { useState, useEffect, useCallback, forwardRef, useRef, useImperativeHandle } from "react";
+import React__default, { useState, useEffect, useMemo, useCallback, forwardRef, useRef, useImperativeHandle } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { google } from "googleapis";
 import { randomBytes, createHash } from "crypto";
-import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, BarChart3, Upload, Search, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, UserCheck, FileCheck, Trophy, XCircle, Target, ChevronDown, Plus, ChevronRight, CheckCircle2, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Pencil, Save, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, Send, ArrowUp, ArrowDown, Trash2, CheckSquare, Square, GripVertical, Building2, Globe, Link as Link$1, ArrowRight, FileText, AlertCircle, Sparkles, Loader2, MessageSquare, Bold, Italic, Underline, List, ListOrdered, Pilcrow, Eye, LayoutTemplate, Reply, MessageCircle, Link2, PenLine, ChevronUp, FileSpreadsheet, Moon, Database, Key, Play, Table2, Columns3, FilePlus, Shield, Zap, Check, AlertTriangle } from "lucide-react";
+import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, BarChart3, Upload, Search, Users, ShieldCheck, Settings, LogOut, Menu, TrendingUp, UserCheck, FileCheck, Trophy, XCircle, Target, ChevronDown, Plus, ChevronRight, CheckCircle2, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Pencil, Save, Linkedin, Facebook, Instagram, Twitter, Activity, Clock, Send, ArrowUp, ArrowDown, Trash2, CheckSquare, Square, ThermometerSun, Building2, Globe, Link as Link$1, ArrowRight, SlidersHorizontal, AlertCircle, FileText, Sparkles, Loader2, MessageSquare, Bold, Italic, Underline, List, ListOrdered, Pilcrow, Eye, LayoutTemplate, Reply, MessageCircle, Link2, PenLine, ChevronUp, FileSpreadsheet, Moon, Database, Key, Play, Table2, Columns3, FilePlus, Shield, Zap, Check, AlertTriangle } from "lucide-react";
 import { Draggable, DragDropContext, Droppable } from "@hello-pangea/dnd";
 import { z } from "zod";
 import * as fs from "node:fs";
@@ -6065,54 +6065,119 @@ const route14 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: users_new,
   loader: loader$h
 }, Symbol.toStringTag, { value: "Module" }));
-function LeadCard({ lead, index, draggable = true, onClick, selected = false, onSelect }) {
+function TemperatureIcon({ temp }) {
+  if (temp === "HOT") return /* @__PURE__ */ jsx(Flame, { className: "h-3 w-3 text-amber-400" });
+  if (temp === "WARM") return /* @__PURE__ */ jsx(ThermometerSun, { className: "h-3 w-3 text-orange-400" });
+  if (temp === "COLD") return /* @__PURE__ */ jsx(Snowflake, { className: "h-3 w-3 text-blue-400" });
+  return null;
+}
+function areEqual(prev, next) {
+  var _a, _b;
+  return prev.lead.id === next.lead.id && prev.lead.companyName === next.lead.companyName && prev.lead.contactName === next.lead.contactName && prev.lead.industry === next.lead.industry && prev.lead.temperature === next.lead.temperature && ((_a = prev.lead.assignedTo) == null ? void 0 : _a.name) === ((_b = next.lead.assignedTo) == null ? void 0 : _b.name) && prev.selected === next.selected && prev.draggable === next.draggable && prev.index === next.index;
+}
+const LeadCard = React__default.memo(function LeadCard2({
+  lead,
+  index,
+  draggable = true,
+  onClick,
+  selected = false,
+  onSelect
+}) {
+  var _a;
+  const assignedToName = (_a = lead.assignedTo) == null ? void 0 : _a.name;
   return /* @__PURE__ */ jsx(Draggable, { draggableId: lead.id, index, isDragDisabled: !draggable, children: (provided, snapshot) => /* @__PURE__ */ jsx(
     "div",
     {
       ref: provided.innerRef,
       ...provided.draggableProps,
-      className: `${snapshot.isDragging ? "opacity-90 shadow-lg" : ""}`,
-      children: /* @__PURE__ */ jsx(Card, { className: `cursor-default p-3 transition-all hover:shadow-md ${selected ? "ring-2 ring-primary bg-primary/5" : ""}`, children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2", children: [
-        draggable && /* @__PURE__ */ jsx(
-          "button",
-          {
-            type: "button",
-            onClick: () => onSelect == null ? void 0 : onSelect(lead.id),
-            onMouseDown: (e) => e.stopPropagation(),
-            className: "mt-0.5 text-muted-foreground hover:text-primary shrink-0",
-            title: selected ? "Deselect" : "Select for bulk move",
-            children: selected ? /* @__PURE__ */ jsx(CheckSquare, { className: "h-4 w-4 text-primary" }) : /* @__PURE__ */ jsx(Square, { className: "h-4 w-4" })
-          }
-        ),
-        draggable && /* @__PURE__ */ jsx(
-          "div",
-          {
-            ...provided.dragHandleProps,
-            className: "mt-1 cursor-grab text-muted-foreground hover:text-foreground",
-            children: /* @__PURE__ */ jsx(GripVertical, { className: "h-4 w-4" })
-          }
-        ),
-        /* @__PURE__ */ jsxs("div", { className: "flex-1 min-w-0", children: [
-          /* @__PURE__ */ jsx("div", { className: "flex items-center justify-between gap-2", children: /* @__PURE__ */ jsx(
-            "button",
-            {
-              type: "button",
-              onClick: () => onClick == null ? void 0 : onClick(lead.id),
-              onMouseDown: (e) => e.stopPropagation(),
-              className: "truncate text-sm font-medium hover:underline text-left",
-              children: lead.companyName
-            }
-          ) }),
-          lead.contactName && /* @__PURE__ */ jsx("p", { className: "mt-0.5 truncate text-xs text-muted-foreground", children: lead.contactName }),
-          /* @__PURE__ */ jsxs("div", { className: "mt-2 flex items-center gap-2", children: [
-            lead.industry && /* @__PURE__ */ jsx(Badge, { variant: "secondary", className: "text-[10px] px-1.5 py-0", children: lead.industry }),
-            /* @__PURE__ */ jsx("div", { className: "ml-auto flex gap-1", children: /* @__PURE__ */ jsx(Link, { to: `/leads/${lead.id}/emails`, onClick: (e) => e.stopPropagation(), onMouseDown: (e) => e.stopPropagation(), children: /* @__PURE__ */ jsx(Button, { variant: "ghost", size: "icon", className: "h-6 w-6", children: /* @__PURE__ */ jsx(Mail, { className: "h-3 w-3" }) }) }) })
+      className: `transition-all duration-200 ${snapshot.isDragging ? "opacity-95" : ""}`,
+      style: provided.draggableProps.style,
+      children: /* @__PURE__ */ jsx(
+        Card,
+        {
+          className: `cursor-default p-3 transition-all duration-200 border-border/50 ${selected ? "ring-1 ring-primary/40 bg-primary/[0.03] shadow-sm" : "hover:shadow-md hover:-translate-y-px hover:border-border/80"} ${snapshot.isDragging ? "shadow-xl ring-1 ring-primary/20 rotate-1" : ""}`,
+          children: /* @__PURE__ */ jsxs("div", { className: "flex items-start gap-2", children: [
+            draggable && /* @__PURE__ */ jsx(
+              "button",
+              {
+                type: "button",
+                onClick: () => onSelect == null ? void 0 : onSelect(lead.id),
+                onMouseDown: (e) => e.stopPropagation(),
+                className: "mt-0.5 text-muted-foreground/60 hover:text-primary shrink-0 transition-colors",
+                title: selected ? "Deselect" : "Select for bulk move",
+                children: selected ? /* @__PURE__ */ jsx(CheckSquare, { className: "h-4 w-4 text-primary" }) : /* @__PURE__ */ jsx(Square, { className: "h-4 w-4" })
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              "div",
+              {
+                ...provided.dragHandleProps,
+                className: "mt-1 cursor-grab text-muted-foreground/40 hover:text-muted-foreground transition-colors",
+                children: /* @__PURE__ */ jsxs(
+                  "svg",
+                  {
+                    className: "h-4 w-4",
+                    viewBox: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    strokeWidth: "2",
+                    strokeLinecap: "round",
+                    strokeLinejoin: "round",
+                    children: [
+                      /* @__PURE__ */ jsx("circle", { cx: "9", cy: "12", r: "1" }),
+                      /* @__PURE__ */ jsx("circle", { cx: "9", cy: "5", r: "1" }),
+                      /* @__PURE__ */ jsx("circle", { cx: "9", cy: "19", r: "1" }),
+                      /* @__PURE__ */ jsx("circle", { cx: "15", cy: "12", r: "1" }),
+                      /* @__PURE__ */ jsx("circle", { cx: "15", cy: "5", r: "1" }),
+                      /* @__PURE__ */ jsx("circle", { cx: "15", cy: "19", r: "1" })
+                    ]
+                  }
+                )
+              }
+            ),
+            /* @__PURE__ */ jsxs("div", { className: "flex-1 min-w-0", children: [
+              /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between gap-2", children: [
+                /* @__PURE__ */ jsx(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: () => onClick == null ? void 0 : onClick(lead.id),
+                    onMouseDown: (e) => e.stopPropagation(),
+                    className: "truncate text-sm font-semibold text-foreground/90 hover:text-foreground text-left transition-colors",
+                    children: lead.companyName
+                  }
+                ),
+                /* @__PURE__ */ jsx(TemperatureIcon, { temp: lead.temperature })
+              ] }),
+              lead.contactName && /* @__PURE__ */ jsx("p", { className: "mt-0.5 truncate text-xs text-muted-foreground/70", children: lead.contactName }),
+              /* @__PURE__ */ jsxs("div", { className: "mt-2 flex items-center gap-2", children: [
+                lead.industry && /* @__PURE__ */ jsx(Badge, { variant: "secondary", className: "text-[10px] px-1.5 py-0 font-medium", children: lead.industry }),
+                assignedToName && /* @__PURE__ */ jsx("span", { className: "text-[10px] text-muted-foreground/50 truncate", children: assignedToName }),
+                /* @__PURE__ */ jsx("div", { className: "ml-auto flex gap-0.5", children: /* @__PURE__ */ jsx(
+                  Link,
+                  {
+                    to: `/leads/${lead.id}/emails`,
+                    onClick: (e) => e.stopPropagation(),
+                    onMouseDown: (e) => e.stopPropagation(),
+                    children: /* @__PURE__ */ jsx(
+                      Button,
+                      {
+                        variant: "ghost",
+                        size: "icon",
+                        className: "h-6 w-6 rounded-full hover:bg-muted",
+                        children: /* @__PURE__ */ jsx(Mail, { className: "h-3 w-3 text-muted-foreground/60" })
+                      }
+                    )
+                  }
+                ) })
+              ] })
+            ] })
           ] })
-        ] })
-      ] }) })
+        }
+      )
     }
   ) });
-}
+}, areEqual);
 function Dialog({ open, onOpenChange, children, className }) {
   const childArray = React.Children.toArray(children);
   const trigger = childArray.find(
@@ -6556,6 +6621,23 @@ const STAGES = [{
   bg: "bg-red-500/10",
   dot: "bg-red-400"
 }];
+const TEMPERATURES = [{
+  key: "ALL",
+  label: "All",
+  icon: SlidersHorizontal
+}, {
+  key: "HOT",
+  label: "Hot",
+  icon: Flame
+}, {
+  key: "WARM",
+  label: "Warm",
+  icon: ThermometerSun
+}, {
+  key: "COLD",
+  label: "Cold",
+  icon: Snowflake
+}];
 async function loader$g({
   request
 }) {
@@ -6576,6 +6658,13 @@ async function loader$g({
     },
     orderBy: {
       updatedAt: "desc"
+    },
+    include: {
+      assignedTo: {
+        select: {
+          name: true
+        }
+      }
     }
   });
   const grouped = STAGES.map((stage) => ({
@@ -6833,10 +6922,10 @@ async function action$c({
         }
       }
     });
-    const operations = [];
+    const txOps = [];
     for (const lead of leads) {
       if (lead.stage === newStage) continue;
-      operations.push(prisma.lead.update({
+      txOps.push(prisma.lead.update({
         where: {
           id: lead.id
         },
@@ -6850,7 +6939,8 @@ async function action$c({
           toStage: newStage,
           changedById: userId
         }
-      }), logActivity({
+      }));
+      logActivity({
         leadId: lead.id,
         userId,
         action: "STAGE_CHANGED",
@@ -6859,28 +6949,52 @@ async function action$c({
           fromStage: lead.stage,
           toStage: newStage
         }
-      }));
+      }).catch(() => {
+      });
     }
-    await prisma.$transaction(operations.filter(Boolean));
+    if (txOps.length > 0) {
+      await prisma.$transaction(txOps);
+    }
     return {
       success: true
     };
   }
   return {};
 }
+function filterLeads(leads, search, tempFilter) {
+  const q = search.trim().toLowerCase();
+  return leads.filter((l) => {
+    var _a, _b;
+    const matchesSearch = !q || l.companyName.toLowerCase().includes(q) || (((_a = l.contactName) == null ? void 0 : _a.toLowerCase()) ?? "").includes(q) || l.email.toLowerCase().includes(q) || (((_b = l.industry) == null ? void 0 : _b.toLowerCase()) ?? "").includes(q);
+    const matchesTemp = tempFilter === "ALL" || l.temperature === tempFilter;
+    return matchesSearch && matchesTemp;
+  });
+}
 const pipeline = UNSAFE_withComponentProps(function Pipeline() {
   const {
     user,
-    stages
+    stages: serverStages
   } = useLoaderData();
-  const [localStages, setLocalStages] = useState(stages);
+  const [localStages, setLocalStages] = useState(serverStages);
+  const [search, setSearch] = useState("");
+  const [tempFilter, setTempFilter] = useState("ALL");
   const [selectedIds, setSelectedIds] = useState(/* @__PURE__ */ new Set());
   const [selectedLead, setSelectedLead] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [moveError, setMoveError] = useState(null);
   const detailFetcher = useFetcher();
+  const moveFetcher = useFetcher();
   useEffect(() => {
-    setLocalStages(stages);
-  }, [stages]);
+    setLocalStages(serverStages);
+  }, [serverStages]);
+  const displayStages = useMemo(() => {
+    return localStages.map((stage) => ({
+      ...stage,
+      leads: filterLeads(stage.leads, search, tempFilter)
+    }));
+  }, [localStages, search, tempFilter]);
+  const totalVisible = useMemo(() => displayStages.reduce((sum, s) => sum + s.leads.length, 0), [displayStages]);
+  const totalAll = useMemo(() => serverStages.reduce((sum, s) => sum + s.leads.length, 0), [serverStages]);
   useEffect(() => {
     var _a;
     if ((_a = detailFetcher.data) == null ? void 0 : _a.lead) {
@@ -6888,18 +7002,17 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
       if (!detailFetcher.data.edited) {
         setModalOpen(true);
       }
-      if (detailFetcher.data.edited) {
-        const updated = detailFetcher.data.lead;
-        setLocalStages((prev) => prev.map((stage) => ({
-          ...stage,
-          leads: stage.leads.map((l) => l.id === updated.id ? {
-            ...l,
-            ...updated
-          } : l)
-        })));
-      }
     }
   }, [detailFetcher.data]);
+  useEffect(() => {
+    if (moveFetcher.data) {
+      if (!moveFetcher.data.success) {
+        setMoveError("Failed to move lead. Please try again.");
+      } else {
+        setMoveError(null);
+      }
+    }
+  }, [moveFetcher.data]);
   const handleLeadClick = useCallback((leadId) => {
     detailFetcher.submit({
       intent: "getLeadDetail",
@@ -6945,46 +7058,48 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
         })) : []]
       }));
     });
-    setSelectedIds(/* @__PURE__ */ new Set());
+    clearSelection();
+    setMoveError(null);
     if (idsToMove.length === 1) {
-      const formData = new FormData();
-      formData.set("intent", "moveStage");
-      formData.set("leadId", idsToMove[0]);
-      formData.set("newStage", newStage);
-      await fetch("/pipeline", {
+      moveFetcher.submit({
+        intent: "moveStage",
+        leadId: idsToMove[0],
+        newStage
+      }, {
         method: "POST",
-        body: formData
+        action: "/pipeline"
       });
     } else {
-      const formData = new FormData();
-      formData.set("intent", "bulkMoveStage");
-      formData.set("leadIds", JSON.stringify(idsToMove));
-      formData.set("newStage", newStage);
-      await fetch("/pipeline", {
+      moveFetcher.submit({
+        intent: "bulkMoveStage",
+        leadIds: JSON.stringify(idsToMove),
+        newStage
+      }, {
         method: "POST",
-        body: formData
+        action: "/pipeline"
       });
     }
-  }, [user == null ? void 0 : user.role, selectedIds]);
+  }, [user == null ? void 0 : user.role, selectedIds, moveFetcher]);
+  const activeFilters = (search ? 1 : 0) + (tempFilter !== "ALL" ? 1 : 0);
   return /* @__PURE__ */ jsx(AppShell, {
     user,
     children: /* @__PURE__ */ jsxs("div", {
       className: "space-y-6",
       children: [/* @__PURE__ */ jsxs("div", {
-        className: "flex items-center justify-between",
+        className: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4",
         children: [/* @__PURE__ */ jsxs("div", {
           children: [/* @__PURE__ */ jsx("h1", {
             className: "text-3xl font-bold tracking-tight",
             children: "Pipeline"
           }), /* @__PURE__ */ jsx("p", {
-            className: "text-muted-foreground",
-            children: "Select leads with checkboxes, then drag to move. Click a company name for details."
+            className: "text-muted-foreground mt-1",
+            children: totalVisible === totalAll ? `${totalAll} active leads across ${STAGES.length} stages` : `Showing ${totalVisible} of ${totalAll} leads`
           })]
         }), selectedIds.size > 0 && /* @__PURE__ */ jsxs("div", {
           className: "flex items-center gap-2",
           children: [/* @__PURE__ */ jsxs(Badge, {
             variant: "secondary",
-            className: "text-sm px-3 py-1",
+            className: "text-sm px-3 py-1 rounded-full",
             children: [selectedIds.size, " selected"]
           }), /* @__PURE__ */ jsxs(Button, {
             variant: "ghost",
@@ -6996,14 +7111,69 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
             }), "Clear"]
           })]
         })]
+      }), /* @__PURE__ */ jsxs("div", {
+        className: "flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between",
+        children: [/* @__PURE__ */ jsxs("div", {
+          className: "relative flex-1 max-w-md",
+          children: [/* @__PURE__ */ jsx(Search, {
+            className: "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50"
+          }), /* @__PURE__ */ jsx(Input, {
+            placeholder: "Search leads by company, contact, email, industry...",
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            className: "pl-9 bg-background border-border/60 shadow-sm"
+          }), search && /* @__PURE__ */ jsx("button", {
+            type: "button",
+            onClick: () => setSearch(""),
+            className: "absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground transition-colors",
+            children: /* @__PURE__ */ jsx(X, {
+              className: "h-3.5 w-3.5"
+            })
+          })]
+        }), /* @__PURE__ */ jsx("div", {
+          className: "flex items-center gap-1 rounded-xl bg-muted/40 p-1 ring-1 ring-border/40",
+          children: TEMPERATURES.map((t) => {
+            const Icon = t.icon;
+            const active = tempFilter === t.key;
+            return /* @__PURE__ */ jsxs("button", {
+              type: "button",
+              onClick: () => setTempFilter(t.key),
+              className: `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${active ? "bg-background text-foreground shadow-sm ring-1 ring-border/60" : "text-muted-foreground hover:text-foreground hover:bg-muted/40"}`,
+              children: [/* @__PURE__ */ jsx(Icon, {
+                className: `h-3.5 w-3.5 ${active ? "" : "opacity-60"}`
+              }), t.label]
+            }, t.key);
+          })
+        })]
+      }), activeFilters > 0 && /* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-2 text-sm text-muted-foreground",
+        children: [/* @__PURE__ */ jsx(SlidersHorizontal, {
+          className: "h-3.5 w-3.5"
+        }), /* @__PURE__ */ jsxs("span", {
+          children: [activeFilters, " filter", activeFilters > 1 ? "s" : "", " active"]
+        }), /* @__PURE__ */ jsx(Button, {
+          variant: "ghost",
+          size: "sm",
+          className: "h-6 text-xs px-2",
+          onClick: () => {
+            setSearch("");
+            setTempFilter("ALL");
+          },
+          children: "Reset all"
+        })]
+      }), moveError && /* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive",
+        children: [/* @__PURE__ */ jsx(AlertCircle, {
+          className: "h-4 w-4 shrink-0"
+        }), moveError]
       }), /* @__PURE__ */ jsx(DragDropContext, {
         onDragEnd,
         children: /* @__PURE__ */ jsx("div", {
           className: "flex gap-4 overflow-x-auto pb-4",
-          children: localStages.map((stage) => /* @__PURE__ */ jsxs("div", {
+          children: displayStages.map((stage) => /* @__PURE__ */ jsxs("div", {
             className: "flex w-72 shrink-0 flex-col",
             children: [/* @__PURE__ */ jsx("div", {
-              className: `rounded-t-lg border border-b-0 p-3 ${stage.color} ${stage.bg}`,
+              className: `rounded-t-xl border border-b-0 px-4 py-3 ${stage.color} ${stage.bg}`,
               children: /* @__PURE__ */ jsxs("div", {
                 className: "flex items-center justify-between",
                 children: [/* @__PURE__ */ jsxs("div", {
@@ -7016,7 +7186,7 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
                   })]
                 }), /* @__PURE__ */ jsx(Badge, {
                   variant: "secondary",
-                  className: "text-xs text-secondary-foreground",
+                  className: "text-[11px] text-secondary-foreground tabular-nums",
                   children: stage.leads.length
                 })]
               })
@@ -7025,8 +7195,23 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
               children: (provided, snapshot) => /* @__PURE__ */ jsxs("div", {
                 ref: provided.innerRef,
                 ...provided.droppableProps,
-                className: `flex-1 space-y-2 rounded-b-lg border border-t-0 bg-muted/30 p-2 transition-colors min-h-[200px] ${snapshot.isDraggingOver ? "bg-muted/60" : ""}`,
-                children: [stage.leads.map((lead, index) => /* @__PURE__ */ jsx(LeadCard, {
+                className: `flex-1 space-y-2 rounded-b-xl border border-t-0 bg-muted/30 p-2 transition-colors overflow-y-auto ${snapshot.isDraggingOver ? "bg-muted/60" : ""}`,
+                style: {
+                  maxHeight: "calc(100vh - 320px)",
+                  minHeight: "200px"
+                },
+                children: [stage.leads.length === 0 ? /* @__PURE__ */ jsxs("div", {
+                  className: "flex flex-col items-center justify-center py-8 px-2 text-center",
+                  children: [/* @__PURE__ */ jsx("div", {
+                    className: "flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 ring-1 ring-border/50",
+                    children: /* @__PURE__ */ jsx(Inbox, {
+                      className: "h-4 w-4 text-muted-foreground/40"
+                    })
+                  }), /* @__PURE__ */ jsx("p", {
+                    className: "mt-2 text-xs text-muted-foreground/60",
+                    children: "No leads"
+                  })]
+                }) : stage.leads.map((lead, index) => /* @__PURE__ */ jsx(LeadCard, {
                   lead,
                   index,
                   draggable: (user == null ? void 0 : user.role) === "ADMIN",
@@ -13009,7 +13194,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-Bb4feDRR.js").then(({
+    import("./pipeline-m_35qJ1l.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -13038,7 +13223,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-Bb4feDRR.js").then(({
+    import("./pipeline-m_35qJ1l.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -13639,7 +13824,7 @@ const route31 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   __proto__: null,
   loader
 }, Symbol.toStringTag, { value: "Module" }));
-const serverManifest = { "entry": { "module": "/assets/entry.client-Dv3zLPER.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/index-D7YUbBXl.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-Ba8Ddh6H.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/index-D7YUbBXl.js"], "css": ["/assets/root-Dim-mkAz.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-CrM5JQaT.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-f1Q9rWLd.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-BA8earGe.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-CVogkU7v.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/card-CukL0JBy.js", "/assets/button-S0umEhYV.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-CEY_SK58.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/activity-log-C5qbkjuf.js", "/assets/app-shell-BlZrXGuO.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/button-S0umEhYV.js", "/assets/target-rUoQOMM-.js", "/assets/circle-x-CipAbzTs.js", "/assets/chevron-down-ShYYAKVh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-CVRVBHwk.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/plus-CFPk2CPu.js", "/assets/chevron-down-ShYYAKVh.js", "/assets/circle-check-BuE9zyca.js", "/assets/circle-x-CipAbzTs.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/sun-B1RvF6PX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-DP6KyLgV.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/textarea-CVOQnmbV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/activity-log-C5qbkjuf.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-x-CipAbzTs.js", "/assets/user-CSMFkmWF.js", "/assets/save-DrQyIR0b.js", "/assets/twitter-BCsyruiZ.js", "/assets/activity-D1E1P4Z3.js", "/assets/clock-BupdL0B6.js", "/assets/send-COB60qoq.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-DtT-eu3a.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/card-CukL0JBy.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js", "/assets/twitter-BCsyruiZ.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/sun-B1RvF6PX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-DOuCaWM0.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/select-CC0mcc3s.js", "/assets/badge-DpNWdVIX.js", "/assets/card-CukL0JBy.js", "/assets/plus-CFPk2CPu.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-COd2Z7f7.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/textarea-CVOQnmbV.js", "/assets/card-CukL0JBy.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/sun-B1RvF6PX.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-ZC92cQR8.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/badge-DpNWdVIX.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/user-CSMFkmWF.js", "/assets/activity-D1E1P4Z3.js", "/assets/target-rUoQOMM-.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-BcL5BKj3.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-CuYBP4Ol.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/badge-DpNWdVIX.js", "/assets/index-D7YUbBXl.js", "/assets/card-CukL0JBy.js", "/assets/dialog-BDMiuwjf.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/activity-log-C5qbkjuf.js", "/assets/save-DrQyIR0b.js", "/assets/user-CSMFkmWF.js", "/assets/globe-BmxV-63u.js", "/assets/link-DKv6pUKY.js", "/assets/arrow-right-CiIzx3Ni.js", "/assets/clock-BupdL0B6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-CFKKoqYr.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/card-CukL0JBy.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/send-COB60qoq.js", "/assets/circle-alert-IopUk0mf.js", "/assets/sparkles-BIPS5r8b.js", "/assets/loader-circle-B6fwOL5c.js", "/assets/arrow-right-CiIzx3Ni.js", "/assets/clock-BupdL0B6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-nWpss27z.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js", "/assets/rich-editor-C9wke2dt.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/plus-CFPk2CPu.js", "/assets/sparkles-BIPS5r8b.js", "/assets/save-DrQyIR0b.js", "/assets/trash-2-DIZqGR8h.js", "/assets/clock-BupdL0B6.js", "/assets/link-DKv6pUKY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-CBAQJ8cX.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/textarea-CVOQnmbV.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/user-CSMFkmWF.js", "/assets/reply-B0qWLpX8.js", "/assets/send-COB60qoq.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-BY820Mrv.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/textarea-CVOQnmbV.js", "/assets/label-C5IVyZAB.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/reply-B0qWLpX8.js", "/assets/send-COB60qoq.js", "/assets/user-CSMFkmWF.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-A7f6H8dH.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/select-CC0mcc3s.js", "/assets/label-C5IVyZAB.js", "/assets/input-CKOq3GXZ.js", "/assets/rich-editor-C9wke2dt.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-alert-IopUk0mf.js", "/assets/user-CSMFkmWF.js", "/assets/sparkles-BIPS5r8b.js", "/assets/send-COB60qoq.js", "/assets/clock-BupdL0B6.js", "/assets/chevron-down-ShYYAKVh.js", "/assets/link-DKv6pUKY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-Du0Imdxb.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-DNupHURv.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-CwykWcs1.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/sun-B1RvF6PX.js", "/assets/database-DpurACcA.js", "/assets/key-DOHsgwEr.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-D18LJae4.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/badge-DpNWdVIX.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/dialog-BDMiuwjf.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/plus-CFPk2CPu.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database--cxuzj5A.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/database-DpurACcA.js", "/assets/circle-check-BuE9zyca.js", "/assets/circle-alert-IopUk0mf.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.api-keys": { "id": "routes/settings.api-keys", "parentId": "root", "path": "settings/api-keys", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.api-keys-DsHqW2rO.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/key-DOHsgwEr.js", "/assets/plus-CFPk2CPu.js", "/assets/clock-BupdL0B6.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-BPPxW1z8.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/globe-BmxV-63u.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-Dg_CLZX4.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/globe-BmxV-63u.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-BtFOo-PS.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/loader-circle-B6fwOL5c.js", "/assets/globe-BmxV-63u.js", "/assets/clock-BupdL0B6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-2c39755c.js", "version": "2c39755c", "sri": void 0 };
+const serverManifest = { "entry": { "module": "/assets/entry.client-Dv3zLPER.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/index-D7YUbBXl.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-CkhN2ir-.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/index-D7YUbBXl.js"], "css": ["/assets/root-CeVTOZcY.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-CrM5JQaT.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-f1Q9rWLd.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-BA8earGe.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-CVogkU7v.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/card-CukL0JBy.js", "/assets/button-S0umEhYV.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-CEY_SK58.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/activity-log-C5qbkjuf.js", "/assets/app-shell-BlZrXGuO.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/button-S0umEhYV.js", "/assets/target-rUoQOMM-.js", "/assets/circle-x-CipAbzTs.js", "/assets/chevron-down-ShYYAKVh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-CVRVBHwk.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/plus-CFPk2CPu.js", "/assets/chevron-down-ShYYAKVh.js", "/assets/circle-check-BuE9zyca.js", "/assets/circle-x-CipAbzTs.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/sun-B1RvF6PX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-DP6KyLgV.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/textarea-CVOQnmbV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/activity-log-C5qbkjuf.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-x-CipAbzTs.js", "/assets/user-CSMFkmWF.js", "/assets/save-DrQyIR0b.js", "/assets/twitter-BCsyruiZ.js", "/assets/activity-D1E1P4Z3.js", "/assets/clock-BupdL0B6.js", "/assets/send-COB60qoq.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-DtT-eu3a.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/card-CukL0JBy.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js", "/assets/twitter-BCsyruiZ.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/sun-B1RvF6PX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-DOuCaWM0.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/select-CC0mcc3s.js", "/assets/badge-DpNWdVIX.js", "/assets/card-CukL0JBy.js", "/assets/plus-CFPk2CPu.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-COd2Z7f7.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/textarea-CVOQnmbV.js", "/assets/card-CukL0JBy.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/sun-B1RvF6PX.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-ZC92cQR8.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/badge-DpNWdVIX.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/user-CSMFkmWF.js", "/assets/activity-D1E1P4Z3.js", "/assets/target-rUoQOMM-.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-BcL5BKj3.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-Dn_peJa1.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/badge-DpNWdVIX.js", "/assets/input-CKOq3GXZ.js", "/assets/index-D7YUbBXl.js", "/assets/card-CukL0JBy.js", "/assets/snowflake-B6Sa6qQd.js", "/assets/dialog-BDMiuwjf.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/activity-log-C5qbkjuf.js", "/assets/save-DrQyIR0b.js", "/assets/user-CSMFkmWF.js", "/assets/globe-BmxV-63u.js", "/assets/link-DKv6pUKY.js", "/assets/arrow-right-CiIzx3Ni.js", "/assets/clock-BupdL0B6.js", "/assets/circle-alert-IopUk0mf.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-CFKKoqYr.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/card-CukL0JBy.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/send-COB60qoq.js", "/assets/circle-alert-IopUk0mf.js", "/assets/sparkles-BIPS5r8b.js", "/assets/loader-circle-B6fwOL5c.js", "/assets/arrow-right-CiIzx3Ni.js", "/assets/clock-BupdL0B6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-nWpss27z.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/card-CukL0JBy.js", "/assets/rich-editor-C9wke2dt.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/plus-CFPk2CPu.js", "/assets/sparkles-BIPS5r8b.js", "/assets/save-DrQyIR0b.js", "/assets/trash-2-DIZqGR8h.js", "/assets/clock-BupdL0B6.js", "/assets/link-DKv6pUKY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-CBAQJ8cX.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/textarea-CVOQnmbV.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/user-CSMFkmWF.js", "/assets/reply-B0qWLpX8.js", "/assets/send-COB60qoq.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-BY820Mrv.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/textarea-CVOQnmbV.js", "/assets/label-C5IVyZAB.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/reply-B0qWLpX8.js", "/assets/send-COB60qoq.js", "/assets/user-CSMFkmWF.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-A7f6H8dH.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/select-CC0mcc3s.js", "/assets/label-C5IVyZAB.js", "/assets/input-CKOq3GXZ.js", "/assets/rich-editor-C9wke2dt.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-alert-IopUk0mf.js", "/assets/user-CSMFkmWF.js", "/assets/sparkles-BIPS5r8b.js", "/assets/send-COB60qoq.js", "/assets/clock-BupdL0B6.js", "/assets/chevron-down-ShYYAKVh.js", "/assets/link-DKv6pUKY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-Du0Imdxb.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-DNupHURv.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/circle-check-BuE9zyca.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-CwykWcs1.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/sun-B1RvF6PX.js", "/assets/database-DpurACcA.js", "/assets/key-DOHsgwEr.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-D18LJae4.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/badge-DpNWdVIX.js", "/assets/card-CukL0JBy.js", "/assets/select-CC0mcc3s.js", "/assets/dialog-BDMiuwjf.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/plus-CFPk2CPu.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database--cxuzj5A.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/input-CKOq3GXZ.js", "/assets/label-C5IVyZAB.js", "/assets/textarea-CVOQnmbV.js", "/assets/database-DpurACcA.js", "/assets/circle-check-BuE9zyca.js", "/assets/circle-alert-IopUk0mf.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.api-keys": { "id": "routes/settings.api-keys", "parentId": "root", "path": "settings/api-keys", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.api-keys-DsHqW2rO.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/key-DOHsgwEr.js", "/assets/plus-CFPk2CPu.js", "/assets/clock-BupdL0B6.js", "/assets/trash-2-DIZqGR8h.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-BPPxW1z8.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/globe-BmxV-63u.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-Dg_CLZX4.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/globe-BmxV-63u.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-BtFOo-PS.js", "imports": ["/assets/chunk-QFMPRPBF-CJePKBBp.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BlZrXGuO.js", "/assets/button-S0umEhYV.js", "/assets/card-CukL0JBy.js", "/assets/badge-DpNWdVIX.js", "/assets/arrow-left-DLmm2aWm.js", "/assets/loader-circle-B6fwOL5c.js", "/assets/globe-BmxV-63u.js", "/assets/clock-BupdL0B6.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-89b4e748.js", "version": "89b4e748", "sri": void 0 };
 const assetsBuildDirectory = "build\\client";
 const basename = "/";
 const future = { "unstable_optimizeDeps": false, "unstable_passThroughRequests": false, "unstable_subResourceIntegrity": false, "unstable_trailingSlashAwareDataRequests": false, "unstable_previewServerPrerendering": false, "v8_middleware": false, "v8_splitRouteModules": false, "v8_viteEnvironmentApi": false };
