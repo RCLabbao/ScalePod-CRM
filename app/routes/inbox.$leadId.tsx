@@ -9,8 +9,9 @@ import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { ArrowLeft, ExternalLink as LinkIcon, Linkedin, Facebook, Instagram, Twitter, User, CheckCircle, XCircle, Clock, Activity, UserPlus, Send, Mail } from "lucide-react";
+import { ArrowLeft, ExternalLink as LinkIcon, Linkedin, Facebook, Instagram, Twitter, User, CheckCircle, XCircle, Clock, Activity, UserPlus, Send, Mail, Pencil, Save } from "lucide-react";
 import { Link } from "react-router";
+import { useState } from "react";
 import { logActivity } from "../lib/activity-log.server";
 import { getActivityStyle, formatStage } from "../lib/activity-log";
 import type { ActivityAction } from "../lib/activity-log";
@@ -182,6 +183,59 @@ export async function action({ request }: { request: Request }) {
     return { success: true };
   }
 
+  if (intent === "editLead") {
+    if (currentUser?.role !== "ADMIN") {
+      return { error: "Only admins can edit leads." };
+    }
+
+    const oldLead = await prisma.lead.findUnique({ where: { id: leadId } });
+    if (!oldLead) {
+      return { error: "Lead not found." };
+    }
+
+    const data = {
+      companyName: formData.get("companyName") as string,
+      contactName: (formData.get("contactName") as string) || null,
+      email: formData.get("email") as string,
+      website: (formData.get("website") as string) || null,
+      industry: (formData.get("industry") as string) || null,
+      estimatedTraffic: (formData.get("estimatedTraffic") as string) || null,
+      techStack: (formData.get("techStack") as string) || null,
+      leadSource: (formData.get("leadSource") as string) || null,
+      linkedin: (formData.get("linkedin") as string) || null,
+      facebook: (formData.get("facebook") as string) || null,
+      instagram: (formData.get("instagram") as string) || null,
+      twitter: (formData.get("twitter") as string) || null,
+      notes: (formData.get("notes") as string) || null,
+      temperature: (formData.get("temperature") as string) || oldLead.temperature,
+      stage: (formData.get("stage") as string) || oldLead.stage,
+      status: (formData.get("status") as string) || oldLead.status,
+    };
+
+    await prisma.lead.update({ where: { id: leadId }, data });
+
+    // Log stage change if it changed
+    if (oldLead.stage !== data.stage) {
+      await prisma.stageHistory.create({
+        data: {
+          leadId,
+          fromStage: oldLead.stage,
+          toStage: data.stage,
+          changedById: userId,
+        },
+      });
+    }
+
+    await logActivity({
+      leadId,
+      userId,
+      action: "LEAD_EDITED",
+      description: `${currentUser?.name || "Unknown"} edited lead details`,
+    });
+
+    return { success: true };
+  }
+
   return {};
 }
 
@@ -189,6 +243,7 @@ export default function LeadDetail() {
   const { user, lead, users, gmailConnected } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isAdmin = user?.role === "ADMIN";
+  const [editing, setEditing] = useState(false);
 
   return (
     <AppShell user={user!}>
@@ -265,56 +320,146 @@ export default function LeadDetail() {
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Lead Details</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Lead Details</CardTitle>
+                  {isAdmin && (
+                    <Button
+                      variant={editing ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setEditing(!editing)}
+                      className="h-7 gap-1.5"
+                    >
+                      {editing ? (
+                        <>
+                          <XCircle className="h-3.5 w-3.5" /> Cancel
+                        </>
+                      ) : (
+                        <>
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <dl className="grid gap-4 sm:grid-cols-2">
-                  {[
-                    ["Company", lead.companyName],
-                    ["Website", lead.website],
-                    ["Contact", lead.contactName],
-                    ["Email", lead.email],
-                    ["Industry", lead.industry],
-                    ["Est. Traffic", lead.estimatedTraffic],
-                    ["Tech Stack", lead.techStack],
-                    ["Lead Source", lead.leadSource],
-                    ["Status", lead.status],
-                    ["Stage", lead.stage.replace(/_/g, " ")],
-                  ].map(([label, value]) => (
-                    <div key={label as string}>
-                      <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-                      <dd className="mt-1 text-sm">{value || "—"}</dd>
-                    </div>
-                  ))}
-                </dl>
+                {editing ? (
+                  <Form method="post" className="space-y-4">
+                    <input type="hidden" name="intent" value="editLead" />
+                    <input type="hidden" name="leadId" value={lead.id} />
 
-                {/* Social Links */}
-                {(lead.linkedin || lead.facebook || lead.instagram || lead.twitter) && (
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <dt className="text-sm font-medium text-muted-foreground mb-2">Social Profiles</dt>
-                    <div className="flex flex-wrap gap-2">
-                      {lead.linkedin && (
-                        <a href={lead.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors">
-                          <Linkedin className="h-3.5 w-3.5" /> LinkedIn
-                        </a>
-                      )}
-                      {lead.facebook && (
-                        <a href={lead.facebook} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors">
-                          <Facebook className="h-3.5 w-3.5" /> Facebook
-                        </a>
-                      )}
-                      {lead.instagram && (
-                        <a href={lead.instagram} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-pink-500/20 bg-pink-500/10 px-2.5 py-1 text-xs font-medium text-pink-400 hover:bg-pink-500/20 transition-colors">
-                          <Instagram className="h-3.5 w-3.5" /> Instagram
-                        </a>
-                      )}
-                      {lead.twitter && (
-                        <a href={lead.twitter} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-400 hover:bg-sky-500/20 transition-colors">
-                          <Twitter className="h-3.5 w-3.5" /> Twitter / X
-                        </a>
-                      )}
+                    {/* Temperature, Stage, Status */}
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Field label="Temperature" name="temperature" type="select" defaultValue={lead.temperature} options={[
+                        { value: "HOT", label: "Hot" },
+                        { value: "WARM", label: "Warm" },
+                        { value: "COLD", label: "Cold" },
+                      ]} />
+                      <Field label="Stage" name="stage" type="select" defaultValue={lead.stage} options={[
+                        { value: "SOURCED", label: "Sourced" },
+                        { value: "QUALIFIED", label: "Qualified" },
+                        { value: "FIRST_CONTACT", label: "First Contact" },
+                        { value: "MEETING_BOOKED", label: "Meeting Booked" },
+                        { value: "PROPOSAL_SENT", label: "Proposal Sent" },
+                        { value: "CLOSED_WON", label: "Closed Won" },
+                        { value: "CLOSED_LOST", label: "Closed Lost" },
+                      ]} />
+                      <Field label="Status" name="status" type="select" defaultValue={lead.status} options={[
+                        { value: "INBOX", label: "Inbox" },
+                        { value: "ACTIVE", label: "Active" },
+                        { value: "REJECTED", label: "Rejected" },
+                      ]} />
                     </div>
-                  </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Company Name" name="companyName" defaultValue={lead.companyName} required />
+                      <Field label="Contact Name" name="contactName" defaultValue={lead.contactName || ""} />
+                      <Field label="Email" name="email" type="email" defaultValue={lead.email} required />
+                      <Field label="Website" name="website" defaultValue={lead.website || ""} />
+                      <Field label="Industry" name="industry" defaultValue={lead.industry || ""} />
+                      <Field label="Est. Traffic" name="estimatedTraffic" defaultValue={lead.estimatedTraffic || ""} />
+                      <Field label="Tech Stack" name="techStack" defaultValue={lead.techStack || ""} />
+                      <Field label="Lead Source" name="leadSource" defaultValue={lead.leadSource || ""} />
+                      <Field label="LinkedIn" name="linkedin" defaultValue={lead.linkedin || ""} />
+                      <Field label="Facebook" name="facebook" defaultValue={lead.facebook || ""} />
+                      <Field label="Instagram" name="instagram" defaultValue={lead.instagram || ""} />
+                      <Field label="Twitter / X" name="twitter" defaultValue={lead.twitter || ""} />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Notes</Label>
+                      <Textarea name="notes" rows={4} defaultValue={lead.notes || ""} />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setEditing(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" className="gap-1.5">
+                        <Save className="h-3.5 w-3.5" />
+                        Save Changes
+                      </Button>
+                    </div>
+                  </Form>
+                ) : (
+                  <>
+                    {/* Temperature & Stage badges */}
+                    <div className="mb-4 flex items-center gap-3">
+                      <StatusBadge status={lead.status} />
+                      <StageBadge stage={lead.stage} />
+                      <TemperatureBadge temperature={lead.temperature} />
+                      <span className="text-sm text-muted-foreground">
+                        Score: {Math.round(lead.score)}/{Math.round(lead.maxScore)}
+                      </span>
+                    </div>
+
+                    <dl className="grid gap-4 sm:grid-cols-2">
+                      {[
+                        ["Company", lead.companyName],
+                        ["Website", lead.website],
+                        ["Contact", lead.contactName],
+                        ["Email", lead.email],
+                        ["Industry", lead.industry],
+                        ["Est. Traffic", lead.estimatedTraffic],
+                        ["Tech Stack", lead.techStack],
+                        ["Lead Source", lead.leadSource],
+                      ].map(([label, value]) => (
+                        <div key={label as string}>
+                          <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+                          <dd className="mt-1 text-sm">{value || "—"}</dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    {/* Social Links */}
+                    {(lead.linkedin || lead.facebook || lead.instagram || lead.twitter) && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <dt className="text-sm font-medium text-muted-foreground mb-2">Social Profiles</dt>
+                        <div className="flex flex-wrap gap-2">
+                          {lead.linkedin && (
+                            <a href={lead.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors">
+                              <Linkedin className="h-3.5 w-3.5" /> LinkedIn
+                            </a>
+                          )}
+                          {lead.facebook && (
+                            <a href={lead.facebook} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors">
+                              <Facebook className="h-3.5 w-3.5" /> Facebook
+                            </a>
+                          )}
+                          {lead.instagram && (
+                            <a href={lead.instagram} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-pink-500/20 bg-pink-500/10 px-2.5 py-1 text-xs font-medium text-pink-400 hover:bg-pink-500/20 transition-colors">
+                              <Instagram className="h-3.5 w-3.5" /> Instagram
+                            </a>
+                          )}
+                          {lead.twitter && (
+                            <a href={lead.twitter} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-400 hover:bg-sky-500/20 transition-colors">
+                              <Twitter className="h-3.5 w-3.5" /> Twitter / X
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -504,7 +649,8 @@ export default function LeadDetail() {
               </CardContent>
             </Card>
 
-            {/* Notes */}
+            {/* Notes — hidden when editing since notes are in the edit form */}
+            {!editing && (
             <Card>
               <CardHeader>
                 <CardTitle>Notes</CardTitle>
@@ -529,6 +675,7 @@ export default function LeadDetail() {
                 )}
               </CardContent>
             </Card>
+            )}
           </div>
         </div>
       </div>
@@ -565,5 +712,58 @@ function StageBadge({ stage }: { stage: string }) {
     <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`}>
       {stage.replace(/_/g, " ")}
     </span>
+  );
+}
+
+function TemperatureBadge({ temperature }: { temperature: string }) {
+  const config: Record<string, { classes: string; icon: string }> = {
+    HOT:  { classes: "bg-red-500/15 text-red-400 border-red-500/20", icon: "🔥" },
+    WARM: { classes: "bg-amber-500/15 text-amber-400 border-amber-500/20", icon: "☀️" },
+    COLD: { classes: "bg-blue-500/15 text-blue-400 border-blue-500/20", icon: "❄️" },
+  };
+  const c = config[temperature] || config.COLD;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`}>
+      {c.icon} {temperature}
+    </span>
+  );
+}
+
+function Field({
+  label,
+  name,
+  type = "text",
+  defaultValue,
+  required,
+  options,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  defaultValue: string;
+  required?: boolean;
+  options?: { value: string; label: string }[];
+}) {
+  if (type === "select" && options) {
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">{label}</Label>
+        <select
+          name={name}
+          defaultValue={defaultValue}
+          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Input name={name} type={type} defaultValue={defaultValue} required={required} className="h-9 text-sm" />
+    </div>
   );
 }

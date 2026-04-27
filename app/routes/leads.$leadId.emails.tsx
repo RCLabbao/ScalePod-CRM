@@ -10,7 +10,18 @@ import { Select } from "../components/ui/select";
 import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
 import { RichEditor, type RichEditorHandle } from "../components/rich-editor";
-import { ArrowLeft, Send, PenLine } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  PenLine,
+  Mail,
+  AlertCircle,
+  User,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Sparkles,
+} from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 
 export async function loader({ request, params }: { request: Request; params: { leadId: string } }) {
@@ -162,12 +173,18 @@ export default function LeadEmails() {
     const tmpl = templates.find((t) => t.id === templateId);
     if (tmpl) {
       setSubject(parsePreview(tmpl.subject));
-      // Convert template body newlines to <br> for RTE
-      const htmlBody = parsePreview(tmpl.body)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\n/g, "<br>");
+      let htmlBody: string;
+      if (tmpl.body.includes("<") && tmpl.body.includes(">")) {
+        // Template is already HTML (created/edited in the modern editor)
+        htmlBody = parsePreview(tmpl.body);
+      } else {
+        // Legacy plain-text template: convert newlines to <br> and escape HTML
+        htmlBody = parsePreview(tmpl.body)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\n/g, "<br>");
+      }
       setBodyHtml(htmlBody);
       editorRef.current?.setHTML(htmlBody);
     } else {
@@ -192,74 +209,108 @@ export default function LeadEmails() {
       )
     : "";
 
+  const leadInitial = (lead.companyName?.[0] || lead.contactName?.[0] || "?").toUpperCase();
+
   return (
     <AppShell user={user!}>
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="flex items-start gap-3">
           <Link to="/inbox">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted mt-1">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Email: {lead.companyName}
-            </h1>
-            <p className="text-muted-foreground">{lead.contactName || lead.email}</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400 text-sm font-bold ring-1 ring-violet-500/20">
+              {leadInitial}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{lead.companyName}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-sm text-muted-foreground">{lead.contactName}</span>
+                {lead.email && (
+                  <>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="text-sm text-muted-foreground/70">{lead.email}</span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Gmail connection banner */}
         {!gmailConnected && (
-          <Card className="border-amber-500/50">
-            <CardContent className="flex items-center gap-3 p-4">
-              <Badge variant="warning">Gmail Not Connected</Badge>
-              <p className="text-sm text-muted-foreground">
-                Connect your Gmail account in{" "}
-                <Link to="/settings" className="underline hover:text-foreground">Settings</Link>{" "}
-                to send emails.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/15">
+                <AlertCircle className="h-4 w-4 text-amber-400" />
+              </div>
+              <div>
+                <span className="text-sm font-medium">Gmail not connected</span>
+                <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {" "}— Connect your account in{" "}
+                  <Link to="/settings" className="underline hover:text-foreground transition-colors">Settings</Link>
+                  {" "}to send emails.
+                </span>
+              </div>
+            </div>
+            <Link to="/settings" className="shrink-0">
+              <Button size="sm" variant="outline" className="h-8 text-xs">
+                Connect
+              </Button>
+            </Link>
+          </div>
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Compose panel */}
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Compose</CardTitle>
+            <Card className="overflow-hidden border-border/60 shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/20 pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-blue-400" />
+                  Compose
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <Form method="post" className="space-y-4" onSubmit={(e) => {
-                  // Sync plain text from editor before submit
-                  const form = e.currentTarget;
-                  const plain = form.querySelector('[name="bodyPlain"]') as HTMLInputElement;
-                  if (plain && editorRef.current) {
-                    plain.value = editorRef.current.getPlainText();
-                  }
-                  const html = form.querySelector('[name="bodyHtml"]') as HTMLInputElement;
-                  if (html && editorRef.current) {
-                    html.value = editorRef.current.getHTML();
-                  }
-                }}>
+              <CardContent className="pt-5">
+                <Form
+                  method="post"
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    // Sync plain text from editor before submit
+                    const form = e.currentTarget;
+                    const plain = form.querySelector('[name="bodyPlain"]') as HTMLInputElement;
+                    if (plain && editorRef.current) {
+                      plain.value = editorRef.current.getPlainText();
+                    }
+                    const html = form.querySelector('[name="bodyHtml"]') as HTMLInputElement;
+                    if (html && editorRef.current) {
+                      html.value = editorRef.current.getHTML();
+                    }
+                  }}
+                >
                   <input type="hidden" name="intent" value="sendEmail" />
                   <input type="hidden" name="bodyHtml" defaultValue={bodyHtml} />
                   <input type="hidden" name="bodyPlain" defaultValue="" />
 
                   {/* To */}
                   <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">To</p>
-                    <p className="text-sm rounded-md bg-muted/50 px-3 py-2 truncate">
-                      {lead.email || "No email address"}
-                    </p>
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">To</Label>
+                    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+                      <User className="h-3.5 w-3.5 text-muted-foreground/40" />
+                      <span className="text-sm truncate text-foreground/80">{lead.email || "No email address"}</span>
+                    </div>
                   </div>
 
                   {/* Template selector */}
-                  <div className="space-y-2">
-                    <Label>Load Template</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">Load Template</Label>
                     <Select
                       value={selectedTemplate}
                       onChange={(e) => handleTemplateChange(e.target.value)}
+                      className="bg-background border-border/60 shadow-sm"
                     >
                       <option value="">Choose a template...</option>
                       {templates.map((t) => (
@@ -271,21 +322,22 @@ export default function LeadEmails() {
                   </div>
 
                   {/* Subject */}
-                  <div className="space-y-2">
-                    <Label>Subject</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">Subject</Label>
                     <Input
                       name="subject"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
                       placeholder="Email subject..."
                       required
+                      className="bg-background border-border/60 shadow-sm"
                     />
                   </div>
 
                   {/* Rich Text Editor */}
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label>Message</Label>
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">Message</Label>
                       {gmailSignature && (
                         <button
                           type="button"
@@ -302,20 +354,26 @@ export default function LeadEmails() {
                       value={bodyHtml}
                       onChange={setBodyHtml}
                       placeholder="Write your message..."
+                      minHeight={200}
                     />
                   </div>
 
                   {actionData?.success && (
-                    <div className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-400">
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-sm text-emerald-400 font-medium flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
                       Email sent successfully!
                     </div>
                   )}
                   {actionData?.error && (
-                    <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
                       {actionData.error}
                     </div>
                   )}
-                  <Button type="submit" className="w-full" disabled={!gmailConnected || !subject.trim() || !bodyHtml.replace(/<[^>]*>/g, "").trim()}>
+                  <Button
+                    type="submit"
+                    className="w-full shadow-sm"
+                    disabled={!gmailConnected || !subject.trim() || !bodyHtml.replace(/<[^>]*>/g, "").trim()}
+                  >
                     <Send className="mr-2 h-4 w-4" />
                     Send Email
                   </Button>
@@ -325,18 +383,20 @@ export default function LeadEmails() {
           </div>
 
           {/* Preview + History */}
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Live Preview */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Preview</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                  Live Preview
+                </h3>
                 {gmailSignature && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground/50">
                     with signature
                   </span>
                 )}
               </div>
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden border-border/60 shadow-sm">
                 {previewSrcDoc ? (
                   <iframe
                     ref={previewRef}
@@ -358,7 +418,9 @@ export default function LeadEmails() {
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16">
-                    <Send className="h-10 w-10 text-muted-foreground/20" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/50 ring-1 ring-border/50">
+                      <Send className="h-5 w-5 text-muted-foreground/30" />
+                    </div>
                     <p className="mt-3 text-muted-foreground text-sm">
                       Start typing to see a preview
                     </p>
@@ -369,69 +431,95 @@ export default function LeadEmails() {
 
             {/* Email History */}
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Email History
+              <div className="flex items-center gap-3 mb-3">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground/50" />
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                  Email History
+                </h3>
+                <div className="flex-1 h-px bg-border/40" />
                 {emails.length > 0 && (
-                  <span className="ml-2 font-normal">({emails.length})</span>
+                  <span className="text-[11px] font-semibold text-muted-foreground/40 tabular-nums">
+                    {emails.length}
+                  </span>
                 )}
-              </h3>
-              <div className="space-y-2">
+              </div>
+              <div className="space-y-3">
                 {emails.length === 0 ? (
-                  <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-8">
-                      <p className="text-muted-foreground text-sm">No emails sent yet.</p>
+                  <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-10">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/50 ring-1 ring-border/50">
+                        <Mail className="h-5 w-5 text-muted-foreground/30" />
+                      </div>
+                      <p className="mt-3 text-muted-foreground text-sm">No emails sent yet.</p>
                     </CardContent>
                   </Card>
                 ) : (
                   emails.map((thread) => {
                     const isExpanded = expandedThread === thread.id;
                     return (
-                      <Card key={thread.id} className="overflow-hidden">
+                      <Card
+                        key={thread.id}
+                        className="overflow-hidden border-border/60 shadow-sm transition-all duration-200"
+                      >
                         <button
                           type="button"
-                          className="w-full text-left p-3 hover:bg-muted/30 transition-colors"
+                          className="w-full text-left p-4 hover:bg-muted/30 transition-colors"
                           onClick={() => setExpandedThread(isExpanded ? null : thread.id)}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{thread.subject}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-sm font-semibold truncate text-foreground/90">
+                                {thread.subject}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
                                 <Badge
                                   variant={
-                                    thread.status === "REPLIED" ? "success"
-                                    : thread.status === "WAITING" ? "warning"
-                                    : "secondary"
+                                    thread.status === "REPLIED"
+                                      ? "success"
+                                      : thread.status === "WAITING"
+                                      ? "warning"
+                                      : "secondary"
                                   }
+                                  className="rounded-full text-[10px] uppercase tracking-wider"
                                 >
                                   {thread.status}
                                 </Badge>
                               </div>
                             </div>
-                            <span className="text-xs text-muted-foreground shrink-0">
-                              {new Date(thread.lastMessage).toLocaleDateString()}
-                            </span>
+                            <div className="shrink-0 flex items-center gap-2">
+                              <span className="text-[11px] tabular-nums text-muted-foreground/50 font-medium">
+                                {new Date(thread.lastMessage).toLocaleDateString()}
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground/40" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground/40" />
+                              )}
+                            </div>
                           </div>
                         </button>
                         {isExpanded && thread.messages.length > 0 && (
-                          <div className="border-t border-border/50">
-                            {thread.messages.map((msg, i) => (
+                          <div className="border-t border-border/50 px-4 py-3 space-y-3">
+                            {thread.messages.map((msg: any, i: number) => (
                               <div
                                 key={msg.id}
-                                className={`px-3 py-2 text-sm ${
-                                  i > 0 ? "border-t border-border/30" : ""
-                                } ${msg.direction === "sent" ? "bg-blue-500/5" : "bg-muted/20"}`}
+                                className={`rounded-lg border px-3 py-2.5 ${
+                                  msg.direction === "sent"
+                                    ? "border-blue-500/15 bg-blue-500/[0.03]"
+                                    : "border-border/40 bg-muted/20"
+                                }`}
                               >
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-medium text-muted-foreground">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/50">
                                     {msg.direction === "sent" ? "You" : msg.fromAddress}
                                   </span>
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="text-[11px] tabular-nums text-muted-foreground/50">
                                     {msg.sentAt
                                       ? new Date(msg.sentAt).toLocaleString()
                                       : new Date(msg.createdAt).toLocaleString()}
                                   </span>
                                 </div>
-                                <p className="whitespace-pre-wrap text-foreground/90">
+                                <p className="text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed">
                                   {msg.bodyPlain || msg.snippet}
                                 </p>
                               </div>
@@ -465,7 +553,7 @@ function buildPreviewHtml(bodyContent: string): string {
     color: #1a1a1a;
     background: #ffffff;
     margin: 0;
-    padding: 12px 16px;
+    padding: 16px 20px;
     word-wrap: break-word;
   }
   a { color: #2563eb; }

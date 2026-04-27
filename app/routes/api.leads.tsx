@@ -1,13 +1,31 @@
 import { data } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { logActivity } from "../lib/activity-log.server";
+import { validateApiKey, hasScope, type ApiKeyTier, TIER_LIMITS } from "../lib/api-key.server";
 import { z } from "zod";
 
-// API key auth middleware for external scrapers
-function validateApiKey(request: Request): boolean {
-  const apiKey = request.headers.get("X-API-Key");
-  return !!apiKey && apiKey.length > 0;
+// ── API Key Auth ──────────────────────────────────────────────────
+async function authenticate(request: Request) {
+  const key = request.headers.get("X-API-Key");
+  if (!key) {
+    throw data({ error: "Unauthorized. Provide X-API-Key header." }, { status: 401 });
+  }
+
+  const result = await validateApiKey(key);
+  if (!result.valid || !result.apiKey) {
+    throw data({ error: "Invalid API key." }, { status: 401 });
+  }
+
+  return result.apiKey;
 }
+
+function requireScope(scopes: string[], scope: string) {
+  if (!hasScope(scopes, scope)) {
+    throw data({ error: `Insufficient scope. Required: ${scope}` }, { status: 403 });
+  }
+}
+
+// ── Zod Schemas ───────────────────────────────────────────────────
 
 const LeadPayloadSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
@@ -17,14 +35,49 @@ const LeadPayloadSchema = z.object({
   industry: z.string().optional(),
   estimatedTraffic: z.string().optional(),
   techStack: z.string().optional(),
-  leadSource: z.string().optional().default("SCRAPER"),
+  linkedin: z.string().optional(),
+  facebook: z.string().optional(),
+  instagram: z.string().optional(),
+  twitter: z.string().optional(),
+  leadSource: z.string().optional().default("API"),
   notes: z.string().optional(),
 });
 
+const LEAD_PUBLIC_FIELDS = {
+  id: true,
+  companyName: true,
+  website: true,
+  contactName: true,
+  email: true,
+  industry: true,
+  estimatedTraffic: true,
+  techStack: true,
+  linkedin: true,
+  facebook: true,
+  instagram: true,
+  twitter: true,
+  status: true,
+  stage: true,
+  leadSource: true,
+  createdAt: true,
+} as const;
+
+// ── Rate limit headers ────────────────────────────────────────────
+
+function rateLimitHeaders(tier: ApiKeyTier, remaining: number, resetAt: number) {
+  const limits = TIER_LIMITS[tier];
+  return {
+    "X-RateLimit-Limit": String(limits.perMinute),
+    "X-RateLimit-Remaining": String(Math.max(0, remaining)),
+    "X-RateLimit-Reset": String(Math.ceil(resetAt / 1000)),
+  };
+}
+
+// ── GET /api/leads ────────────────────────────────────────────────
+
 export async function loader({ request }: { request: Request }) {
-  if (!validateApiKey(request)) {
-    throw data({ error: "Unauthorized. Provide X-API-Key header." }, { status: 401 });
-  }
+  const apiKey = await authenticate(request);
+  requireScope(apiKey.scopes, "leads:read");
 
   const url = new URL(request.url);
   const status = url.searchParams.get("status") || undefined;
@@ -36,33 +89,30 @@ export async function loader({ request }: { request: Request }) {
     take: Math.min(limit, 100),
     skip: offset,
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      companyName: true,
-      website: true,
-      contactName: true,
-      email: true,
-      industry: true,
-      estimatedTraffic: true,
-      techStack: true,
-      status: true,
-      stage: true,
-      leadSource: true,
-      createdAt: true,
-    },
+    select: LEAD_PUBLIC_FIELDS,
   });
 
   const total = await prisma.lead.count({
     where: status ? { status } : undefined,
   });
 
-  return data({ leads, total, limit, offset });
+  const windowMs = 60 * 1000;
+  const resetAt = Date.now() + windowMs;
+  const tierLimits = TIER_LIMITS[apiKey.tier];
+
+  return data(
+    { leads, total, limit: Math.min(limit, 100), offset },
+    {
+      headers: rateLimitHeaders(apiKey.tier, tierLimits.perMinute, resetAt),
+    }
+  );
 }
 
+// ── POST /api/leads ───────────────────────────────────────────────
+
 export async function action({ request }: { request: Request }) {
-  if (!validateApiKey(request)) {
-    throw data({ error: "Unauthorized. Provide X-API-Key header." }, { status: 401 });
-  }
+  const apiKey = await authenticate(request);
+  requireScope(apiKey.scopes, "leads:write");
 
   if (request.method !== "POST") {
     throw data({ error: "Method not allowed" }, { status: 405 });
@@ -86,6 +136,10 @@ export async function action({ request }: { request: Request }) {
           industry: payload.industry ?? existing.industry,
           estimatedTraffic: payload.estimatedTraffic ?? existing.estimatedTraffic,
           techStack: payload.techStack ?? existing.techStack,
+          linkedin: payload.linkedin ?? existing.linkedin,
+          facebook: payload.facebook ?? existing.facebook,
+          instagram: payload.instagram ?? existing.instagram,
+          twitter: payload.twitter ?? existing.twitter,
           leadSource: payload.leadSource,
           notes: payload.notes
             ? `${existing.notes || ""}\n[Updated]: ${payload.notes}`.trim()
@@ -93,7 +147,6 @@ export async function action({ request }: { request: Request }) {
         },
       });
 
-      // Log the update
       await logActivity({
         leadId: existing.id,
         action: "LEAD_EDITED",
@@ -106,13 +159,24 @@ export async function action({ request }: { request: Request }) {
 
     const lead = await prisma.lead.create({
       data: {
-        ...payload,
+        companyName: payload.companyName,
+        website: payload.website,
+        contactName: payload.contactName,
+        email: payload.email,
+        industry: payload.industry,
+        estimatedTraffic: payload.estimatedTraffic,
+        techStack: payload.techStack,
+        linkedin: payload.linkedin,
+        facebook: payload.facebook,
+        instagram: payload.instagram,
+        twitter: payload.twitter,
+        leadSource: payload.leadSource,
+        notes: payload.notes,
         status: "INBOX",
         stage: "SOURCED",
       },
     });
 
-    // Log activity for API-created leads
     await logActivity({
       leadId: lead.id,
       action: "LEAD_CREATED",

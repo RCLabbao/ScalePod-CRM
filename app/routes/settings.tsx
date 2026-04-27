@@ -5,7 +5,7 @@ import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { Users, ShieldCheck, Database, Sun, Moon } from "lucide-react";
+import { Key, Users, ShieldCheck, Database, Sun, Moon } from "lucide-react";
 import { useTheme } from "../hooks/use-theme";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
@@ -249,12 +249,33 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          {/* API Access */}
+          {/* API Keys (Admin) */}
+          {user?.role === "ADMIN" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-4 w-4" />
+                  API Keys
+                </CardTitle>
+                <CardDescription>Generate and manage API keys for external integrations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link to="/settings/api-keys">
+                  <Button variant="outline" className="w-full">
+                    <Key className="mr-2 h-4 w-4" />
+                    Manage API Keys
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* API Access Documentation */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>API Access</CardTitle>
               <CardDescription>
-                Use the API endpoint to ingest leads from external scrapers
+                Use the API endpoint to ingest leads from external sources
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -269,6 +290,10 @@ export default function Settings() {
     "email": "hello@acme.com",
     "website": "https://acme.com",
     "industry": "SaaS",
+    "linkedin": "https://linkedin.com/company/acme",
+    "facebook": "https://facebook.com/acme",
+    "instagram": "https://instagram.com/acme",
+    "twitter": "https://twitter.com/acme",
     "leadSource": "scraper-bot"
   }'`}
                 </pre>
@@ -280,6 +305,9 @@ export default function Settings() {
   -H "X-API-Key: your-api-key"`}
                 </pre>
               </div>
+              {!user || user.role !== "ADMIN" ? (
+                <p className="text-sm text-muted-foreground">Contact an admin to get an API key.</p>
+              ) : null}
             </CardContent>
           </Card>
         </div>

@@ -1,5 +1,5 @@
 import { prisma } from "./prisma.server";
-import { checkDangerousSQL, parseSQLStatements, discoverMigrationFiles, sanitizeMigrationName } from "./migration-utils";
+import { checkDangerousSQL, parseSQLStatements, discoverMigrationFiles, sanitizeMigrationName, getNextMigrationNumber } from "./migration-utils";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -113,6 +113,90 @@ export async function applyPendingMigrations(): Promise<{
   return { applied: appliedList, errors };
 }
 
+// ── Create a new migration file from the UI ──────────
+export async function createMigration(
+  name: string,
+  sql: string,
+  options?: { autoApply?: boolean }
+): Promise<{ filename: string; applied: boolean; error?: string }> {
+  const dir = MIGRATIONS_DIR;
+
+  // Validate name: only alphanumeric, dashes, underscores
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    return { filename: "", applied: false, error: "Name can only contain letters, numbers, dashes, and underscores." };
+  }
+
+  // Validate SQL content
+  if (!sql.trim()) {
+    return { filename: "", applied: false, error: "SQL content cannot be empty." };
+  }
+
+  const danger = checkDangerousSQL(sql);
+  if (danger) {
+    return { filename: "", applied: false, error: danger };
+  }
+
+  // Determine next sequence number
+  const nextNum = getNextMigrationNumber(dir);
+  const filename = `${String(nextNum).padStart(3, "0")}_${name}.sql`;
+  const filePath = path.join(dir, filename);
+
+  // Ensure migrations directory exists
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // Write the migration file
+  fs.writeFileSync(filePath, sql, "utf-8");
+
+  // Auto-apply if requested
+  if (options?.autoApply) {
+    const result = await applySingleMigration(filename);
+    if (result.error) {
+      return { filename, applied: false, error: result.error };
+    }
+    return { filename, applied: true };
+  }
+
+  return { filename, applied: false };
+}
+
+// ── Apply a single migration by filename ─────────────
+export async function applySingleMigration(
+  filename: string
+): Promise<{ applied: boolean; error?: string }> {
+  const safeName = sanitizeMigrationName(filename);
+  const filePath = path.join(MIGRATIONS_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return { applied: false, error: `Migration file not found: ${filename}` };
+  }
+
+  // Check if already applied
+  const applied = await getAppliedMigrations();
+  if (applied.includes(filename)) {
+    return { applied: false, error: `Migration already applied: ${filename}` };
+  }
+
+  const sql = fs.readFileSync(filePath, "utf-8");
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const statements = parseSQLStatements(sql);
+      for (const stmt of statements) {
+        await tx.$executeRawUnsafe(stmt);
+      }
+      await tx.$executeRawUnsafe(
+        `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
+      );
+    });
+    return { applied: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { applied: false, error: message };
+  }
+}
+
 // ── Mark the baseline as applied (first-time setup) ─
 export async function markBaselineApplied(): Promise<boolean> {
   await ensureMigrationTable();
@@ -128,4 +212,33 @@ export async function markBaselineApplied(): Promise<boolean> {
   );
 
   return true;
+}
+
+// ── Mark a pending migration as already applied ────────
+// Use when the migration's SQL changes already exist in the database
+// (e.g., table was created manually before the migration system existed)
+export async function markMigrationApplied(filename: string): Promise<{ success: boolean; error?: string }> {
+  await ensureMigrationTable();
+
+  // Validate filename
+  const safeName = sanitizeMigrationName(filename);
+
+  // Check that the file actually exists
+  const filePath = path.join(MIGRATIONS_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: `Migration file not found: ${filename}` };
+  }
+
+  // Check it's not already marked as applied
+  const applied = await getAppliedMigrations();
+  if (applied.includes(filename)) {
+    return { success: false, error: `Migration already marked as applied: ${filename}` };
+  }
+
+  // Record it as applied without executing the SQL
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
+  );
+
+  return { success: true };
 }

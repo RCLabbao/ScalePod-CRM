@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
-import { ArrowLeft, Send, Reply, Mail } from "lucide-react";
+import { ArrowLeft, Send, Reply, Mail, User, MessageCircle } from "lucide-react";
 import { useState } from "react";
 
 export async function loader({ request, params }: { request: Request; params: { threadId: string } }) {
@@ -106,6 +106,36 @@ export async function action({ request, params }: { request: Request; params: { 
   return {};
 }
 
+function MessageAvatar({ direction, from }: { direction: string; from?: string | null }) {
+  const initial = (direction === "sent" ? "You" : from || "?")[0].toUpperCase();
+  const isSent = direction === "sent";
+  return (
+    <div
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+        isSent
+          ? "bg-blue-500/15 text-blue-400"
+          : "bg-violet-500/15 text-violet-400"
+      }`}
+    >
+      {isSent ? (
+        <User className="h-3.5 w-3.5" />
+      ) : (
+        initial
+      )}
+    </div>
+  );
+}
+
+function formatMessageTime(date: Date | string): string {
+  const d = new Date(date);
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function ThreadDetail() {
   const { user, thread, gmailConnected } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -113,11 +143,11 @@ export default function ThreadDetail() {
 
   return (
     <AppShell user={user!}>
-      <div className="space-y-6">
+      <div className="space-y-8 max-w-4xl">
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-3">
           <Link to="/emails">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted mt-1">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
@@ -125,12 +155,13 @@ export default function ThreadDetail() {
             <h1 className="text-2xl font-bold tracking-tight truncate">
               {thread.subject || "(No Subject)"}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
               {thread.lead && (
                 <Link
                   to={`/leads/${thread.lead.id}/emails`}
-                  className="text-sm text-violet-400 hover:underline"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 text-sm font-medium text-violet-400 hover:bg-violet-500/15 transition-colors"
                 >
+                  <User className="h-3 w-3" />
                   {thread.lead.companyName}
                 </Link>
               )}
@@ -142,28 +173,34 @@ export default function ThreadDetail() {
                     ? "warning"
                     : "secondary"
                 }
+                className="rounded-full text-[11px] uppercase tracking-wider"
               >
                 {thread.status}
               </Badge>
             </div>
           </div>
           {gmailConnected && thread.lead?.email && (
-            <Button onClick={() => setReplyOpen(!replyOpen)}>
+            <Button
+              onClick={() => setReplyOpen(!replyOpen)}
+              variant={replyOpen ? "secondary" : "default"}
+              className="shadow-sm shrink-0"
+            >
               <Reply className="mr-2 h-4 w-4" />
-              Reply
+              {replyOpen ? "Close" : "Reply"}
             </Button>
           )}
         </div>
 
         {/* Reply form */}
         {replyOpen && (
-          <Card className="border-blue-500/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">
+          <Card className="overflow-hidden border-border/60 shadow-sm">
+            <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-blue-400" />
                 Reply to {thread.lead?.contactName || thread.lead?.email || "lead"}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               <Form method="post" className="space-y-3">
                 <input type="hidden" name="intent" value="reply" />
                 <Textarea
@@ -172,15 +209,16 @@ export default function ThreadDetail() {
                   rows={5}
                   required
                   autoFocus
+                  className="bg-background border-border/60 shadow-sm resize-none"
                 />
                 {actionData?.error && (
                   <p className="text-sm text-destructive">{actionData.error}</p>
                 )}
                 {actionData?.success && (
-                  <p className="text-sm text-emerald-400">Reply sent!</p>
+                  <p className="text-sm text-emerald-400 font-medium">Reply sent successfully!</p>
                 )}
                 <div className="flex gap-2">
-                  <Button type="submit" size="sm">
+                  <Button type="submit" size="sm" className="shadow-sm">
                     <Send className="mr-2 h-3 w-3" />
                     Send Reply
                   </Button>
@@ -199,54 +237,71 @@ export default function ThreadDetail() {
         )}
 
         {/* Message timeline */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {thread.messages.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center py-12">
-                <Mail className="h-10 w-10 text-muted-foreground/50" />
-                <p className="mt-3 text-muted-foreground">No messages in this thread.</p>
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center py-14">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-muted to-muted/50 ring-1 ring-border/50">
+                  <Mail className="h-7 w-7 text-muted-foreground/60" />
+                </div>
+                <p className="mt-5 font-semibold text-foreground/90">No messages yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This thread is empty. Send a reply to start the conversation.
+                </p>
               </CardContent>
             </Card>
           ) : (
-            thread.messages.map((msg, i) => (
-              <div
-                key={msg.id}
-                className={`rounded-lg border ${
-                  msg.direction === "sent"
-                    ? "border-blue-500/20 bg-blue-500/5"
-                    : "border-border bg-card"
-                }`}
-              >
-                <div className="flex items-center justify-between border-b border-border/30 px-4 py-2.5">
-                  <div className="flex items-center gap-2">
+            <div className="relative">
+              {/* Vertical line */}
+              <div className="absolute left-[15px] top-0 bottom-0 w-px bg-border/50" />
+
+              <div className="space-y-6">
+                {thread.messages.map((msg) => (
+                  <div key={msg.id} className="relative pl-10">
+                    {/* Timeline dot */}
                     <div
-                      className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+                      className={`absolute left-[10px] top-3 h-2.5 w-2.5 rounded-full ring-4 ${
                         msg.direction === "sent"
-                          ? "bg-blue-500/15 text-blue-400"
-                          : "bg-violet-500/15 text-violet-400"
+                          ? "bg-blue-400 ring-background"
+                          : "bg-violet-400 ring-background"
+                      }`}
+                    />
+
+                    <div
+                      className={`rounded-xl border overflow-hidden transition-all duration-200 hover:shadow-sm ${
+                        msg.direction === "sent"
+                          ? "border-blue-500/15 bg-gradient-to-br from-blue-500/[0.03] to-transparent"
+                          : "border-border/60 bg-card"
                       }`}
                     >
-                      {msg.direction === "sent"
-                        ? (msg.fromAddress || "You")[0].toUpperCase()
-                        : (msg.fromAddress || "?")[0].toUpperCase()}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+                        <div className="flex items-center gap-2.5">
+                          <MessageAvatar direction={msg.direction} from={msg.fromAddress} />
+                          <div>
+                            <span className="text-sm font-semibold">
+                              {msg.direction === "sent" ? "You" : msg.fromAddress}
+                            </span>
+                            {msg.direction === "sent" && (
+                              <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-400/70 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                                Sent
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[11px] tabular-nums text-muted-foreground/60 font-medium">
+                          {formatMessageTime(msg.sentAt || msg.createdAt)}
+                        </span>
+                      </div>
+                      <div className="px-4 py-3">
+                        <p className="text-sm whitespace-pre-wrap text-foreground/90 leading-relaxed">
+                          {msg.bodyPlain || msg.snippet || "(No content)"}
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-sm font-medium">
-                      {msg.direction === "sent" ? "You" : msg.fromAddress}
-                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {msg.sentAt
-                      ? new Date(msg.sentAt).toLocaleString()
-                      : new Date(msg.createdAt).toLocaleString()}
-                  </span>
-                </div>
-                <div className="px-4 py-3">
-                  <p className="text-sm whitespace-pre-wrap text-foreground/90">
-                    {msg.bodyPlain || msg.snippet || "(No content)"}
-                  </p>
-                </div>
+                ))}
               </div>
-            ))
+            </div>
           )}
         </div>
       </div>

@@ -1,6 +1,22 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+// ── Get the next migration sequence number ───────────
+export function getNextMigrationNumber(dir: string): number {
+  const files = discoverMigrationFiles(dir);
+  if (files.length === 0) return 1;
+
+  let max = 0;
+  for (const f of files) {
+    const match = f.match(/^(\d+)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > max) max = num;
+    }
+  }
+  return max + 1;
+}
+
 // ── Dangerous SQL patterns that are blocked by default ──
 const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bDROP\s+DATABASE\b/i, label: "DROP DATABASE" },

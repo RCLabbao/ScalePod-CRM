@@ -21,6 +21,7 @@ model User {
   verifications LeadVerification[]
   scraperJobs   ScraperJob[]
   leadImports   LeadImport[]
+  apiKeys       ApiKey[]
 
   // Accountability relations
   createdLeads    Lead[]         @relation("LeadCreator")
@@ -343,6 +344,26 @@ model LeadImport {
 }
 
 // ── Feature 6: Referral / Partner Tracking ────────────
+
+// ── API Key Management ──────────────────────────────────
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  prefix      String    // e.g. "sk_live_abcd" — first 12 chars for identification
+  hash        String    @unique // SHA-256 hash of the full key
+  scopes      Json      // ["leads:read", "leads:write", "scraper:read"]
+  tier        String    @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
+  active      Boolean   @default(true)
+  lastUsedAt  DateTime?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([hash])
+  @@index([userId])
+}
 
 model ReferralPartner {
   id        String   @id @default(cuid())

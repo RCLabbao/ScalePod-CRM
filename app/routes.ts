@@ -38,6 +38,7 @@ export default [
   route("settings", "routes/settings.tsx"),
   route("settings/users", "routes/settings.users.tsx"),
   route("settings/database", "routes/settings.database.tsx"),
+  route("settings/api-keys", "routes/settings.api-keys.tsx"),
   // Shopify Scraper
   route("scraper", "routes/scraper.tsx"),
   route("scraper/new", "routes/scraper.new.tsx"),

@@ -24,6 +24,7 @@ import {
   Search,
   AlertCircle,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 
 type TabKey = "all" | "inbox" | "sent" | "drafts";
@@ -110,7 +111,7 @@ export async function loader({ request }: { request: Request }) {
       const gaxiosErr = err as any;
       const status = gaxiosErr?.response?.status;
       const errorData = gaxiosErr?.response?.data?.error;
-      
+
       let errorCode = errorData;
       let errorDesc = gaxiosErr?.response?.data?.error_description;
 
@@ -149,15 +150,15 @@ export async function loader({ request }: { request: Request }) {
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { classes: string; icon: typeof Send }> = {
     SENT: {
-      classes: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+      classes: "bg-blue-500/10 text-blue-400 border-blue-500/20",
       icon: Send,
     },
     REPLIED: {
-      classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+      classes: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
       icon: MessageSquare,
     },
     WAITING: {
-      classes: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+      classes: "bg-amber-500/10 text-amber-400 border-amber-500/20",
       icon: Clock,
     },
   };
@@ -165,7 +166,7 @@ function StatusBadge({ status }: { status: string }) {
   const Icon = c.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${c.classes}`}
     >
       <Icon className="h-3 w-3" />
       {status}
@@ -190,19 +191,19 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+      className={`relative inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
         active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
       }`}
     >
       <Icon className="h-4 w-4" />
       {label}
       {count !== undefined && count > 0 && (
         <span
-          className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+          className={`rounded-full px-1.5 py-0 text-[10px] font-bold leading-none ${
             active
-              ? "bg-primary-foreground/20 text-primary-foreground"
+              ? "bg-primary/10 text-primary"
               : "bg-muted text-muted-foreground"
           }`}
         >
@@ -213,34 +214,45 @@ function TabButton({
   );
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 function GmailInboxRow({ msg }: { msg: ParsedMessage }) {
   const isUnread = msg.labelIds.includes("UNREAD");
+  const senderName = msg.from.split("<")[0].trim();
+  const initials = getInitials(senderName);
   return (
     <Link
       to={`/emails/inbox/${msg.id}`}
-      className="flex items-start gap-4 p-4 transition-colors hover:bg-muted/30 cursor-pointer"
+      className="group flex items-start gap-4 p-4 transition-all duration-200 hover:bg-muted/40 cursor-pointer"
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10">
-        <Mail className="h-5 w-5 text-violet-400" />
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isUnread ? "bg-violet-500/15 text-violet-300" : "bg-muted text-muted-foreground"}`}>
+        {initials}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className={`text-sm truncate ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
-            {msg.from.split("<")[0].trim()}
+            {senderName}
           </span>
           {isUnread && (
-            <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0" />
+            <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0 ring-2 ring-blue-400/20" />
           )}
         </div>
-        <p className={`text-sm truncate ${isUnread ? "font-medium text-foreground" : "text-foreground/80"}`}>
+        <p className={`text-sm truncate mt-0.5 ${isUnread ? "font-medium text-foreground" : "text-foreground/70"}`}>
           {msg.subject}
         </p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+        <p className="mt-1 truncate text-xs text-muted-foreground/80 leading-relaxed">
           {msg.snippet}
         </p>
       </div>
-      <div className="shrink-0 text-right">
-        <span className="text-xs text-muted-foreground">
+      <div className="shrink-0 text-right pt-1">
+        <span className="text-[11px] tabular-nums text-muted-foreground/70 font-medium">
           {formatDate(msg.date)}
         </span>
       </div>
@@ -264,41 +276,43 @@ function ThreadRow({
 }) {
   const messageCount = thread.messages?.length || 0;
   return (
-    <Link to={`/emails/threads/${thread.id}`} className="block cursor-pointer">
-      <Card className="transition-all hover:bg-muted/30 hover:border-border">
-        <CardContent className="flex items-center gap-4 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-            <Send className="h-5 w-5 text-blue-400" />
+    <Link to={`/emails/threads/${thread.id}`} className="block cursor-pointer group">
+      <Card className="transition-all duration-200 hover:shadow-md hover:border-border/80 hover:-translate-y-px">
+        <CardContent className="flex items-start gap-4 p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 mt-0.5">
+            <Send className="h-4 w-4 text-blue-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {thread.lead && (
-                <span className="text-sm font-medium text-violet-400 hover:text-violet-300">
+                <span className="text-sm font-semibold text-violet-400 hover:text-violet-300 transition-colors">
                   {thread.lead.companyName}
                 </span>
               )}
               <StatusBadge status={thread.status} />
+              {messageCount > 1 && (
+                <span className="text-[11px] text-muted-foreground/60 font-medium">
+                  {messageCount} messages
+                </span>
+              )}
             </div>
-            <p className="text-sm font-medium text-foreground/80 truncate">
+            <p className="text-sm font-medium text-foreground/90 truncate mt-1">
               {thread.subject}
             </p>
             {thread.snippet && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <p className="mt-1 truncate text-xs text-muted-foreground/70 leading-relaxed">
                 {thread.snippet}
               </p>
             )}
           </div>
-          <div className="shrink-0 text-right">
-            {messageCount > 1 && (
-              <p className="text-xs text-muted-foreground mb-0.5">
-                {messageCount} messages
-              </p>
-            )}
-            <span className="text-xs text-muted-foreground">
+          <div className="shrink-0 text-right pt-1">
+            <span className="text-[11px] tabular-nums text-muted-foreground/60 font-medium">
               {new Date(thread.lastMessage).toLocaleDateString()}
             </span>
+            <div className="mt-1.5 flex justify-end">
+              <ArrowRight className="h-4 w-4 text-muted-foreground/30 transition-all duration-200 group-hover:text-muted-foreground/70 group-hover:translate-x-0.5" />
+            </div>
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
         </CardContent>
       </Card>
     </Link>
@@ -307,12 +321,55 @@ function ThreadRow({
 
 function LoadingSpinner() {
   return (
-    <Card>
+    <Card className="border-dashed">
       <CardContent className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
         <p className="mt-3 text-sm text-muted-foreground">Loading emails...</p>
       </CardContent>
     </Card>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  subtitle,
+  action,
+}: {
+  icon: typeof Mail;
+  title: string;
+  subtitle: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <Card className="border-dashed">
+      <CardContent className="flex flex-col items-center justify-center py-14">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-muted to-muted/50 ring-1 ring-border/50">
+          <Icon className="h-7 w-7 text-muted-foreground/60" />
+        </div>
+        <p className="mt-5 font-semibold text-foreground/90">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground max-w-xs text-center leading-relaxed">
+          {subtitle}
+        </p>
+        {action && <div className="mt-5">{action}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SectionHeader({ children, count }: { children: React.ReactNode; count?: number }) {
+  return (
+    <div className="flex items-center gap-3 px-1 pb-1">
+      <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
+        {children}
+      </span>
+      <div className="flex-1 h-px bg-border/40" />
+      {count !== undefined && (
+        <span className="text-[11px] font-semibold text-muted-foreground/50 tabular-nums">
+          {count}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -406,80 +463,84 @@ export default function EmailHub() {
 
   return (
     <AppShell user={user!}>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Email Hub</h1>
-            <p className="text-muted-foreground">
-              Track email conversations and outreach
+            <p className="text-muted-foreground mt-1">
+              Track conversations, manage outreach, and stay on top of replies
             </p>
           </div>
           <div className="flex gap-2">
             <Link to="/emails/templates">
-              <Button className="bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25">
-                <FileText className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="bg-background hover:bg-muted/60 border-border/60 shadow-sm">
+                <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
                 Templates
               </Button>
             </Link>
           </div>
         </div>
 
-        {/* Gmail connection banner */}
-        <Card
-          className={`border-l-4 ${
+        {/* Gmail connection status banner */}
+        <div
+          className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
             isActivelyConnected
-              ? "border-l-emerald-500"
+              ? "bg-emerald-500/5 border-emerald-500/20"
               : isTokenExpired
-              ? "border-l-destructive"
-              : "border-l-amber-500"
+              ? "bg-destructive/5 border-destructive/20"
+              : "bg-amber-500/5 border-amber-500/20"
           }`}
         >
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+          <div className="flex items-center gap-3">
+            <span
+              className={`relative flex h-2.5 w-2.5 rounded-full ${
+                isActivelyConnected
+                  ? "bg-emerald-400"
+                  : isTokenExpired
+                  ? "bg-destructive"
+                  : "bg-amber-400"
+              }`}
+            >
+              <span
+                className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 ${
                   isActivelyConnected
-                    ? "bg-emerald-500/10"
+                    ? "bg-emerald-400"
                     : isTokenExpired
-                    ? "bg-destructive/10"
-                    : "bg-amber-500/10"
+                    ? "bg-destructive"
+                    : "bg-amber-400"
                 }`}
-              >
-                {isTokenExpired ? (
-                  <AlertCircle className="h-5 w-5 text-destructive" />
-                ) : (
-                  <Mail
-                    className={`h-5 w-5 ${
-                      isActivelyConnected ? "text-emerald-400" : "text-amber-400"
-                    }`}
-                  />
-                )}
-              </div>
-              <div>
-                <p className="font-medium">Gmail Integration</p>
-                <p className="text-sm text-muted-foreground">
-                  {isActivelyConnected
-                    ? "Connected and ready to send emails"
-                    : isTokenExpired
-                    ? "Your Gmail connection has expired. Please reconnect."
-                    : "Connect your Gmail account in Settings to send emails and view inbox"}
-                </p>
-              </div>
+              />
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">
+                {isActivelyConnected
+                  ? "Gmail connected"
+                  : isTokenExpired
+                  ? "Gmail connection expired"
+                  : "Gmail not connected"}
+              </span>
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {isActivelyConnected
+                  ? "Ready to send and receive emails"
+                  : isTokenExpired
+                  ? "Please reconnect your account to resume"
+                  : "Connect in Settings to unlock email features"}
+              </span>
             </div>
-            {!isActivelyConnected && (
-              <Link to="/settings">
-                <Button size="sm" variant={isTokenExpired ? "destructive" : "outline"}>
-                  {isTokenExpired ? "Reconnect" : "Connect"}
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
+          </div>
+          {!isActivelyConnected && (
+            <Link to="/settings">
+              <Button size="sm" variant={isTokenExpired ? "destructive" : "outline"} className="h-8 text-xs">
+                {isTokenExpired ? "Reconnect" : "Connect"}
+              </Button>
+            </Link>
+          )}
+        </div>
 
         {/* Tab navigation + search */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
+          <div className="flex gap-1 rounded-xl bg-muted/40 p-1 ring-1 ring-border/40">
             {tabs.map((t) => (
               <TabButton
                 key={t.key}
@@ -494,16 +555,16 @@ export default function EmailHub() {
 
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
               <Input
                 name="q"
                 placeholder="Search emails..."
                 defaultValue={search}
-                className="pl-9 w-64"
+                className="pl-9 w-64 bg-background border-border/60 shadow-sm focus-visible:ring-primary/20"
               />
             </div>
             {search && (
-              <Button type="button" variant="ghost" size="sm" onClick={clearSearch}>
+              <Button type="button" variant="ghost" size="sm" onClick={clearSearch} className="text-muted-foreground">
                 Clear
               </Button>
             )}
@@ -515,15 +576,13 @@ export default function EmailHub() {
           <LoadingSpinner />
         ) : tab === "all" ? (
           /* All tab: combine Gmail inbox + DB threads */
-          <div className="space-y-3">
+          <div className="space-y-5">
             {/* Gmail inbox section */}
             {gmailConnected && gmailMessages.length > 0 && (
               <>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
-                  Gmail Inbox ({gmailMessages.length})
-                </p>
-                <Card>
-                  <div className="divide-y divide-border/50">
+                <SectionHeader count={gmailMessages.length}>Gmail Inbox</SectionHeader>
+                <Card className="overflow-hidden ring-1 ring-border/50 shadow-sm">
+                  <div className="divide-y divide-border/40">
                     {gmailMessages.map((msg) => (
                       <GmailInboxRow key={msg.id} msg={msg} />
                     ))}
@@ -532,103 +591,87 @@ export default function EmailHub() {
               </>
             )}
             {gmailConnected && inboxError && (
-              <Card className="border-destructive/30">
-                <CardContent className="flex items-center gap-3 p-3">
-                  <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    Could not load Gmail inbox: {inboxError}
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                <p className="text-sm text-muted-foreground">
+                  Could not load Gmail inbox: {inboxError}
+                </p>
+              </div>
             )}
 
             {/* CRM threads section */}
             {filteredThreads.length > 0 && (
               <>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1 pt-2">
-                  Sent from CRM ({filteredThreads.length})
-                </p>
-                {filteredThreads.map((thread) => (
-                  <ThreadRow key={thread.id} thread={thread} />
-                ))}
+                <SectionHeader count={filteredThreads.length}>Sent from CRM</SectionHeader>
+                <div className="space-y-3">
+                  {filteredThreads.map((thread) => (
+                    <ThreadRow key={thread.id} thread={thread} />
+                  ))}
+                </div>
               </>
             )}
 
             {/* Empty state: nothing at all */}
             {!gmailConnected && filteredThreads.length === 0 && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
-                    <Mail className="h-8 w-8 text-blue-400" />
-                  </div>
-                  <p className="mt-4 font-medium">No emails yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Connect Gmail to see your inbox, or send an email from a lead's profile.
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Mail}
+                title="No emails yet"
+                subtitle="Connect Gmail to see your inbox, or send an email from a lead's profile to get started."
+                action={
+                  <Link to="/settings">
+                    <Button variant="outline" size="sm" className="shadow-sm">
+                      <Sparkles className="mr-2 h-3.5 w-3.5" />
+                      Connect Gmail
+                    </Button>
+                  </Link>
+                }
+              />
             )}
             {gmailConnected && gmailMessages.length === 0 && filteredThreads.length === 0 && !inboxError && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
-                    <Mail className="h-8 w-8 text-blue-400" />
-                  </div>
-                  <p className="mt-4 font-medium">No emails yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Send an email from a lead's profile to get started.
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Inbox}
+                title="All caught up"
+                subtitle="No emails in your inbox or sent threads yet. Send an email from a lead's profile to get started."
+              />
             )}
           </div>
         ) : tab === "inbox" ? (
           // Gmail Inbox tab (dedicated)
-          <div className="space-y-2">
+          <div className="space-y-3">
             {!gmailConnected ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
-                    <AlertCircle className="h-8 w-8 text-amber-400" />
-                  </div>
-                  <p className="mt-4 font-medium">Gmail not connected</p>
-                  <p className="text-sm text-muted-foreground">
-                    Connect your Gmail account to view your inbox here.
-                  </p>
-                  <Link to="/settings" className="mt-4">
-                    <Button variant="outline">Go to Settings</Button>
+              <EmptyState
+                icon={AlertCircle}
+                title="Gmail not connected"
+                subtitle="Connect your Gmail account to view and manage your inbox here."
+                action={
+                  <Link to="/settings">
+                    <Button variant="outline" size="sm" className="shadow-sm">
+                      Go to Settings
+                    </Button>
                   </Link>
-                </CardContent>
-              </Card>
+                }
+              />
             ) : inboxError ? (
-              <Card className="border-destructive/50">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <AlertCircle className="h-8 w-8 text-destructive" />
-                  <p className="mt-4 font-medium text-destructive">
-                    Failed to load inbox
-                  </p>
-                  <p className="text-sm text-muted-foreground">
+              <Card className="border-destructive/20">
+                <CardContent className="flex flex-col items-center justify-center py-14">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/5 ring-1 ring-destructive/20">
+                    <AlertCircle className="h-7 w-7 text-destructive/70" />
+                  </div>
+                  <p className="mt-5 font-semibold text-destructive/90">Failed to load inbox</p>
+                  <p className="mt-1 text-sm text-muted-foreground max-w-sm text-center">
                     {inboxError}
                   </p>
                 </CardContent>
               </Card>
             ) : gmailMessages.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-500/10">
-                    <Inbox className="h-8 w-8 text-violet-400" />
-                  </div>
-                  <p className="mt-4 font-medium">Inbox is empty</p>
-                  <p className="text-sm text-muted-foreground">
-                    {search
-                      ? "No messages match your search."
-                      : "No messages in your Gmail inbox."}
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Inbox}
+                title="Inbox is empty"
+                subtitle={search ? "No messages match your search." : "No messages in your Gmail inbox."}
+              />
             ) : (
-              <Card>
-                <div className="divide-y divide-border/50">
+              <Card className="overflow-hidden ring-1 ring-border/50 shadow-sm">
+                <div className="divide-y divide-border/40">
                   {gmailMessages.map((msg) => (
                     <GmailInboxRow key={msg.id} msg={msg} />
                   ))}
@@ -638,31 +681,24 @@ export default function EmailHub() {
           </div>
         ) : (
           // DB thread tabs (Sent / Drafts)
-          <div className="space-y-3">
+          <div className="space-y-5">
             {filteredThreads.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
-                    <Mail className="h-8 w-8 text-blue-400" />
-                  </div>
-                  <p className="mt-4 font-medium">
-                    {tab === "drafts"
-                      ? "No drafts yet"
-                      : search
-                        ? "No threads match your search"
-                        : "No sent emails yet"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {tab === "drafts"
-                      ? "Draft emails will appear here."
-                      : "Send an email from a lead's profile to get started."}
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={tab === "drafts" ? FileText : Mail}
+                title={tab === "drafts" ? "No drafts yet" : search ? "No threads match your search" : "No sent emails yet"}
+                subtitle={tab === "drafts" ? "Draft emails will appear here." : "Send an email from a lead's profile to get started."}
+              />
             ) : (
-              filteredThreads.map((thread) => (
-                <ThreadRow key={thread.id} thread={thread} />
-              ))
+              <>
+                <SectionHeader count={filteredThreads.length}>
+                  {tab === "drafts" ? "Drafts" : "Sent"}
+                </SectionHeader>
+                <div className="space-y-3">
+                  {filteredThreads.map((thread) => (
+                    <ThreadRow key={thread.id} thread={thread} />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
