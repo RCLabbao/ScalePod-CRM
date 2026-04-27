@@ -31,7 +31,7 @@ const LeadPayloadSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   website: z.string().optional(),
   contactName: z.string().optional(),
-  email: z.string().email("Invalid email format"),
+  email: z.string().email("Invalid email format").min(1, "Email is required"),
   industry: z.string().optional(),
   estimatedTraffic: z.string().optional(),
   techStack: z.string().optional(),
@@ -149,6 +149,7 @@ export async function action({ request }: { request: Request }) {
 
       await logActivity({
         leadId: existing.id,
+        userId: apiKey.userId,
         action: "LEAD_EDITED",
         description: `External API updated lead data (${payload.leadSource})`,
         metadata: { source: payload.leadSource, merged: true },
@@ -179,6 +180,7 @@ export async function action({ request }: { request: Request }) {
 
     await logActivity({
       leadId: lead.id,
+      userId: apiKey.userId,
       action: "LEAD_CREATED",
       description: `Added via external API (${payload.leadSource})`,
       metadata: { source: payload.leadSource },

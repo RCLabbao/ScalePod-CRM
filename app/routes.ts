@@ -31,6 +31,9 @@ export default [
   route("leads/:leadId/emails", "routes/leads.$leadId.emails.tsx"),
   // API Gateway
   route("api/leads", "routes/api.leads.tsx"),
+  route("api/lead-detail", "routes/api.lead-detail.tsx"),
+  route("api/scraper", "routes/api.scraper.tsx"),
+  route("docs/api", "routes/docs.api.tsx"),
   // CSV Import
   route("imports", "routes/imports.tsx"),
   route("imports/new", "routes/imports.new.tsx"),
@@ -43,5 +46,4 @@ export default [
   route("scraper", "routes/scraper.tsx"),
   route("scraper/new", "routes/scraper.new.tsx"),
   route("scraper/:jobId", "routes/scraper.$jobId.tsx"),
-  route("api/scraper", "routes/api.scraper.tsx"),
 ] satisfies RouteConfig;

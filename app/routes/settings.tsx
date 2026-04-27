@@ -270,46 +270,6 @@ export default function Settings() {
             </Card>
           )}
 
-          {/* API Access Documentation */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>API Access</CardTitle>
-              <CardDescription>
-                Use the API endpoint to ingest leads from external sources
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg bg-muted p-4">
-                <p className="mb-2 text-sm font-medium">POST /api/leads</p>
-                <pre className="overflow-x-auto text-xs">
-{`curl -X POST https://your-domain.com/api/leads \\
-  -H "Content-Type: application/json" \\
-  -H "X-API-Key: your-api-key" \\
-  -d '{
-    "companyName": "Acme Corp",
-    "email": "hello@acme.com",
-    "website": "https://acme.com",
-    "industry": "SaaS",
-    "linkedin": "https://linkedin.com/company/acme",
-    "facebook": "https://facebook.com/acme",
-    "instagram": "https://instagram.com/acme",
-    "twitter": "https://twitter.com/acme",
-    "leadSource": "scraper-bot"
-  }'`}
-                </pre>
-              </div>
-              <div className="rounded-lg bg-muted p-4">
-                <p className="mb-2 text-sm font-medium">GET /api/leads?status=INBOX&limit=50</p>
-                <pre className="overflow-x-auto text-xs">
-{`curl https://your-domain.com/api/leads \\
-  -H "X-API-Key: your-api-key"`}
-                </pre>
-              </div>
-              {!user || user.role !== "ADMIN" ? (
-                <p className="text-sm text-muted-foreground">Contact an admin to get an API key.</p>
-              ) : null}
-            </CardContent>
-          </Card>
         </div>
       </div>
     </AppShell>

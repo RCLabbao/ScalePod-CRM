@@ -5,19 +5,20 @@ import { data } from "react-router";
 
 // ── Dual auth: session OR API key with scraper:read scope ─────────
 async function authenticate(request: Request) {
-  // Try API key first
+  // If X-API-Key header is present, require valid API key auth
   const apiKeyHeader = request.headers.get("X-API-Key");
   if (apiKeyHeader) {
     const result = await validateApiKey(apiKeyHeader);
-    if (result.valid && result.apiKey) {
-      if (!hasScope(result.apiKey.scopes, "scraper:read")) {
-        throw data({ error: "Insufficient scope. Required: scraper:read" }, { status: 403 });
-      }
-      return result.apiKey.userId;
+    if (!result.valid || !result.apiKey) {
+      throw data({ error: "Invalid API key." }, { status: 401 });
     }
+    if (!hasScope(result.apiKey.scopes, "scraper:read")) {
+      throw data({ error: "Insufficient scope. Required: scraper:read" }, { status: 403 });
+    }
+    return result.apiKey.userId;
   }
 
-  // Fall back to session auth
+  // No API key — fall back to session auth
   return await requireAuth(request);
 }
 
@@ -28,7 +29,7 @@ export async function loader({ request }: { request: Request }) {
   const jobId = url.searchParams.get("jobId");
 
   if (!jobId) {
-    return data({ error: "jobId is required" }, { status: 400 });
+    throw data({ error: "jobId is required" }, { status: 400 });
   }
 
   const job = await prisma.scraperJob.findUnique({
@@ -45,7 +46,7 @@ export async function loader({ request }: { request: Request }) {
   });
 
   if (!job) {
-    return data({ error: "Job not found" }, { status: 404 });
+    throw data({ error: "Job not found" }, { status: 404 });
   }
 
   return data(job);

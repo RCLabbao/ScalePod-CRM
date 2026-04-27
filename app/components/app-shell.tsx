@@ -15,6 +15,7 @@ import {
   Upload,
   BarChart3,
   Search,
+  FileJson,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -32,11 +33,17 @@ const navItems = [
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
   { to: "/verification/criteria", label: "Criteria", icon: ShieldCheck, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/docs/api", label: "API Docs", icon: FileJson },
 ];
 
 export function AppShell({ user, children }: { user: Pick<User, "name" | "email" | "role"> & { role: string }; children: React.ReactNode }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const userInitial = (user?.name?.[0] || user?.email?.[0] || "?").toUpperCase();
+  const userDisplay = user?.name || user?.email || "Unknown";
+  const userRole = user?.role || "";
+  const isAdmin = userRole === "ADMIN";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -74,7 +81,7 @@ export function AppShell({ user, children }: { user: Pick<User, "name" | "email"
 
         <nav className="flex flex-col gap-1 p-4">
           {navItems
-            .filter((item) => !("adminOnly" in item && item.adminOnly) || user.role === "ADMIN")
+            .filter((item) => !("adminOnly" in item && item.adminOnly) || isAdmin)
             .map((item) => {
             const isActive = location.pathname === item.to || (item.to !== "/dashboard" && location.pathname.startsWith(item.to));
             return (
@@ -100,14 +107,14 @@ export function AppShell({ user, children }: { user: Pick<User, "name" | "email"
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary/20">
               <span className="text-xs font-semibold text-sidebar-primary">
-                {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+                {userInitial}
               </span>
             </div>
             <div className="flex-1 truncate">
               <p className="truncate text-sm font-medium text-sidebar-foreground">
-                {user.name || user.email}
+                {userDisplay}
               </p>
-              <p className="truncate text-xs text-sidebar-foreground/50">{user.role}</p>
+              <p className="truncate text-xs text-sidebar-foreground/50">{userRole}</p>
             </div>
           </div>
           <Form method="post" action="/login" className="mt-2">

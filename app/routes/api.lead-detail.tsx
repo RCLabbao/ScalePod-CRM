@@ -8,7 +8,7 @@ export async function loader({ request }: { request: Request }) {
   const url = new URL(request.url);
   const leadId = url.searchParams.get("leadId");
   if (!leadId) {
-    return data({ error: "leadId is required" }, { status: 400 });
+    throw data({ error: "leadId is required" }, { status: 400 });
   }
 
   const lead = await prisma.lead.findUnique({
@@ -34,7 +34,7 @@ export async function loader({ request }: { request: Request }) {
   });
 
   if (!lead) {
-    return data({ error: "Lead not found" }, { status: 404 });
+    throw data({ error: "Lead not found" }, { status: 404 });
   }
 
   return data({ lead });
