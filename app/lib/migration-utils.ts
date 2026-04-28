@@ -23,6 +23,15 @@ const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bTRUNCATE\s+/i, label: "TRUNCATE" },
   { pattern: /\bDROP\s+TABLE\s+(?!IF\s+EXISTS)/i, label: "DROP TABLE without IF EXISTS" },
   { pattern: /\bDELETE\s+FROM\s+\w+\s*;/i, label: "DELETE without WHERE clause" },
+  { pattern: /\bGRANT\s+/i, label: "GRANT (privilege escalation)" },
+  { pattern: /\bREVOKE\s+/i, label: "REVOKE (privilege modification)" },
+  { pattern: /\bALTER\s+USER\b/i, label: "ALTER USER (privilege escalation)" },
+  { pattern: /\bCREATE\s+USER\b/i, label: "CREATE USER (privilege escalation)" },
+  { pattern: /\bDROP\s+USER\b/i, label: "DROP USER" },
+  { pattern: /\bLOAD\s+DATA\b/i, label: "LOAD DATA (file access)" },
+  { pattern: /\bINTO\s+OUTFILE\b/i, label: "INTO OUTFILE (file write)" },
+  { pattern: /\bINTO\s+DUMPFILE\b/i, label: "INTO DUMPFILE (file write)" },
+  { pattern: /\bUPDATE\s+\w+\s+SET\s+/i, label: "UPDATE (data modification — use ALTER TABLE for schema changes)" },
 ];
 
 /**

@@ -109,6 +109,18 @@ function highlightVariables(text: string): React.ReactNode {
 }
 
 function TemplatePreview({ html }: { html: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === "iframe-resize" && iframeRef.current) {
+        iframeRef.current.style.height = e.data.height + 16 + "px";
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   const srcDoc = `
     <!DOCTYPE html>
     <html>
@@ -127,12 +139,19 @@ function TemplatePreview({ html }: { html: string }) {
     </style>
     </head>
     <body>${html}</body>
+    <script>
+      function reportHeight() {
+        parent.postMessage({ type: 'iframe-resize', height: document.body.scrollHeight }, '*');
+      }
+      reportHeight();
+    </script>
     </html>
   `;
   return (
     <iframe
+      ref={iframeRef}
       srcDoc={srcDoc}
-      sandbox="allow-same-origin"
+      sandbox="allow-scripts"
       title="Template preview"
       className="w-full border-0 bg-white rounded-lg"
       style={{ minHeight: "160px" }}

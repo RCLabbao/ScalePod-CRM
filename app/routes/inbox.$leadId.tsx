@@ -16,6 +16,10 @@ import { logActivity } from "../lib/activity-log.server";
 import { getActivityStyle, formatStage } from "../lib/activity-log";
 import type { ActivityAction } from "../lib/activity-log";
 
+function isSafeUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
 export async function loader({ request, params }: { request: Request; params: { leadId: string } }) {
   const userId = await requireAuth(request);
   const user = await prisma.user.findUnique({
@@ -436,22 +440,22 @@ export default function LeadDetail() {
                       <div className="mt-4 pt-4 border-t border-border">
                         <dt className="text-sm font-medium text-muted-foreground mb-2">Social Profiles</dt>
                         <div className="flex flex-wrap gap-2">
-                          {lead.linkedin && (
+                          {lead.linkedin && isSafeUrl(lead.linkedin) && (
                             <a href={lead.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors">
                               <Linkedin className="h-3.5 w-3.5" /> LinkedIn
                             </a>
                           )}
-                          {lead.facebook && (
+                          {lead.facebook && isSafeUrl(lead.facebook) && (
                             <a href={lead.facebook} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/20 transition-colors">
                               <Facebook className="h-3.5 w-3.5" /> Facebook
                             </a>
                           )}
-                          {lead.instagram && (
+                          {lead.instagram && isSafeUrl(lead.instagram) && (
                             <a href={lead.instagram} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-pink-500/20 bg-pink-500/10 px-2.5 py-1 text-xs font-medium text-pink-400 hover:bg-pink-500/20 transition-colors">
                               <Instagram className="h-3.5 w-3.5" /> Instagram
                             </a>
                           )}
-                          {lead.twitter && (
+                          {lead.twitter && isSafeUrl(lead.twitter) && (
                             <a href={lead.twitter} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-400 hover:bg-sky-500/20 transition-colors">
                               <Twitter className="h-3.5 w-3.5" /> Twitter / X
                             </a>

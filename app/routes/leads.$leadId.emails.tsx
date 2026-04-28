@@ -22,7 +22,7 @@ import {
   Clock,
   Sparkles,
 } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export async function loader({ request, params }: { request: Request; params: { leadId: string } }) {
   const userId = await requireAuth(request);
@@ -155,6 +155,16 @@ export default function LeadEmails() {
   const [bodyHtml, setBodyHtml] = useState("");
   const editorRef = useRef<RichEditorHandle>(null);
   const previewRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === "iframe-resize" && previewRef.current) {
+        previewRef.current.style.height = e.data.height + 24 + "px";
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   // Parse template variables
   const parsePreview = useCallback((text: string) => {
@@ -401,20 +411,10 @@ export default function LeadEmails() {
                   <iframe
                     ref={previewRef}
                     srcDoc={previewSrcDoc}
-                    sandbox="allow-same-origin"
+                    sandbox="allow-scripts"
                     title="Email preview"
                     className="w-full border-0 bg-white"
                     style={{ minHeight: "200px" }}
-                    onLoad={() => {
-                      if (previewRef.current) {
-                        try {
-                          const doc = previewRef.current.contentDocument;
-                          if (doc?.body) {
-                            previewRef.current.style.height = doc.body.scrollHeight + 24 + "px";
-                          }
-                        } catch {}
-                      }
-                    }}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16">
@@ -562,5 +562,12 @@ function buildPreviewHtml(bodyContent: string): string {
 </style>
 </head>
 <body>${bodyContent}</body>
+<script>
+  function reportHeight() {
+    parent.postMessage({ type: 'iframe-resize', height: document.body.scrollHeight }, '*');
+  }
+  reportHeight();
+  new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true });
+</script>
 </html>`;
 }

@@ -2,10 +2,10 @@ import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
 import { validateApiKey, hasScope } from "../lib/api-key.server";
 import { data } from "react-router";
+import { z } from "zod";
 
 // ── Dual auth: session OR API key with scraper:read scope ─────────
 async function authenticate(request: Request) {
-  // If X-API-Key header is present, require valid API key auth
   const apiKeyHeader = request.headers.get("X-API-Key");
   if (apiKeyHeader) {
     const result = await validateApiKey(apiKeyHeader);
@@ -18,22 +18,26 @@ async function authenticate(request: Request) {
     return result.apiKey.userId;
   }
 
-  // No API key — fall back to session auth
   return await requireAuth(request);
 }
+
+const ScraperQuerySchema = z.object({
+  jobId: z.string().min(1, "jobId is required").max(50),
+});
 
 export async function loader({ request }: { request: Request }) {
   await authenticate(request);
 
   const url = new URL(request.url);
-  const jobId = url.searchParams.get("jobId");
-
-  if (!jobId) {
-    throw data({ error: "jobId is required" }, { status: 400 });
+  const result = ScraperQuerySchema.safeParse({
+    jobId: url.searchParams.get("jobId") || "",
+  });
+  if (!result.success) {
+    throw data({ error: "Invalid query parameters", issues: result.error.issues }, { status: 400 });
   }
 
   const job = await prisma.scraperJob.findUnique({
-    where: { id: jobId },
+    where: { id: result.data.jobId },
     select: {
       status: true,
       totalDiscovered: true,

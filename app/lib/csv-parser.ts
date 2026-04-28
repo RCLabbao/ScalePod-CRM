@@ -80,7 +80,15 @@ export function mapRowToLead(
   const lead: Record<string, string> = {};
   for (const [csvCol, leadField] of Object.entries(mapping)) {
     const value = row[csvCol];
-    if (value) lead[leadField] = value;
+    if (value) lead[leadField] = sanitizeCSVCell(value);
   }
   return lead;
+}
+
+// Strip formula prefixes that could cause CSV injection on export
+function sanitizeCSVCell(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`;
+  }
+  return value;
 }

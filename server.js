@@ -36,6 +36,11 @@ app.use(
     origin(origin, callback) {
       // Allow requests with no origin (mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
+      // In production, CORS_ORIGINS must be explicitly configured
+      if (allowedOrigins.length === 0 && isProduction) {
+        return callback(new Error("No CORS_ORIGINS configured. Set CORS_ORIGINS in environment."));
+      }
+      // In development with no origins configured, allow all
       if (allowedOrigins.length === 0) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));

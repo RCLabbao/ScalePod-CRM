@@ -1,4 +1,4 @@
-import { a, s, b, c, e, f, i, d, g, r, h, j } from "./assets/server-build-BRsgiWqR.js";
+import { a, s, b, c, e, f, i, d, g, r, h, j } from "./assets/server-build-BVUneRp0.js";
 import "react/jsx-runtime";
 import "isbot";
 import "react-dom/server";
@@ -16,6 +16,7 @@ import "googleapis";
 import "crypto";
 import "lucide-react";
 import "@hello-pangea/dnd";
+import "dompurify";
 import "zod";
 import "node:fs";
 import "node:path";

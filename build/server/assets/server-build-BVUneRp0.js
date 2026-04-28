@@ -7,7 +7,7 @@ import { FormStrategy } from "remix-auth-form";
 import pkg from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import * as React from "react";
-import React__default, { useState, useEffect, useMemo, useCallback, forwardRef, useRef, useImperativeHandle } from "react";
+import React__default, { useState, useEffect as useEffect$1, useMemo, useCallback, forwardRef, useRef, useImperativeHandle } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
 import { clsx } from "clsx";
@@ -16,6 +16,7 @@ import { google } from "googleapis";
 import { randomBytes, createHash } from "crypto";
 import { X, LayoutDashboard, UserPlus, Inbox, Kanban, Mail, BarChart3, Upload, Search, Users, ShieldCheck, Settings, FileJson, LogOut, Menu, TrendingUp, UserCheck, FileCheck, Trophy, Target, Layers, PieChart, Activity, Calendar, ChevronDown, Plus, ChevronRight, CheckCircle2, XCircle, ExternalLink, Snowflake, Sun, Flame, ArrowLeft, CheckCircle, User, Pencil, Save, Linkedin, Facebook, Instagram, Twitter, Clock, Send, AlertCircle, Building2, Globe, NotebookPen, ClipboardCheck, Loader2, ArrowUp, ArrowDown, Trash2, CheckSquare, Square, ThermometerSun, Link as Link$1, ArrowRight, SlidersHorizontal, FileText, Sparkles, MessageSquare, Bold, Italic, Underline, List, ListOrdered, Pilcrow, Eye, LayoutTemplate, Reply, MessageCircle, Link2, PenLine, ChevronUp, Zap, Lock, Shield, Server, AlertTriangle, BookOpen, Copy, FileSpreadsheet, Moon, Database, Key, Play, Table2, Columns3, FilePlus, Check } from "lucide-react";
 import { Draggable, DragDropContext, Droppable } from "@hello-pangea/dnd";
+import DOMPurify from "dompurify";
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -83,17 +84,23 @@ const root = UNSAFE_withComponentProps(function App() {
 const ErrorBoundary = UNSAFE_withErrorBoundaryProps(function ErrorBoundary2({
   error
 }) {
+  var _a;
   let message = "Oops!";
   let details = "An unexpected error occurred.";
   let stack;
+  const isProd = typeof window !== "undefined" && ((_a = window.location) == null ? void 0 : _a.hostname) !== "localhost";
   if (isRouteErrorResponse(error)) {
     message = error.status === 404 ? "404" : "Error";
     details = error.status === 404 ? "The requested page could not be found." : error.statusText || details;
   } else if (error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
+    if (isProd) {
+      details = "An unexpected error occurred. Please try again.";
+    } else {
+      details = error.message;
+      stack = error.stack;
+    }
   } else if (error) {
-    details = String(error);
+    details = isProd ? "An unexpected error occurred." : String(error);
   }
   return /* @__PURE__ */ jsxs("main", {
     className: "mx-auto max-w-3xl p-4 pt-16 text-center",
@@ -3111,6 +3118,9 @@ const Textarea = React.forwardRef(({ className, ...props }, ref) => {
   );
 });
 Textarea.displayName = "Textarea";
+function isSafeUrl(url) {
+  return /^https?:\/\//i.test(url);
+}
 async function loader$o({
   request,
   params
@@ -3760,7 +3770,7 @@ const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
                     children: "Social Profiles"
                   }), /* @__PURE__ */ jsxs("div", {
                     className: "flex flex-wrap gap-2",
-                    children: [lead.linkedin && /* @__PURE__ */ jsxs("a", {
+                    children: [lead.linkedin && isSafeUrl(lead.linkedin) && /* @__PURE__ */ jsxs("a", {
                       href: lead.linkedin,
                       target: "_blank",
                       rel: "noopener noreferrer",
@@ -3768,7 +3778,7 @@ const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
                       children: [/* @__PURE__ */ jsx(Linkedin, {
                         className: "h-3.5 w-3.5"
                       }), " LinkedIn"]
-                    }), lead.facebook && /* @__PURE__ */ jsxs("a", {
+                    }), lead.facebook && isSafeUrl(lead.facebook) && /* @__PURE__ */ jsxs("a", {
                       href: lead.facebook,
                       target: "_blank",
                       rel: "noopener noreferrer",
@@ -3776,7 +3786,7 @@ const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
                       children: [/* @__PURE__ */ jsx(Facebook, {
                         className: "h-3.5 w-3.5"
                       }), " Facebook"]
-                    }), lead.instagram && /* @__PURE__ */ jsxs("a", {
+                    }), lead.instagram && isSafeUrl(lead.instagram) && /* @__PURE__ */ jsxs("a", {
                       href: lead.instagram,
                       target: "_blank",
                       rel: "noopener noreferrer",
@@ -3784,7 +3794,7 @@ const inbox_$leadId = UNSAFE_withComponentProps(function LeadDetail() {
                       children: [/* @__PURE__ */ jsx(Instagram, {
                         className: "h-3.5 w-3.5"
                       }), " Instagram"]
-                    }), lead.twitter && /* @__PURE__ */ jsxs("a", {
+                    }), lead.twitter && isSafeUrl(lead.twitter) && /* @__PURE__ */ jsxs("a", {
                       href: lead.twitter,
                       target: "_blank",
                       rel: "noopener noreferrer",
@@ -4311,7 +4321,7 @@ const leads_new = UNSAFE_withComponentProps(function NewLead() {
     maxScore: Number(searchParams.get("maxScore")) || 0,
     percentage: Number(searchParams.get("percentage")) || 0
   } : null;
-  useEffect(() => {
+  useEffect$1(() => {
     if (successData) {
       window.scrollTo({
         top: 0,
@@ -5766,6 +5776,7 @@ const route12 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: verification_$leadId,
   loader: loader$l
 }, Symbol.toStringTag, { value: "Module" }));
+const ALLOWED_ROLES$1 = ["AGENT", "ADMIN"];
 async function loader$k({
   request
 }) {
@@ -5819,6 +5830,9 @@ async function action$e({
   if (intent === "updateRole") {
     const targetUserId = formData.get("userId");
     const newRole = formData.get("role");
+    if (!ALLOWED_ROLES$1.includes(newRole)) return {
+      error: "Invalid role."
+    };
     await prisma.user.update({
       where: {
         id: targetUserId
@@ -5833,8 +5847,8 @@ async function action$e({
   }
   if (intent === "delete") {
     const targetUserId = formData.get("userId");
-    const currentUserId = formData.get("currentUserId");
-    if (targetUserId === currentUserId) {
+    const sessionUserId = await requireAdmin(request);
+    if (targetUserId === sessionUserId) {
       return {
         error: "You cannot delete your own account."
       };
@@ -6143,7 +6157,7 @@ const users_new = UNSAFE_withComponentProps(function NewUser() {
   } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
-  useEffect(() => {
+  useEffect$1(() => {
     if (actionData == null ? void 0 : actionData.success) {
       window.scrollTo({
         top: 0,
@@ -6491,7 +6505,7 @@ function LeadDetailModal({
   saving
 }) {
   const [editing, setEditing] = useState(false);
-  useEffect(() => {
+  useEffect$1(() => {
     setEditing(false);
   }, [lead == null ? void 0 : lead.id]);
   if (!lead) return null;
@@ -7214,7 +7228,7 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
   const [moveError, setMoveError] = useState(null);
   const detailFetcher = useFetcher();
   const moveFetcher = useFetcher();
-  useEffect(() => {
+  useEffect$1(() => {
     setLocalStages(serverStages);
   }, [serverStages]);
   const displayStages = useMemo(() => {
@@ -7225,7 +7239,7 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
   }, [localStages, search, tempFilter]);
   const totalVisible = useMemo(() => displayStages.reduce((sum, s) => sum + s.leads.length, 0), [displayStages]);
   const totalAll = useMemo(() => serverStages.reduce((sum, s) => sum + s.leads.length, 0), [serverStages]);
-  useEffect(() => {
+  useEffect$1(() => {
     var _a;
     if ((_a = detailFetcher.data) == null ? void 0 : _a.lead) {
       setSelectedLead(detailFetcher.data.lead);
@@ -7234,7 +7248,7 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
       }
     }
   }, [detailFetcher.data]);
-  useEffect(() => {
+  useEffect$1(() => {
     if (moveFetcher.data) {
       if (!moveFetcher.data.success) {
         setMoveError("Failed to move lead. Please try again.");
@@ -8104,6 +8118,36 @@ const route16 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: emails,
   loader: loader$h
 }, Symbol.toStringTag, { value: "Module" }));
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: [
+    "b",
+    "i",
+    "u",
+    "strong",
+    "em",
+    "s",
+    "a",
+    "p",
+    "br",
+    "ul",
+    "ol",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "span",
+    "div",
+    "blockquote"
+  ],
+  ALLOWED_ATTR: ["href", "target", "style", "class"],
+  ALLOW_DATA_ATTR: false
+};
+function sanitizeHTML(html) {
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG);
+}
 const ToolbarButton = ({
   icon: Icon,
   label,
@@ -8128,7 +8172,7 @@ function exec(command, value) {
 }
 function htmlToFragment(html) {
   const template = document.createElement("template");
-  template.innerHTML = html;
+  template.innerHTML = sanitizeHTML(html);
   return template.content;
 }
 const RichEditor = forwardRef(
@@ -8152,9 +8196,10 @@ const RichEditor = forwardRef(
       },
       setHTML: (html) => {
         if (editorRef.current) {
+          const clean = sanitizeHTML(html);
           isInternalChange.current = true;
-          editorRef.current.innerHTML = html;
-          onChange(html);
+          editorRef.current.innerHTML = clean;
+          onChange(clean);
         }
       },
       insertHTML: (html) => {
@@ -8182,10 +8227,11 @@ const RichEditor = forwardRef(
         syncChange();
       }
     }));
-    useEffect(() => {
+    useEffect$1(() => {
       if (editorRef.current && !isInternalChange.current) {
-        if (editorRef.current.innerHTML !== value) {
-          editorRef.current.innerHTML = value;
+        const clean = sanitizeHTML(value);
+        if (editorRef.current.innerHTML !== clean) {
+          editorRef.current.innerHTML = clean;
         }
       }
       isInternalChange.current = false;
@@ -8363,6 +8409,17 @@ function highlightVariables(text) {
 function TemplatePreview({
   html
 }) {
+  const iframeRef = useRef(null);
+  useEffect$1(() => {
+    function onMessage(e) {
+      var _a;
+      if (((_a = e.data) == null ? void 0 : _a.type) === "iframe-resize" && iframeRef.current) {
+        iframeRef.current.style.height = e.data.height + 16 + "px";
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
   const srcDoc = `
     <!DOCTYPE html>
     <html>
@@ -8381,11 +8438,18 @@ function TemplatePreview({
     </style>
     </head>
     <body>${html}</body>
+    <script>
+      function reportHeight() {
+        parent.postMessage({ type: 'iframe-resize', height: document.body.scrollHeight }, '*');
+      }
+      reportHeight();
+    <\/script>
     </html>
   `;
   return /* @__PURE__ */ jsx("iframe", {
+    ref: iframeRef,
     srcDoc,
-    sandbox: "allow-same-origin",
+    sandbox: "allow-scripts",
     title: "Template preview",
     className: "w-full border-0 bg-white rounded-lg",
     style: {
@@ -8409,7 +8473,7 @@ const emails_templates = UNSAFE_withComponentProps(function EmailTemplates() {
   const [editSubject, setEditSubject] = useState("");
   const [editBody, setEditBody] = useState("");
   const editEditorRef = useRef(null);
-  useEffect(() => {
+  useEffect$1(() => {
     if (actionData == null ? void 0 : actionData.success) {
       setShowForm(false);
       setEditingId(null);
@@ -9355,6 +9419,16 @@ function EmailBody({
   plain
 }) {
   const iframeRef = useRef(null);
+  useEffect(() => {
+    function onMessage(e) {
+      var _a;
+      if (((_a = e.data) == null ? void 0 : _a.type) === "iframe-resize" && iframeRef.current) {
+        iframeRef.current.style.height = e.data.height + 32 + "px";
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
   if (html) {
     const srcdoc = `<!DOCTYPE html>
 <html>
@@ -9373,26 +9447,22 @@ function EmailBody({
 </style>
 </head>
 <body>${html}</body>
+<script>
+  function reportHeight() {
+    parent.postMessage({ type: 'iframe-resize', height: document.body.scrollHeight }, '*');
+  }
+  reportHeight();
+  new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true });
+<\/script>
 </html>`;
     return /* @__PURE__ */ jsx("iframe", {
       ref: iframeRef,
       srcDoc: srcdoc,
-      sandbox: "allow-same-origin",
+      sandbox: "allow-scripts",
       title: "Email content",
       className: "w-full border-0 rounded-lg",
       style: {
         minHeight: "200px"
-      },
-      onLoad: () => {
-        if (iframeRef.current) {
-          try {
-            const doc = iframeRef.current.contentDocument;
-            if (doc == null ? void 0 : doc.body) {
-              iframeRef.current.style.height = doc.body.scrollHeight + 32 + "px";
-            }
-          } catch {
-          }
-        }
       }
     });
   }
@@ -9854,6 +9924,16 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
   const [bodyHtml, setBodyHtml] = useState("");
   const editorRef = useRef(null);
   const previewRef = useRef(null);
+  useEffect$1(() => {
+    function onMessage(e) {
+      var _a2;
+      if (((_a2 = e.data) == null ? void 0 : _a2.type) === "iframe-resize" && previewRef.current) {
+        previewRef.current.style.height = e.data.height + 24 + "px";
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
   const parsePreview = useCallback((text) => {
     const replacements = {
       company_name: lead.companyName,
@@ -10109,22 +10189,11 @@ const leads_$leadId_emails = UNSAFE_withComponentProps(function LeadEmails() {
               children: previewSrcDoc ? /* @__PURE__ */ jsx("iframe", {
                 ref: previewRef,
                 srcDoc: previewSrcDoc,
-                sandbox: "allow-same-origin",
+                sandbox: "allow-scripts",
                 title: "Email preview",
                 className: "w-full border-0 bg-white",
                 style: {
                   minHeight: "200px"
-                },
-                onLoad: () => {
-                  if (previewRef.current) {
-                    try {
-                      const doc = previewRef.current.contentDocument;
-                      if (doc == null ? void 0 : doc.body) {
-                        previewRef.current.style.height = doc.body.scrollHeight + 24 + "px";
-                      }
-                    } catch {
-                    }
-                  }
                 }
               }) : /* @__PURE__ */ jsxs("div", {
                 className: "flex flex-col items-center justify-center py-16",
@@ -10254,6 +10323,13 @@ function buildPreviewHtml(bodyContent) {
 </style>
 </head>
 <body>${bodyContent}</body>
+<script>
+  function reportHeight() {
+    parent.postMessage({ type: 'iframe-resize', height: document.body.scrollHeight }, '*');
+  }
+  reportHeight();
+  new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true });
+<\/script>
 </html>`;
 }
 const route20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -10347,6 +10423,7 @@ function requireScope(scopes, scope) {
     });
   }
 }
+const LEAD_STATUSES = ["INBOX", "ACTIVE", "REJECTED", "QUALIFIED", "CONVERTED"];
 const LeadPayloadSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   website: z.string().optional(),
@@ -10361,6 +10438,11 @@ const LeadPayloadSchema = z.object({
   twitter: z.string().optional(),
   leadSource: z.string().optional().default("API"),
   notes: z.string().optional()
+});
+const LeadsQuerySchema = z.object({
+  status: z.enum(LEAD_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
 });
 const LEAD_PUBLIC_FIELDS = {
   id: true,
@@ -10380,6 +10462,27 @@ const LEAD_PUBLIC_FIELDS = {
   leadSource: true,
   createdAt: true
 };
+const rateLimitStore = /* @__PURE__ */ new Map();
+function checkRateLimit(keyId, tier) {
+  const limits = TIER_LIMITS$1[tier];
+  const now = Date.now();
+  let entry2 = rateLimitStore.get(keyId);
+  if (!entry2 || now >= entry2.resetAt) {
+    entry2 = {
+      count: 0,
+      resetAt: now + 6e4
+    };
+    rateLimitStore.set(keyId, entry2);
+  }
+  entry2.count++;
+  const remaining = Math.max(0, limits.perMinute - entry2.count);
+  const allowed = entry2.count <= limits.perMinute;
+  return {
+    allowed,
+    remaining,
+    resetAt: entry2.resetAt
+  };
+}
 function rateLimitHeaders(tier, remaining, resetAt) {
   const limits = TIER_LIMITS$1[tier];
   return {
@@ -10393,15 +10496,38 @@ async function loader$c({
 }) {
   const apiKey = await authenticate$1(request);
   requireScope(apiKey.scopes, "leads:read");
+  const rl = checkRateLimit(apiKey.id, apiKey.tier);
+  if (!rl.allowed) {
+    throw data({
+      error: "Rate limit exceeded. Retry after the time shown in X-RateLimit-Reset."
+    }, {
+      status: 429,
+      headers: {
+        "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1e3)),
+        ...rateLimitHeaders(apiKey.tier, 0, rl.resetAt)
+      }
+    });
+  }
   const url = new URL(request.url);
-  const status = url.searchParams.get("status") || void 0;
-  const limit = parseInt(url.searchParams.get("limit") || "50");
-  const offset = parseInt(url.searchParams.get("offset") || "0");
+  const queryResult = LeadsQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+  if (!queryResult.success) {
+    throw data({
+      error: "Invalid query parameters",
+      issues: queryResult.error.issues
+    }, {
+      status: 400
+    });
+  }
+  const {
+    status,
+    limit,
+    offset
+  } = queryResult.data;
   const leads = await prisma.lead.findMany({
     where: status ? {
       status
     } : void 0,
-    take: Math.min(limit, 100),
+    take: limit,
     skip: offset,
     orderBy: {
       createdAt: "desc"
@@ -10413,16 +10539,13 @@ async function loader$c({
       status
     } : void 0
   });
-  const windowMs = 60 * 1e3;
-  const resetAt = Date.now() + windowMs;
-  const tierLimits = TIER_LIMITS$1[apiKey.tier];
   return data({
     leads,
     total,
-    limit: Math.min(limit, 100),
+    limit,
     offset
   }, {
-    headers: rateLimitHeaders(apiKey.tier, tierLimits.perMinute, resetAt)
+    headers: rateLimitHeaders(apiKey.tier, rl.remaining, rl.resetAt)
   });
 }
 async function action$7({
@@ -10430,6 +10553,18 @@ async function action$7({
 }) {
   const apiKey = await authenticate$1(request);
   requireScope(apiKey.scopes, "leads:write");
+  const rl = checkRateLimit(apiKey.id, apiKey.tier);
+  if (!rl.allowed) {
+    throw data({
+      error: "Rate limit exceeded. Retry after the time shown in X-RateLimit-Reset."
+    }, {
+      status: 429,
+      headers: {
+        "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1e3)),
+        ...rateLimitHeaders(apiKey.tier, 0, rl.resetAt)
+      }
+    });
+  }
   if (request.method !== "POST") {
     throw data({
       error: "Method not allowed"
@@ -10538,22 +10673,28 @@ const route21 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   action: action$7,
   loader: loader$c
 }, Symbol.toStringTag, { value: "Module" }));
+const LeadDetailQuerySchema = z.object({
+  leadId: z.string().min(1, "leadId is required").max(50)
+});
 async function loader$b({
   request
 }) {
   await requireAuth(request);
   const url = new URL(request.url);
-  const leadId = url.searchParams.get("leadId");
-  if (!leadId) {
+  const result = LeadDetailQuerySchema.safeParse({
+    leadId: url.searchParams.get("leadId") || ""
+  });
+  if (!result.success) {
     throw data({
-      error: "leadId is required"
+      error: "Invalid query parameters",
+      issues: result.error.issues
     }, {
       status: 400
     });
   }
   const lead = await prisma.lead.findUnique({
     where: {
-      id: leadId
+      id: result.data.leadId
     },
     include: {
       createdBy: {
@@ -10651,22 +10792,28 @@ async function authenticate(request) {
   }
   return await requireAuth(request);
 }
+const ScraperQuerySchema = z.object({
+  jobId: z.string().min(1, "jobId is required").max(50)
+});
 async function loader$a({
   request
 }) {
   await authenticate(request);
   const url = new URL(request.url);
-  const jobId = url.searchParams.get("jobId");
-  if (!jobId) {
+  const result = ScraperQuerySchema.safeParse({
+    jobId: url.searchParams.get("jobId") || ""
+  });
+  if (!result.success) {
     throw data({
-      error: "jobId is required"
+      error: "Invalid query parameters",
+      issues: result.error.issues
     }, {
       status: 400
     });
   }
   const job = await prisma.scraperJob.findUnique({
     where: {
-      id: jobId
+      id: result.data.jobId
     },
     select: {
       status: true,
@@ -10995,12 +11142,12 @@ const docs_api = UNSAFE_withComponentProps(function ApiDocs() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const mainRef = useRef(null);
   const scrollContainerRef = useRef(null);
-  useEffect(() => {
+  useEffect$1(() => {
     if (mainRef.current) {
       scrollContainerRef.current = mainRef.current.closest("main");
     }
   }, []);
-  useEffect(() => {
+  useEffect$1(() => {
     const root2 = scrollContainerRef.current;
     if (!root2) return;
     const observer = new IntersectionObserver((entries) => {
@@ -11020,7 +11167,7 @@ const docs_api = UNSAFE_withComponentProps(function ApiDocs() {
     });
     return () => observer.disconnect();
   }, []);
-  useEffect(() => {
+  useEffect$1(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const onScroll = () => setShowBackToTop(el.scrollTop > 600);
@@ -12282,9 +12429,15 @@ function mapRowToLead(row, mapping) {
   const lead = {};
   for (const [csvCol, leadField] of Object.entries(mapping)) {
     const value = row[csvCol];
-    if (value) lead[leadField] = value;
+    if (value) lead[leadField] = sanitizeCSVCell(value);
   }
   return lead;
+}
+function sanitizeCSVCell(value) {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`;
+  }
+  return value;
 }
 async function processImport(importId) {
   var _a;
@@ -12703,7 +12856,7 @@ function useTheme() {
     if (typeof window === "undefined") return "dark";
     return localStorage.getItem("theme") || "dark";
   });
-  useEffect(() => {
+  useEffect$1(() => {
     const root2 = document.documentElement;
     root2.classList.remove("dark", "light");
     root2.classList.add(theme);
@@ -12767,7 +12920,7 @@ const settings = UNSAFE_withComponentProps(function Settings2() {
   const navigation = useNavigation();
   const [, setSearchParams] = useSearchParams();
   const isDisconnecting = navigation.state === "submitting" && ((_a = navigation.formData) == null ? void 0 : _a.get("intent")) === "disconnectGmail";
-  useEffect(() => {
+  useEffect$1(() => {
     if (gmailStatus) {
       const timer = setTimeout(() => setSearchParams({}, {
         replace: true
@@ -13030,6 +13183,7 @@ const route27 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: settings,
   loader: loader$6
 }, Symbol.toStringTag, { value: "Module" }));
+const ALLOWED_ROLES = ["AGENT", "ADMIN"];
 async function loader$5({
   request
 }) {
@@ -13075,6 +13229,9 @@ async function action$4({
     if (!email || !password) return {
       error: "Email and password required."
     };
+    if (!ALLOWED_ROLES.includes(role)) return {
+      error: "Invalid role."
+    };
     const existing = await prisma.user.findUnique({
       where: {
         email
@@ -13099,6 +13256,9 @@ async function action$4({
   if (intent === "updateRole") {
     const targetUserId = formData.get("userId");
     const newRole = formData.get("role");
+    if (!ALLOWED_ROLES.includes(newRole)) return {
+      error: "Invalid role."
+    };
     await prisma.user.update({
       where: {
         id: targetUserId
@@ -13113,8 +13273,8 @@ async function action$4({
   }
   if (intent === "delete") {
     const targetUserId = formData.get("userId");
-    const currentUserId = formData.get("currentUserId");
-    if (targetUserId === currentUserId) {
+    const sessionUserId = await requireAdmin(request);
+    if (targetUserId === sessionUserId) {
       return {
         error: "You cannot delete your own account."
       };
@@ -13366,7 +13526,16 @@ const DANGEROUS_PATTERNS = [
   { pattern: /\bDROP\s+DATABASE\b/i, label: "DROP DATABASE" },
   { pattern: /\bTRUNCATE\s+/i, label: "TRUNCATE" },
   { pattern: /\bDROP\s+TABLE\s+(?!IF\s+EXISTS)/i, label: "DROP TABLE without IF EXISTS" },
-  { pattern: /\bDELETE\s+FROM\s+\w+\s*;/i, label: "DELETE without WHERE clause" }
+  { pattern: /\bDELETE\s+FROM\s+\w+\s*;/i, label: "DELETE without WHERE clause" },
+  { pattern: /\bGRANT\s+/i, label: "GRANT (privilege escalation)" },
+  { pattern: /\bREVOKE\s+/i, label: "REVOKE (privilege modification)" },
+  { pattern: /\bALTER\s+USER\b/i, label: "ALTER USER (privilege escalation)" },
+  { pattern: /\bCREATE\s+USER\b/i, label: "CREATE USER (privilege escalation)" },
+  { pattern: /\bDROP\s+USER\b/i, label: "DROP USER" },
+  { pattern: /\bLOAD\s+DATA\b/i, label: "LOAD DATA (file access)" },
+  { pattern: /\bINTO\s+OUTFILE\b/i, label: "INTO OUTFILE (file write)" },
+  { pattern: /\bINTO\s+DUMPFILE\b/i, label: "INTO DUMPFILE (file write)" },
+  { pattern: /\bUPDATE\s+\w+\s+SET\s+/i, label: "UPDATE (data modification — use ALTER TABLE for schema changes)" }
 ];
 function checkDangerousSQL(sql) {
   for (const { pattern, label } of DANGEROUS_PATTERNS) {
@@ -13411,6 +13580,10 @@ async function getAppliedMigrations() {
   `;
   return rows.map((r) => r.name);
 }
+async function recordMigration(name) {
+  const safeName = sanitizeMigrationName(name);
+  await prisma.$executeRaw`INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES (${safeName}, NOW(3))`;
+}
 async function getMigrationStatus() {
   const applied = await getAppliedMigrations();
   const files = discoverMigrationFiles(MIGRATIONS_DIR).map((name) => ({
@@ -13454,15 +13627,12 @@ async function applyPendingMigrations() {
         for (const stmt of statements) {
           await tx.$executeRawUnsafe(stmt);
         }
-        const safeName = sanitizeMigrationName(migration.name);
-        await tx.$executeRawUnsafe(
-          `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-        );
+        await recordMigration(migration.name);
       });
       appliedList.push(migration.name);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      errors.push({ migration: migration.name, error: message });
+      errors.push({ migration: migration.name, error: sanitizeErrorMessage$1(message) });
       break;
     }
   }
@@ -13497,7 +13667,7 @@ async function createMigration(name, sql, options) {
   return { filename, applied: false };
 }
 async function applySingleMigration(filename) {
-  const safeName = sanitizeMigrationName(filename);
+  sanitizeMigrationName(filename);
   const filePath = path.join(MIGRATIONS_DIR, filename);
   if (!fs.existsSync(filePath)) {
     return { applied: false, error: `Migration file not found: ${filename}` };
@@ -13513,14 +13683,12 @@ async function applySingleMigration(filename) {
       for (const stmt of statements) {
         await tx.$executeRawUnsafe(stmt);
       }
-      await tx.$executeRawUnsafe(
-        `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-      );
+      await recordMigration(filename);
     });
     return { applied: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { applied: false, error: message };
+    return { applied: false, error: sanitizeErrorMessage$1(message) };
   }
 }
 async function markBaselineApplied() {
@@ -13529,15 +13697,12 @@ async function markBaselineApplied() {
   if (applied.includes("000_baseline.sql")) {
     return false;
   }
-  const safeName = sanitizeMigrationName("000_baseline.sql");
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-  );
+  await recordMigration("000_baseline.sql");
   return true;
 }
 async function markMigrationApplied(filename) {
   await ensureMigrationTable();
-  const safeName = sanitizeMigrationName(filename);
+  sanitizeMigrationName(filename);
   const filePath = path.join(MIGRATIONS_DIR, filename);
   if (!fs.existsSync(filePath)) {
     return { success: false, error: `Migration file not found: ${filename}` };
@@ -13546,10 +13711,11 @@ async function markMigrationApplied(filename) {
   if (applied.includes(filename)) {
     return { success: false, error: `Migration already marked as applied: ${filename}` };
   }
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-  );
+  await recordMigration(filename);
   return { success: true };
+}
+function sanitizeErrorMessage$1(message) {
+  return message.replace(/mysql:\/\//g, "mysql:[redacted]@").replace(/password=\S+/g, "password=[redacted]").replace(/host=\S+/g, "host=[redacted]").slice(0, 200);
 }
 function prismaTypeToMysql(field) {
   const t = field.dbType;
@@ -13780,8 +13946,11 @@ async function applySchemaDiffSQL(sql) {
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: message };
+    return { success: false, error: sanitizeErrorMessage(message) };
   }
+}
+function sanitizeErrorMessage(message) {
+  return message.replace(/mysql:\/\//g, "mysql:[redacted]@").replace(/password=\S+/g, "password=[redacted]").replace(/host=\S+/g, "host=[redacted]").slice(0, 200);
 }
 async function loader$4({
   request
@@ -14928,7 +15097,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-BLuTeSrv.js").then(({
+    import("./pipeline-BRtGZ-Tx.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -14957,7 +15126,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-BLuTeSrv.js").then(({
+    import("./pipeline-BRtGZ-Tx.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -15242,7 +15411,7 @@ const scraper_$jobId = UNSAFE_withComponentProps(function ScraperJobDetail() {
   const navigate = useNavigate();
   const isActive = !["COMPLETED", "FAILED", "CANCELLED"].includes(job.status);
   const intervalRef = useRef(null);
-  useEffect(() => {
+  useEffect$1(() => {
     if (isActive) {
       intervalRef.current = setInterval(() => {
         revalidator.revalidate();
@@ -15501,7 +15670,7 @@ const route33 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   default: scraper_$jobId,
   loader
 }, Symbol.toStringTag, { value: "Module" }));
-const serverManifest = { "entry": { "module": "/assets/entry.client-Dr7tVXEk.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/index-Cr13DWum.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-CwNBm9JM.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/index-Cr13DWum.js"], "css": ["/assets/root-Bo3DxLcK.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-CrfWtn3K.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-BmCY65hy.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-n2l5Gdef.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-ird1E8iK.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/trending-up-BVESPKsI.js", "/assets/button-y6KmDfK8.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-By8i4ORO.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/activity-log-C5qbkjuf.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/button-y6KmDfK8.js", "/assets/target-DavlnHM2.js", "/assets/trending-up-BVESPKsI.js", "/assets/activity-CRQQlGhV.js", "/assets/chevron-down-BMBN1XX0.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-DSzqReVZ.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/plus-CxtiuuP4.js", "/assets/chevron-down-BMBN1XX0.js", "/assets/circle-check-DXtwbWBH.js", "/assets/circle-x-Ch_8CIXJ.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/sun-CHVOAzV8.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-y0b5uxTR.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/textarea-DLAZjgNS.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/activity-log-C5qbkjuf.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-x-Ch_8CIXJ.js", "/assets/user-B2d-hzxD.js", "/assets/save-tl8XPhdP.js", "/assets/twitter-BgXylJMe.js", "/assets/activity-CRQQlGhV.js", "/assets/clock-BxQgZJR7.js", "/assets/send-D63_4Ezn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-ScP05kkC.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/sun-CHVOAzV8.js", "/assets/circle-check-DXtwbWBH.js", "/assets/circle-alert-ZhYWnany.js", "/assets/user-B2d-hzxD.js", "/assets/building-2-AIZpVaCj.js", "/assets/twitter-BgXylJMe.js", "/assets/globe-4GHVyx3p.js", "/assets/loader-circle-Dqg4lrLH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-xJkFGUqr.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/select-hh-8482N.js", "/assets/badge-C-KdX7eC.js", "/assets/card-Liqg-S64.js", "/assets/plus-CxtiuuP4.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-CWunM_dN.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/textarea-DLAZjgNS.js", "/assets/card-Liqg-S64.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/sun-CHVOAzV8.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-Amc0Gdop.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/badge-C-KdX7eC.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/user-B2d-hzxD.js", "/assets/activity-CRQQlGhV.js", "/assets/target-DavlnHM2.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-B0AINwj6.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-Blq-6NRo.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/badge-C-KdX7eC.js", "/assets/input-CRy1gcHp.js", "/assets/index-Cr13DWum.js", "/assets/card-Liqg-S64.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/dialog-s7zvSlQi.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/activity-log-C5qbkjuf.js", "/assets/building-2-AIZpVaCj.js", "/assets/save-tl8XPhdP.js", "/assets/user-B2d-hzxD.js", "/assets/globe-4GHVyx3p.js", "/assets/link-B1e4eOdx.js", "/assets/arrow-right-g04pDJp1.js", "/assets/clock-BxQgZJR7.js", "/assets/circle-alert-ZhYWnany.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-BjZxNjvk.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/send-D63_4Ezn.js", "/assets/circle-alert-ZhYWnany.js", "/assets/sparkles-COOz0S_1.js", "/assets/loader-circle-Dqg4lrLH.js", "/assets/arrow-right-g04pDJp1.js", "/assets/clock-BxQgZJR7.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-C-6MkeoR.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js", "/assets/rich-editor-D0IK3xNt.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/plus-CxtiuuP4.js", "/assets/sparkles-COOz0S_1.js", "/assets/save-tl8XPhdP.js", "/assets/trash-2-hqp7VSuU.js", "/assets/clock-BxQgZJR7.js", "/assets/link-B1e4eOdx.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-BUpDoOVd.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/textarea-DLAZjgNS.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/user-B2d-hzxD.js", "/assets/reply-ng5tubMH.js", "/assets/send-D63_4Ezn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-CWichyVt.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/textarea-DLAZjgNS.js", "/assets/label-Dhc6ALnq.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/reply-ng5tubMH.js", "/assets/send-D63_4Ezn.js", "/assets/user-B2d-hzxD.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-CrGCV_cX.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/select-hh-8482N.js", "/assets/label-Dhc6ALnq.js", "/assets/input-CRy1gcHp.js", "/assets/rich-editor-D0IK3xNt.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-alert-ZhYWnany.js", "/assets/user-B2d-hzxD.js", "/assets/sparkles-COOz0S_1.js", "/assets/send-D63_4Ezn.js", "/assets/clock-BxQgZJR7.js", "/assets/chevron-up-C3Fmdtsg.js", "/assets/chevron-down-BMBN1XX0.js", "/assets/link-B1e4eOdx.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.lead-detail": { "id": "routes/api.lead-detail", "parentId": "root", "path": "api/lead-detail", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.lead-detail-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/docs.api": { "id": "routes/docs.api", "parentId": "root", "path": "docs/api", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/docs.api-dwp0Trhj.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/button-y6KmDfK8.js", "/assets/zap-Cv2m19Br.js", "/assets/clock-BxQgZJR7.js", "/assets/shield-DsMDRwkV.js", "/assets/triangle-alert-CJQOHZCz.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/chevron-up-C3Fmdtsg.js", "/assets/globe-4GHVyx3p.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-CWIbVgCR.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-DqyOyqvm.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-0xVx2Yb8.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/sun-CHVOAzV8.js", "/assets/database-DAf0y2Kv.js", "/assets/key-C_jPM45a.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-wCuWOtq3.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/badge-C-KdX7eC.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/dialog-s7zvSlQi.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/plus-CxtiuuP4.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database-DxafSv6F.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/database-DAf0y2Kv.js", "/assets/circle-check-DXtwbWBH.js", "/assets/circle-alert-ZhYWnany.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.api-keys": { "id": "routes/settings.api-keys", "parentId": "root", "path": "settings/api-keys", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.api-keys-BL_8eoKX.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/key-C_jPM45a.js", "/assets/shield-DsMDRwkV.js", "/assets/plus-CxtiuuP4.js", "/assets/clock-BxQgZJR7.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-Hwp1dUDW.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/globe-4GHVyx3p.js", "/assets/zap-Cv2m19Br.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-BniyOkWk.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/globe-4GHVyx3p.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-CsrEfqfE.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/loader-circle-Dqg4lrLH.js", "/assets/globe-4GHVyx3p.js", "/assets/clock-BxQgZJR7.js", "/assets/triangle-alert-CJQOHZCz.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-28a11c3c.js", "version": "28a11c3c", "sri": void 0 };
+const serverManifest = { "entry": { "module": "/assets/entry.client-Dr7tVXEk.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/index-Cr13DWum.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-DErJaTE8.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/index-Cr13DWum.js"], "css": ["/assets/root-Bo3DxLcK.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-CrfWtn3K.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-BmCY65hy.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-n2l5Gdef.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-ird1E8iK.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/trending-up-BVESPKsI.js", "/assets/button-y6KmDfK8.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-By8i4ORO.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/activity-log-C5qbkjuf.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/button-y6KmDfK8.js", "/assets/target-DavlnHM2.js", "/assets/trending-up-BVESPKsI.js", "/assets/activity-CRQQlGhV.js", "/assets/chevron-down-BMBN1XX0.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-DSzqReVZ.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/plus-CxtiuuP4.js", "/assets/chevron-down-BMBN1XX0.js", "/assets/circle-check-DXtwbWBH.js", "/assets/circle-x-Ch_8CIXJ.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/sun-CHVOAzV8.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-CtH2Xbe_.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/textarea-DLAZjgNS.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/activity-log-C5qbkjuf.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-x-Ch_8CIXJ.js", "/assets/user-B2d-hzxD.js", "/assets/save-tl8XPhdP.js", "/assets/twitter-BgXylJMe.js", "/assets/activity-CRQQlGhV.js", "/assets/clock-BxQgZJR7.js", "/assets/send-D63_4Ezn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-ScP05kkC.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/sun-CHVOAzV8.js", "/assets/circle-check-DXtwbWBH.js", "/assets/circle-alert-ZhYWnany.js", "/assets/user-B2d-hzxD.js", "/assets/building-2-AIZpVaCj.js", "/assets/twitter-BgXylJMe.js", "/assets/globe-4GHVyx3p.js", "/assets/loader-circle-Dqg4lrLH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-xJkFGUqr.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/select-hh-8482N.js", "/assets/badge-C-KdX7eC.js", "/assets/card-Liqg-S64.js", "/assets/plus-CxtiuuP4.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-CWunM_dN.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/textarea-DLAZjgNS.js", "/assets/card-Liqg-S64.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/sun-CHVOAzV8.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-Amc0Gdop.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/badge-C-KdX7eC.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/user-B2d-hzxD.js", "/assets/activity-CRQQlGhV.js", "/assets/target-DavlnHM2.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-B0AINwj6.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-Blq-6NRo.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/badge-C-KdX7eC.js", "/assets/input-CRy1gcHp.js", "/assets/index-Cr13DWum.js", "/assets/card-Liqg-S64.js", "/assets/snowflake-BIrTKv8Q.js", "/assets/dialog-s7zvSlQi.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/activity-log-C5qbkjuf.js", "/assets/building-2-AIZpVaCj.js", "/assets/save-tl8XPhdP.js", "/assets/user-B2d-hzxD.js", "/assets/globe-4GHVyx3p.js", "/assets/link-B1e4eOdx.js", "/assets/arrow-right-g04pDJp1.js", "/assets/clock-BxQgZJR7.js", "/assets/circle-alert-ZhYWnany.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-BjZxNjvk.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/send-D63_4Ezn.js", "/assets/circle-alert-ZhYWnany.js", "/assets/sparkles-COOz0S_1.js", "/assets/loader-circle-Dqg4lrLH.js", "/assets/arrow-right-g04pDJp1.js", "/assets/clock-BxQgZJR7.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-CzQMJIU8.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/card-Liqg-S64.js", "/assets/rich-editor-Uk0-VQHR.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/plus-CxtiuuP4.js", "/assets/sparkles-COOz0S_1.js", "/assets/save-tl8XPhdP.js", "/assets/trash-2-hqp7VSuU.js", "/assets/clock-BxQgZJR7.js", "/assets/link-B1e4eOdx.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-BUpDoOVd.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/textarea-DLAZjgNS.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/user-B2d-hzxD.js", "/assets/reply-ng5tubMH.js", "/assets/send-D63_4Ezn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-CX8w6sld.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/textarea-DLAZjgNS.js", "/assets/label-Dhc6ALnq.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/reply-ng5tubMH.js", "/assets/send-D63_4Ezn.js", "/assets/user-B2d-hzxD.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-Dlr3l8vi.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/select-hh-8482N.js", "/assets/label-Dhc6ALnq.js", "/assets/input-CRy1gcHp.js", "/assets/rich-editor-Uk0-VQHR.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-alert-ZhYWnany.js", "/assets/user-B2d-hzxD.js", "/assets/sparkles-COOz0S_1.js", "/assets/send-D63_4Ezn.js", "/assets/clock-BxQgZJR7.js", "/assets/chevron-up-C3Fmdtsg.js", "/assets/chevron-down-BMBN1XX0.js", "/assets/link-B1e4eOdx.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.lead-detail": { "id": "routes/api.lead-detail", "parentId": "root", "path": "api/lead-detail", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.lead-detail-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/docs.api": { "id": "routes/docs.api", "parentId": "root", "path": "docs/api", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/docs.api-dwp0Trhj.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/button-y6KmDfK8.js", "/assets/zap-Cv2m19Br.js", "/assets/clock-BxQgZJR7.js", "/assets/shield-DsMDRwkV.js", "/assets/triangle-alert-CJQOHZCz.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/chevron-up-C3Fmdtsg.js", "/assets/globe-4GHVyx3p.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-CWIbVgCR.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-DqyOyqvm.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/circle-check-DXtwbWBH.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-0xVx2Yb8.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/sun-CHVOAzV8.js", "/assets/database-DAf0y2Kv.js", "/assets/key-C_jPM45a.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-wCuWOtq3.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/badge-C-KdX7eC.js", "/assets/card-Liqg-S64.js", "/assets/select-hh-8482N.js", "/assets/dialog-s7zvSlQi.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/plus-CxtiuuP4.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database-DxafSv6F.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/input-CRy1gcHp.js", "/assets/label-Dhc6ALnq.js", "/assets/textarea-DLAZjgNS.js", "/assets/database-DAf0y2Kv.js", "/assets/circle-check-DXtwbWBH.js", "/assets/circle-alert-ZhYWnany.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.api-keys": { "id": "routes/settings.api-keys", "parentId": "root", "path": "settings/api-keys", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.api-keys-BL_8eoKX.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/key-C_jPM45a.js", "/assets/shield-DsMDRwkV.js", "/assets/plus-CxtiuuP4.js", "/assets/clock-BxQgZJR7.js", "/assets/trash-2-hqp7VSuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-Hwp1dUDW.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/globe-4GHVyx3p.js", "/assets/zap-Cv2m19Br.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-BniyOkWk.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/globe-4GHVyx3p.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-CsrEfqfE.js", "imports": ["/assets/chunk-QFMPRPBF-ByHq8tKT.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-BKWtNLQ7.js", "/assets/button-y6KmDfK8.js", "/assets/card-Liqg-S64.js", "/assets/badge-C-KdX7eC.js", "/assets/arrow-left-DJ71IUKB.js", "/assets/loader-circle-Dqg4lrLH.js", "/assets/globe-4GHVyx3p.js", "/assets/clock-BxQgZJR7.js", "/assets/triangle-alert-CJQOHZCz.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-bfe5444f.js", "version": "bfe5444f", "sri": void 0 };
 const assetsBuildDirectory = "build\\client";
 const basename = "/";
 const future = { "unstable_optimizeDeps": false, "unstable_passThroughRequests": false, "unstable_subResourceIntegrity": false, "unstable_trailingSlashAwareDataRequests": false, "unstable_previewServerPrerendering": false, "v8_middleware": false, "v8_splitRouteModules": false, "v8_viteEnvironmentApi": false };

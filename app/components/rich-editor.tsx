@@ -1,6 +1,20 @@
 import { useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Bold, Italic, Underline, List, ListOrdered, Link, Pilcrow } from "lucide-react";
+import DOMPurify from "dompurify";
 import { cn } from "~/lib/utils";
+
+const SANITIZE_CONFIG: DOMPurify.Config = {
+  ALLOWED_TAGS: [
+    "b", "i", "u", "strong", "em", "s", "a", "p", "br", "ul", "ol", "li",
+    "h1", "h2", "h3", "h4", "h5", "h6", "span", "div", "blockquote",
+  ],
+  ALLOWED_ATTR: ["href", "target", "style", "class"],
+  ALLOW_DATA_ATTR: false,
+};
+
+function sanitizeHTML(html: string): string {
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG);
+}
 
 export interface RichEditorHandle {
   getHTML: () => string;
@@ -51,7 +65,7 @@ function exec(command: string, value?: string) {
  */
 function htmlToFragment(html: string): DocumentFragment {
   const template = document.createElement("template");
-  template.innerHTML = html;
+  template.innerHTML = sanitizeHTML(html);
   return template.content;
 }
 
@@ -72,9 +86,10 @@ const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(
       getPlainText: () => editorRef.current?.textContent || editorRef.current?.innerText || "",
       setHTML: (html: string) => {
         if (editorRef.current) {
+          const clean = sanitizeHTML(html);
           isInternalChange.current = true;
-          editorRef.current.innerHTML = html;
-          onChange(html);
+          editorRef.current.innerHTML = clean;
+          onChange(clean);
         }
       },
       insertHTML: (html: string) => {
@@ -109,8 +124,9 @@ const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(
     // Sync external value changes (e.g., template loading)
     useEffect(() => {
       if (editorRef.current && !isInternalChange.current) {
-        if (editorRef.current.innerHTML !== value) {
-          editorRef.current.innerHTML = value;
+        const clean = sanitizeHTML(value);
+        if (editorRef.current.innerHTML !== clean) {
+          editorRef.current.innerHTML = clean;
         }
       }
       isInternalChange.current = false;

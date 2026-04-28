@@ -8,6 +8,8 @@ import { Card, CardContent } from "../components/ui/card";
 import { Select } from "../components/ui/select";
 import { Users, UserPlus, Trash2, ShieldCheck, ArrowLeft, User, Activity, Target, FileCheck } from "lucide-react";
 
+const ALLOWED_ROLES = ["AGENT", "ADMIN"] as const;
+
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAdmin(request);
   const user = await prisma.user.findUnique({
@@ -53,6 +55,7 @@ export async function action({ request }: { request: Request }) {
   if (intent === "updateRole") {
     const targetUserId = formData.get("userId") as string;
     const newRole = formData.get("role") as string;
+    if (!ALLOWED_ROLES.includes(newRole as any)) return { error: "Invalid role." };
     await prisma.user.update({
       where: { id: targetUserId },
       data: { role: newRole },
@@ -62,8 +65,8 @@ export async function action({ request }: { request: Request }) {
 
   if (intent === "delete") {
     const targetUserId = formData.get("userId") as string;
-    const currentUserId = formData.get("currentUserId") as string;
-    if (targetUserId === currentUserId) {
+    const sessionUserId = await requireAdmin(request);
+    if (targetUserId === sessionUserId) {
       return { error: "You cannot delete your own account." };
     }
 

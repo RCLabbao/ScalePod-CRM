@@ -370,6 +370,14 @@ export async function applySchemaDiffSQL(sql: string): Promise<{ success: boolea
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: message };
+    return { success: false, error: sanitizeErrorMessage(message) };
   }
+}
+
+function sanitizeErrorMessage(message: string): string {
+  return message
+    .replace(/mysql:\/\//g, "mysql:[redacted]@")
+    .replace(/password=\S+/g, "password=[redacted]")
+    .replace(/host=\S+/g, "host=[redacted]")
+    .slice(0, 200);
 }

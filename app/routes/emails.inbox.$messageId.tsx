@@ -143,8 +143,17 @@ function extractEmailAddress(from: string): string {
 function EmailBody({ html, plain }: { html: string; plain: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === "iframe-resize" && iframeRef.current) {
+        iframeRef.current.style.height = e.data.height + 32 + "px";
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   if (html) {
-    // Build a self-contained HTML document with a white background
     const srcdoc = `<!DOCTYPE html>
 <html>
 <head>
@@ -162,27 +171,23 @@ function EmailBody({ html, plain }: { html: string; plain: string }) {
 </style>
 </head>
 <body>${html}</body>
+<script>
+  function reportHeight() {
+    parent.postMessage({ type: 'iframe-resize', height: document.body.scrollHeight }, '*');
+  }
+  reportHeight();
+  new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true });
+</script>
 </html>`;
 
     return (
       <iframe
         ref={iframeRef}
         srcDoc={srcdoc}
-        sandbox="allow-same-origin"
+        sandbox="allow-scripts"
         title="Email content"
         className="w-full border-0 rounded-lg"
         style={{ minHeight: "200px" }}
-        onLoad={() => {
-          // Auto-resize iframe to fit content
-          if (iframeRef.current) {
-            try {
-              const doc = iframeRef.current.contentDocument;
-              if (doc?.body) {
-                iframeRef.current.style.height = doc.body.scrollHeight + 32 + "px";
-              }
-            } catch {}
-          }
-        }}
       />
     );
   }

@@ -27,6 +27,9 @@ function requireScope(scopes: string[], scope: string) {
 
 // ── Zod Schemas ───────────────────────────────────────────────────
 
+const LEAD_STATUSES = ["INBOX", "ACTIVE", "REJECTED", "QUALIFIED", "CONVERTED"] as const;
+const LEAD_STAGES = ["SOURCED", "OUTREACH", "RESPONDED", "DEMO", "PROPOSAL", "NEGOTIATION", "CLOSED"] as const;
+
 const LeadPayloadSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   website: z.string().optional(),
@@ -41,6 +44,12 @@ const LeadPayloadSchema = z.object({
   twitter: z.string().optional(),
   leadSource: z.string().optional().default("API"),
   notes: z.string().optional(),
+});
+
+const LeadsQuerySchema = z.object({
+  status: z.enum(LEAD_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 const LEAD_PUBLIC_FIELDS = {
@@ -62,7 +71,25 @@ const LEAD_PUBLIC_FIELDS = {
   createdAt: true,
 } as const;
 
-// ── Rate limit headers ────────────────────────────────────────────
+// ── In-memory rate limit tracking ─────────────────────────────────
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(keyId: string, tier: ApiKeyTier): { allowed: boolean; remaining: number; resetAt: number } {
+  const limits = TIER_LIMITS[tier];
+  const now = Date.now();
+  let entry = rateLimitStore.get(keyId);
+
+  if (!entry || now >= entry.resetAt) {
+    entry = { count: 0, resetAt: now + 60_000 };
+    rateLimitStore.set(keyId, entry);
+  }
+
+  entry.count++;
+  const remaining = Math.max(0, limits.perMinute - entry.count);
+  const allowed = entry.count <= limits.perMinute;
+
+  return { allowed, remaining, resetAt: entry.resetAt };
+}
 
 function rateLimitHeaders(tier: ApiKeyTier, remaining: number, resetAt: number) {
   const limits = TIER_LIMITS[tier];
@@ -79,14 +106,26 @@ export async function loader({ request }: { request: Request }) {
   const apiKey = await authenticate(request);
   requireScope(apiKey.scopes, "leads:read");
 
+  // Enforce rate limit
+  const rl = checkRateLimit(apiKey.id, apiKey.tier);
+  if (!rl.allowed) {
+    throw data(
+      { error: "Rate limit exceeded. Retry after the time shown in X-RateLimit-Reset." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)), ...rateLimitHeaders(apiKey.tier, 0, rl.resetAt) } }
+    );
+  }
+
+  // Validate query params
   const url = new URL(request.url);
-  const status = url.searchParams.get("status") || undefined;
-  const limit = parseInt(url.searchParams.get("limit") || "50");
-  const offset = parseInt(url.searchParams.get("offset") || "0");
+  const queryResult = LeadsQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+  if (!queryResult.success) {
+    throw data({ error: "Invalid query parameters", issues: queryResult.error.issues }, { status: 400 });
+  }
+  const { status, limit, offset } = queryResult.data;
 
   const leads = await prisma.lead.findMany({
     where: status ? { status } : undefined,
-    take: Math.min(limit, 100),
+    take: limit,
     skip: offset,
     orderBy: { createdAt: "desc" },
     select: LEAD_PUBLIC_FIELDS,
@@ -96,14 +135,10 @@ export async function loader({ request }: { request: Request }) {
     where: status ? { status } : undefined,
   });
 
-  const windowMs = 60 * 1000;
-  const resetAt = Date.now() + windowMs;
-  const tierLimits = TIER_LIMITS[apiKey.tier];
-
   return data(
-    { leads, total, limit: Math.min(limit, 100), offset },
+    { leads, total, limit, offset },
     {
-      headers: rateLimitHeaders(apiKey.tier, tierLimits.perMinute, resetAt),
+      headers: rateLimitHeaders(apiKey.tier, rl.remaining, rl.resetAt),
     }
   );
 }
@@ -113,6 +148,15 @@ export async function loader({ request }: { request: Request }) {
 export async function action({ request }: { request: Request }) {
   const apiKey = await authenticate(request);
   requireScope(apiKey.scopes, "leads:write");
+
+  // Enforce rate limit
+  const rl = checkRateLimit(apiKey.id, apiKey.tier);
+  if (!rl.allowed) {
+    throw data(
+      { error: "Rate limit exceeded. Retry after the time shown in X-RateLimit-Reset." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)), ...rateLimitHeaders(apiKey.tier, 0, rl.resetAt) } }
+    );
+  }
 
   if (request.method !== "POST") {
     throw data({ error: "Method not allowed" }, { status: 405 });

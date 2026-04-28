@@ -1,4 +1,4 @@
-import { p as prisma, l as logActivity } from "./server-build-BRsgiWqR.js";
+import { p as prisma, l as logActivity } from "./server-build-BVUneRp0.js";
 import dns from "node:dns/promises";
 import axios from "axios";
 import * as cheerio from "cheerio";
@@ -19,6 +19,7 @@ import "googleapis";
 import "crypto";
 import "lucide-react";
 import "@hello-pangea/dnd";
+import "dompurify";
 import "zod";
 import "node:fs";
 import "node:path";

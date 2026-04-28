@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ArrowLeft, Plus, Users, Trash2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+const ALLOWED_ROLES = ["AGENT", "ADMIN"] as const;
+
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAdmin(request);
   const user = await prisma.user.findUnique({
@@ -40,6 +42,7 @@ export async function action({ request }: { request: Request }) {
     const role = formData.get("role") as string;
 
     if (!email || !password) return { error: "Email and password required." };
+    if (!ALLOWED_ROLES.includes(role)) return { error: "Invalid role." };
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return { error: "Email already in use." };
@@ -54,6 +57,7 @@ export async function action({ request }: { request: Request }) {
   if (intent === "updateRole") {
     const targetUserId = formData.get("userId") as string;
     const newRole = formData.get("role") as string;
+    if (!ALLOWED_ROLES.includes(newRole)) return { error: "Invalid role." };
     await prisma.user.update({
       where: { id: targetUserId },
       data: { role: newRole },
@@ -63,9 +67,9 @@ export async function action({ request }: { request: Request }) {
 
   if (intent === "delete") {
     const targetUserId = formData.get("userId") as string;
-    // Prevent deleting yourself
-    const currentUserId = formData.get("currentUserId") as string;
-    if (targetUserId === currentUserId) {
+    // Prevent self-delete: read current user from session, not from form data
+    const sessionUserId = await requireAdmin(request);
+    if (targetUserId === sessionUserId) {
       return { error: "You cannot delete your own account." };
     }
     await prisma.user.delete({ where: { id: targetUserId } });

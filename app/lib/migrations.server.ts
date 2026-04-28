@@ -26,12 +26,10 @@ async function getAppliedMigrations(): Promise<string[]> {
   return rows.map((r: { name: string }) => r.name);
 }
 
-// ── Record a migration as applied (safe interpolation) ──
-async function recordMigration(tx: ReturnType<typeof prisma.$extends> extends (...args: any[]) => infer R ? R : never, name: string) {
+// ── Record a migration as applied (parameterized — no SQL injection) ──
+async function recordMigration(name: string) {
   const safeName = sanitizeMigrationName(name);
-  await tx.$executeRawUnsafe(
-    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-  );
+  await prisma.$executeRaw`INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES (${safeName}, NOW(3))`;
 }
 
 // ── Compute pending migrations ─────────────────────
@@ -80,7 +78,6 @@ export async function applyPendingMigrations(): Promise<{
       "utf-8"
     );
 
-    // ── Safety check: block dangerous SQL patterns ────
     const danger = checkDangerousSQL(sql);
     if (danger) {
       errors.push({ migration: migration.name, error: `Blocked: ${danger}` });
@@ -90,22 +87,16 @@ export async function applyPendingMigrations(): Promise<{
     try {
       await prisma.$transaction(async (tx) => {
         const statements = parseSQLStatements(sql);
-
         for (const stmt of statements) {
           await tx.$executeRawUnsafe(stmt);
         }
-
-        // Record the migration as applied
-        const safeName = sanitizeMigrationName(migration.name);
-        await tx.$executeRawUnsafe(
-          `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-        );
+        await recordMigration(migration.name);
       });
 
       appliedList.push(migration.name);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      errors.push({ migration: migration.name, error: message });
+      errors.push({ migration: migration.name, error: sanitizeErrorMessage(message) });
       break;
     }
   }
@@ -121,12 +112,10 @@ export async function createMigration(
 ): Promise<{ filename: string; applied: boolean; error?: string }> {
   const dir = MIGRATIONS_DIR;
 
-  // Validate name: only alphanumeric, dashes, underscores
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
     return { filename: "", applied: false, error: "Name can only contain letters, numbers, dashes, and underscores." };
   }
 
-  // Validate SQL content
   if (!sql.trim()) {
     return { filename: "", applied: false, error: "SQL content cannot be empty." };
   }
@@ -136,20 +125,16 @@ export async function createMigration(
     return { filename: "", applied: false, error: danger };
   }
 
-  // Determine next sequence number
   const nextNum = getNextMigrationNumber(dir);
   const filename = `${String(nextNum).padStart(3, "0")}_${name}.sql`;
   const filePath = path.join(dir, filename);
 
-  // Ensure migrations directory exists
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // Write the migration file
   fs.writeFileSync(filePath, sql, "utf-8");
 
-  // Auto-apply if requested
   if (options?.autoApply) {
     const result = await applySingleMigration(filename);
     if (result.error) {
@@ -165,14 +150,13 @@ export async function createMigration(
 export async function applySingleMigration(
   filename: string
 ): Promise<{ applied: boolean; error?: string }> {
-  const safeName = sanitizeMigrationName(filename);
+  sanitizeMigrationName(filename);
   const filePath = path.join(MIGRATIONS_DIR, filename);
 
   if (!fs.existsSync(filePath)) {
     return { applied: false, error: `Migration file not found: ${filename}` };
   }
 
-  // Check if already applied
   const applied = await getAppliedMigrations();
   if (applied.includes(filename)) {
     return { applied: false, error: `Migration already applied: ${filename}` };
@@ -186,14 +170,12 @@ export async function applySingleMigration(
       for (const stmt of statements) {
         await tx.$executeRawUnsafe(stmt);
       }
-      await tx.$executeRawUnsafe(
-        `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-      );
+      await recordMigration(filename);
     });
     return { applied: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return { applied: false, error: message };
+    return { applied: false, error: sanitizeErrorMessage(message) };
   }
 }
 
@@ -206,39 +188,36 @@ export async function markBaselineApplied(): Promise<boolean> {
     return false;
   }
 
-  const safeName = sanitizeMigrationName("000_baseline.sql");
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-  );
-
+  await recordMigration("000_baseline.sql");
   return true;
 }
 
 // ── Mark a pending migration as already applied ────────
-// Use when the migration's SQL changes already exist in the database
-// (e.g., table was created manually before the migration system existed)
 export async function markMigrationApplied(filename: string): Promise<{ success: boolean; error?: string }> {
   await ensureMigrationTable();
 
-  // Validate filename
-  const safeName = sanitizeMigrationName(filename);
+  sanitizeMigrationName(filename);
 
-  // Check that the file actually exists
   const filePath = path.join(MIGRATIONS_DIR, filename);
   if (!fs.existsSync(filePath)) {
     return { success: false, error: `Migration file not found: ${filename}` };
   }
 
-  // Check it's not already marked as applied
   const applied = await getAppliedMigrations();
   if (applied.includes(filename)) {
     return { success: false, error: `Migration already marked as applied: ${filename}` };
   }
 
-  // Record it as applied without executing the SQL
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO \`_MigrationLog\` (\`name\`, \`appliedAt\`) VALUES ('${safeName}', NOW(3))`
-  );
-
+  await recordMigration(filename);
   return { success: true };
+}
+
+// ── Sanitize error messages before returning to the UI ──
+function sanitizeErrorMessage(message: string): string {
+  // Strip common DB driver details that leak internal info
+  return message
+    .replace(/mysql:\/\//g, "mysql:[redacted]@")
+    .replace(/password=\S+/g, "password=[redacted]")
+    .replace(/host=\S+/g, "host=[redacted]")
+    .slice(0, 200); // Truncate long messages
 }
