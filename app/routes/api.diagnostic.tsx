@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.server";
+import { generateApiKey } from "../lib/api-key.server";
 import { data } from "react-router";
 
 export async function loader({ request }: { request: Request }) {
@@ -44,6 +45,47 @@ export async function loader({ request }: { request: Request }) {
     results.prismaClientVersion = pkg.version;
   } catch {
     results.prismaClientVersion = "unknown";
+  }
+
+  // Test 6: Test generateApiKey (crypto)
+  try {
+    const { rawKey, prefix, hash } = generateApiKey();
+    results.generateApiKey = { ok: true, keyLength: rawKey.length, prefix, hashLength: hash.length };
+  } catch (err: any) {
+    results.generateApiKey = { ok: false, error: err.message, stack: err.stack };
+  }
+
+  // Test 7: Test prisma.apiKey.create (dry run with rollback)
+  try {
+    const { rawKey, prefix, hash } = generateApiKey();
+    const testKey = await prisma.apiKey.create({
+      data: {
+        name: "__diagnostic_test__",
+        prefix,
+        hash,
+        scopes: ["leads:read"],
+        tier: "FREE",
+        userId: "diag_test",
+      },
+    });
+    // Clean up: delete the test key
+    await prisma.apiKey.delete({ where: { id: testKey.id } });
+    results.apiKeyCreate = "OK (created and deleted test key)";
+  } catch (err: any) {
+    results.apiKeyCreate = { error: err.message, code: err.code, stack: err.stack?.substring(0, 500) };
+  }
+
+  // Test 8: Check ApiKey table columns
+  try {
+    const cols: Array<{ columnName: string; dataType: string; isNullable: string }> = await prisma.$queryRaw`
+      SELECT COLUMN_NAME as columnName, DATA_TYPE as dataType, IS_NULLABLE as isNullable
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ApiKey'
+      ORDER BY ORDINAL_POSITION
+    `;
+    results.apiKeyColumns = cols;
+  } catch (err: any) {
+    results.apiKeyColumns = { error: err.message };
   }
 
   return data(results);

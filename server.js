@@ -155,12 +155,11 @@ app.use((err, req, res, next) => {
   console.error("Stack:", err?.stack || "No stack trace");
   console.error("=== END ERROR ===");
 
-  // Don't leak internal errors in production
-  const message = isProduction
-    ? "Internal server error"
-    : err?.message || "Unknown error";
+  // Temporarily show real errors for debugging (revert after fixing)
+  const message = err?.message || "Unknown error";
+  const stack = err?.stack || undefined;
 
-  res.status(500).json({ error: message });
+  res.status(500).json({ error: message, stack });
 });
 
 // ── Start Server ──────────────────────────────────────────────────

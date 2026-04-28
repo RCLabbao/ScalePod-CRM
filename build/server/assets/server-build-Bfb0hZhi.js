@@ -10841,6 +10841,7 @@ const route23 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
 async function loader$a({
   request
 }) {
+  var _a;
   const results = {};
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -10887,6 +10888,67 @@ async function loader$a({
     results.prismaClientVersion = pkg2.version;
   } catch {
     results.prismaClientVersion = "unknown";
+  }
+  try {
+    const {
+      rawKey,
+      prefix,
+      hash: hash2
+    } = generateApiKey();
+    results.generateApiKey = {
+      ok: true,
+      keyLength: rawKey.length,
+      prefix,
+      hashLength: hash2.length
+    };
+  } catch (err) {
+    results.generateApiKey = {
+      ok: false,
+      error: err.message,
+      stack: err.stack
+    };
+  }
+  try {
+    const {
+      rawKey,
+      prefix,
+      hash: hash2
+    } = generateApiKey();
+    const testKey = await prisma.apiKey.create({
+      data: {
+        name: "__diagnostic_test__",
+        prefix,
+        hash: hash2,
+        scopes: ["leads:read"],
+        tier: "FREE",
+        userId: "diag_test"
+      }
+    });
+    await prisma.apiKey.delete({
+      where: {
+        id: testKey.id
+      }
+    });
+    results.apiKeyCreate = "OK (created and deleted test key)";
+  } catch (err) {
+    results.apiKeyCreate = {
+      error: err.message,
+      code: err.code,
+      stack: (_a = err.stack) == null ? void 0 : _a.substring(0, 500)
+    };
+  }
+  try {
+    const cols = await prisma.$queryRaw`
+      SELECT COLUMN_NAME as columnName, DATA_TYPE as dataType, IS_NULLABLE as isNullable
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ApiKey'
+      ORDER BY ORDINAL_POSITION
+    `;
+    results.apiKeyColumns = cols;
+  } catch (err) {
+    results.apiKeyColumns = {
+      error: err.message
+    };
   }
   return data(results);
 }
@@ -15160,7 +15222,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-CHd6jCpz.js").then(({
+    import("./pipeline-DfgQJOKW.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -15189,7 +15251,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-CHd6jCpz.js").then(({
+    import("./pipeline-DfgQJOKW.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
