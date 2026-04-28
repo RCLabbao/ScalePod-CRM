@@ -33,6 +33,7 @@ export default [
   route("api/leads", "routes/api.leads.tsx"),
   route("api/lead-detail", "routes/api.lead-detail.tsx"),
   route("api/scraper", "routes/api.scraper.tsx"),
+  route("api/diagnostic", "routes/api.diagnostic.tsx"),
   route("docs/api", "routes/docs.api.tsx"),
   // CSV Import
   route("imports", "routes/imports.tsx"),
