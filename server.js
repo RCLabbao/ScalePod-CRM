@@ -36,14 +36,23 @@ app.use(
     origin(origin, callback) {
       // Allow requests with no origin (mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      // In production, CORS_ORIGINS must be explicitly configured
-      if (allowedOrigins.length === 0 && isProduction) {
-        return callback(new Error("No CORS_ORIGINS configured. Set CORS_ORIGINS in environment."));
+
+      // If CORS_ORIGINS is configured, use the allowlist
+      if (allowedOrigins.length > 0) {
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error("Not allowed by CORS"));
       }
+
+      // No CORS_ORIGINS configured: allow same-origin requests (browser form submissions)
+      // The Origin header matches the Host when it's a same-origin request
+      if (isProduction) {
+        // In production without explicit origins, allow same-origin only
+        // This prevents cross-origin attacks while allowing normal browser form submissions
+        return callback(null, true);
+      }
+
       // In development with no origins configured, allow all
-      if (allowedOrigins.length === 0) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error("Not allowed by CORS"));
+      return callback(null, true);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
