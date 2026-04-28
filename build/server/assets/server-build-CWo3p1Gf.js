@@ -14665,51 +14665,58 @@ async function action$2({
     };
   }
   if (request.method === "POST") {
-    const formData = await request.formData();
-    const name = formData.get("name");
-    const tier = formData.get("tier") || "FREE";
-    const scopeLeadsRead = formData.get("scope_leads_read") === "on";
-    const scopeLeadsWrite = formData.get("scope_leads_write") === "on";
-    const scopeScraperRead = formData.get("scope_scraper_read") === "on";
-    if (!name || name.trim().length === 0) {
-      throw data({
-        error: "Key name is required"
-      }, {
-        status: 400
-      });
-    }
-    const scopes = [];
-    if (scopeLeadsWrite) {
-      scopes.push("leads:write");
-    } else if (scopeLeadsRead) {
-      scopes.push("leads:read");
-    }
-    if (scopeScraperRead) {
-      scopes.push("scraper:read");
-    }
-    if (scopes.length === 0) {
-      scopes.push("leads:read");
-    }
-    const {
-      rawKey,
-      prefix,
-      hash: hash2
-    } = generateApiKey();
-    await prisma.apiKey.create({
-      data: {
-        name: name.trim(),
-        prefix,
-        hash: hash2,
-        scopes,
-        tier,
-        userId
+    try {
+      const formData = await request.formData();
+      const name = formData.get("name");
+      const tier = formData.get("tier") || "FREE";
+      const scopeLeadsRead = formData.get("scope_leads_read") === "on";
+      const scopeLeadsWrite = formData.get("scope_leads_write") === "on";
+      const scopeScraperRead = formData.get("scope_scraper_read") === "on";
+      if (!name || name.trim().length === 0) {
+        throw data({
+          error: "Key name is required"
+        }, {
+          status: 400
+        });
       }
-    });
-    return {
-      rawKey,
-      prefix,
-      name: name.trim()
-    };
+      const scopes = [];
+      if (scopeLeadsWrite) {
+        scopes.push("leads:write");
+      } else if (scopeLeadsRead) {
+        scopes.push("leads:read");
+      }
+      if (scopeScraperRead) {
+        scopes.push("scraper:read");
+      }
+      if (scopes.length === 0) {
+        scopes.push("leads:read");
+      }
+      const {
+        rawKey,
+        prefix,
+        hash: hash2
+      } = generateApiKey();
+      await prisma.apiKey.create({
+        data: {
+          name: name.trim(),
+          prefix,
+          hash: hash2,
+          scopes,
+          tier,
+          userId
+        }
+      });
+      return {
+        rawKey,
+        prefix,
+        name: name.trim()
+      };
+    } catch (err) {
+      const message = (err == null ? void 0 : err.message) || (err == null ? void 0 : err.toString()) || "Unknown error";
+      return {
+        error: message
+      };
+    }
   }
   throw data({
     error: "Method not allowed"
@@ -15153,7 +15160,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-D562Wd46.js").then(({
+    import("./pipeline-CHd6jCpz.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -15182,7 +15189,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-D562Wd46.js").then(({
+    import("./pipeline-CHd6jCpz.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

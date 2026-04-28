@@ -58,7 +58,6 @@ export async function action({ request }: { request: Request }) {
       throw data({ error: "keyId is required" }, { status: 400 });
     }
 
-    // Only allow deleting own keys
     const existing = await prisma.apiKey.findFirst({
       where: { id: keyId, userId },
     });
@@ -72,45 +71,50 @@ export async function action({ request }: { request: Request }) {
   }
 
   if (request.method === "POST") {
-    const formData = await request.formData();
-    const name = formData.get("name") as string;
-    const tier = (formData.get("tier") as string) || "FREE";
-    const scopeLeadsRead = formData.get("scope_leads_read") === "on";
-    const scopeLeadsWrite = formData.get("scope_leads_write") === "on";
-    const scopeScraperRead = formData.get("scope_scraper_read") === "on";
+    try {
+      const formData = await request.formData();
+      const name = formData.get("name") as string;
+      const tier = (formData.get("tier") as string) || "FREE";
+      const scopeLeadsRead = formData.get("scope_leads_read") === "on";
+      const scopeLeadsWrite = formData.get("scope_leads_write") === "on";
+      const scopeScraperRead = formData.get("scope_scraper_read") === "on";
 
-    if (!name || name.trim().length === 0) {
-      throw data({ error: "Key name is required" }, { status: 400 });
+      if (!name || name.trim().length === 0) {
+        throw data({ error: "Key name is required" }, { status: 400 });
+      }
+
+      const scopes: string[] = [];
+      if (scopeLeadsWrite) {
+        scopes.push("leads:write");
+      } else if (scopeLeadsRead) {
+        scopes.push("leads:read");
+      }
+      if (scopeScraperRead) {
+        scopes.push("scraper:read");
+      }
+      if (scopes.length === 0) {
+        scopes.push("leads:read");
+      }
+
+      const { rawKey, prefix, hash } = generateApiKey();
+
+      await prisma.apiKey.create({
+        data: {
+          name: name.trim(),
+          prefix,
+          hash,
+          scopes,
+          tier: tier as ApiKeyTier,
+          userId,
+        },
+      });
+
+      return { rawKey, prefix, name: name.trim() };
+    } catch (err: any) {
+      // Return the actual error for debugging
+      const message = err?.message || err?.toString() || "Unknown error";
+      return { error: message };
     }
-
-    const scopes: string[] = [];
-    if (scopeLeadsWrite) {
-      scopes.push("leads:write");
-    } else if (scopeLeadsRead) {
-      scopes.push("leads:read");
-    }
-    if (scopeScraperRead) {
-      scopes.push("scraper:read");
-    }
-    if (scopes.length === 0) {
-      scopes.push("leads:read");
-    }
-
-    const { rawKey, prefix, hash } = generateApiKey();
-
-    await prisma.apiKey.create({
-      data: {
-        name: name.trim(),
-        prefix,
-        hash,
-        scopes,
-        tier: tier as ApiKeyTier,
-        userId,
-      },
-    });
-
-    // Return the raw key — this is the ONLY time it's shown in full
-    return { rawKey, prefix, name: name.trim() };
   }
 
   throw data({ error: "Method not allowed" }, { status: 405 });
