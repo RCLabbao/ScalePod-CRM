@@ -3070,7 +3070,7 @@ async function sendNotification(config, ctx, ruleId) {
       ruleId,
       leadId: ctx.leadId,
       success: true,
-      result: { action: "SEND_NOTIFICATION", message: config.message || "Workflow notification triggered" }
+      result: { action: "SEND_NOTIFICATION", message: String(config.message || "Workflow notification triggered") }
     }
   });
 }
@@ -17117,7 +17117,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-Dg_fHpCK.js").then(({
+    import("./pipeline-ZkIrcUkr.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -17146,7 +17146,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-Dg_fHpCK.js").then(({
+    import("./pipeline-ZkIrcUkr.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

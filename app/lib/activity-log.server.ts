@@ -15,7 +15,7 @@ export async function logActivity(input: ActivityLogInput) {
       userId: input.userId,
       action: input.action,
       description: input.description,
-      metadata: input.metadata,
+      metadata: input.metadata as any,
     },
     include: {
       user: {

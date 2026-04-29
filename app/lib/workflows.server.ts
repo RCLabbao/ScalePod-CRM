@@ -112,7 +112,7 @@ async function assignToUser(
       ruleId,
       leadId: ctx.leadId,
       success: true,
-      result: { action: "ASSIGN_TO_USER", userId, userName: user.name },
+      result: { action: "ASSIGN_TO_USER", userId, userName: user.name } as any,
     },
   });
 }
@@ -128,7 +128,7 @@ async function sendNotification(
       ruleId,
       leadId: ctx.leadId,
       success: true,
-      result: { action: "SEND_NOTIFICATION", message: config.message || "Workflow notification triggered" },
+      result: { action: "SEND_NOTIFICATION", message: String(config.message || "Workflow notification triggered") } as any,
     },
   });
 }
@@ -162,7 +162,7 @@ async function updateField(
       ruleId,
       leadId: ctx.leadId,
       success: true,
-      result: { action: "UPDATE_FIELD", field, value },
+      result: { action: "UPDATE_FIELD", field, value } as any,
     },
   });
 }
@@ -199,7 +199,7 @@ async function addNote(
       ruleId,
       leadId: ctx.leadId,
       success: true,
-      result: { action: "ADD_NOTE", note: noteText },
+      result: { action: "ADD_NOTE", note: noteText } as any,
     },
   });
 }
