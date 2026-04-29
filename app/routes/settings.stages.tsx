@@ -66,10 +66,11 @@ export async function action({ request }: { request: Request }) {
   // Ensure the PipelineStage table exists before any mutations
   await seedDefaultStages();
 
-  // Debug: log what the prisma client actually has
-  console.log("[stages] prisma keys:", Object.keys(prisma).filter(k => typeof (prisma as any)[k] === "object").join(", "));
-  console.log("[stages] pipelineStage type:", typeof (prisma as any).pipelineStage);
-  console.log("[stages] intent:", intent);
+  // Check if prisma.pipelineStage actually exists
+  if (!(prisma as any).pipelineStage) {
+    const available = Object.keys(prisma).filter(k => typeof (prisma as any)[k] === "object").join(", ");
+    return { error: `Prisma Client is missing the pipelineStage model. Available models: [${available || "none"}]. Run "npx prisma generate" and restart the server.` };
+  }
 
   try {
     if (intent === "addStage") {
@@ -170,11 +171,9 @@ export async function action({ request }: { request: Request }) {
       return redirect("/settings/stages");
     }
   } catch (err) {
-    console.error("[stages] Action failed — full error:", err);
     const msg = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : "";
-    console.error("[stages] Stack:", stack);
-    return { error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage: ${msg}` };
+    return { error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage.\n\nError: ${msg}\n\nStack: ${stack || "none"}` };
   }
 
   return {};
@@ -261,9 +260,9 @@ export default function SettingsStagesPage() {
         </div>
 
         {actionData?.error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-center gap-3">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {actionData.error}
+          <div className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <pre className="whitespace-pre-wrap font-sans">{actionData.error}</pre>
           </div>
         )}
 
