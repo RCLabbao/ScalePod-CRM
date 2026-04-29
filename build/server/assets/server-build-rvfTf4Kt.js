@@ -16042,16 +16042,26 @@ async function loader$4({
       role: true
     }
   });
-  const rules = await prisma.scoringRule.findMany({
-    orderBy: {
-      priority: "asc"
-    }
-  });
-  const scoreConfig = await prisma.scoreConfig.findUnique({
-    where: {
-      id: "default"
-    }
-  });
+  let rules = [];
+  try {
+    rules = await prisma.scoringRule.findMany({
+      orderBy: {
+        priority: "asc"
+      }
+    });
+  } catch (err) {
+    console.error("[scoring-rules] Failed to load rules — run pending migrations:", err);
+  }
+  let scoreConfig = null;
+  try {
+    scoreConfig = await prisma.scoreConfig.findUnique({
+      where: {
+        id: "default"
+      }
+    });
+  } catch (err) {
+    console.error("[scoring-rules] Failed to load score config:", err);
+  }
   return {
     rules,
     scoreConfig,
@@ -16076,16 +16086,23 @@ async function action$3({
         error: "Name and value are required"
       };
     }
-    await prisma.scoringRule.create({
-      data: {
-        name: name.trim(),
-        fieldType,
-        operator,
-        value: value.trim(),
-        points,
-        priority
-      }
-    });
+    try {
+      await prisma.scoringRule.create({
+        data: {
+          name: name.trim(),
+          fieldType,
+          operator,
+          value: value.trim(),
+          points,
+          priority
+        }
+      });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to create rule:", err);
+      return {
+        error: "Failed to create scoring rule. Make sure database migrations are up to date."
+      };
+    }
     return {
       success: true,
       created: name
@@ -16096,11 +16113,18 @@ async function action$3({
     if (!ruleId) return {
       error: "Rule ID required"
     };
-    await prisma.scoringRule.delete({
-      where: {
-        id: ruleId
-      }
-    });
+    try {
+      await prisma.scoringRule.delete({
+        where: {
+          id: ruleId
+        }
+      });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to delete rule:", err);
+      return {
+        error: "Failed to delete scoring rule."
+      };
+    }
     return {
       success: true,
       deleted: true
@@ -16112,43 +16136,64 @@ async function action$3({
     if (!ruleId) return {
       error: "Rule ID required"
     };
-    await prisma.scoringRule.update({
-      where: {
-        id: ruleId
-      },
-      data: {
-        active: !active
-      }
-    });
+    try {
+      await prisma.scoringRule.update({
+        where: {
+          id: ruleId
+        },
+        data: {
+          active: !active
+        }
+      });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to toggle rule:", err);
+      return {
+        error: "Failed to update scoring rule."
+      };
+    }
     return {
       success: true
     };
   }
   if (intent === "toggleAutoScore") {
-    const current = await prisma.scoreConfig.findUnique({
-      where: {
-        id: "default"
-      }
-    });
-    await prisma.scoreConfig.update({
-      where: {
-        id: "default"
-      },
-      data: {
-        autoScore: !((current == null ? void 0 : current.autoScore) ?? true)
-      }
-    });
+    try {
+      const current = await prisma.scoreConfig.findUnique({
+        where: {
+          id: "default"
+        }
+      });
+      await prisma.scoreConfig.update({
+        where: {
+          id: "default"
+        },
+        data: {
+          autoScore: !((current == null ? void 0 : current.autoScore) ?? true)
+        }
+      });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to toggle auto-score:", err);
+      return {
+        error: "Failed to update auto-score setting. Make sure database migrations are up to date."
+      };
+    }
     return {
       success: true
     };
   }
   if (intent === "recalculateAll") {
-    const result = await recalculateAllLeadScores();
-    return {
-      success: true,
-      updated: result.updated,
-      errors: result.errors
-    };
+    try {
+      const result = await recalculateAllLeadScores();
+      return {
+        success: true,
+        updated: result.updated,
+        errors: result.errors
+      };
+    } catch (err) {
+      console.error("[scoring-rules] Failed to recalculate:", err);
+      return {
+        error: "Failed to recalculate lead scores."
+      };
+    }
   }
   return {};
 }
@@ -16462,29 +16507,39 @@ async function loader$3({
       role: true
     }
   });
-  const rules = await prisma.workflowRule.findMany({
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
-  const recentLogs = await prisma.workflowLog.findMany({
-    take: 20,
-    orderBy: {
-      createdAt: "desc"
-    },
-    include: {
-      rule: {
-        select: {
-          name: true
-        }
+  let rules = [];
+  try {
+    rules = await prisma.workflowRule.findMany({
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+  } catch (err) {
+    console.error("[workflows] Failed to load rules — run pending migrations:", err);
+  }
+  let recentLogs = [];
+  try {
+    recentLogs = await prisma.workflowLog.findMany({
+      take: 20,
+      orderBy: {
+        createdAt: "desc"
       },
-      lead: {
-        select: {
-          companyName: true
+      include: {
+        rule: {
+          select: {
+            name: true
+          }
+        },
+        lead: {
+          select: {
+            companyName: true
+          }
         }
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error("[workflows] Failed to load logs — run pending migrations:", err);
+  }
   const users2 = await prisma.user.findMany({
     select: {
       id: true,
@@ -16539,15 +16594,22 @@ async function action$2({
         };
       }
     }
-    await prisma.workflowRule.create({
-      data: {
-        name: name.trim(),
-        triggerEvent,
-        triggerCondition,
-        action: actionType,
-        actionConfig
-      }
-    });
+    try {
+      await prisma.workflowRule.create({
+        data: {
+          name: name.trim(),
+          triggerEvent,
+          triggerCondition,
+          action: actionType,
+          actionConfig
+        }
+      });
+    } catch (err) {
+      console.error("[workflows] Failed to create rule:", err);
+      return {
+        error: "Failed to create workflow rule. Make sure database migrations are up to date."
+      };
+    }
     return {
       success: true,
       created: name
@@ -16558,11 +16620,18 @@ async function action$2({
     if (!ruleId) return {
       error: "Rule ID required"
     };
-    await prisma.workflowRule.delete({
-      where: {
-        id: ruleId
-      }
-    });
+    try {
+      await prisma.workflowRule.delete({
+        where: {
+          id: ruleId
+        }
+      });
+    } catch (err) {
+      console.error("[workflows] Failed to delete rule:", err);
+      return {
+        error: "Failed to delete workflow rule."
+      };
+    }
     return {
       success: true,
       deleted: true
@@ -16574,14 +16643,21 @@ async function action$2({
     if (!ruleId) return {
       error: "Rule ID required"
     };
-    await prisma.workflowRule.update({
-      where: {
-        id: ruleId
-      },
-      data: {
-        active: !active
-      }
-    });
+    try {
+      await prisma.workflowRule.update({
+        where: {
+          id: ruleId
+        },
+        data: {
+          active: !active
+        }
+      });
+    } catch (err) {
+      console.error("[workflows] Failed to toggle rule:", err);
+      return {
+        error: "Failed to update workflow rule."
+      };
+    }
     return {
       success: true
     };
@@ -17117,7 +17193,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-ZkIrcUkr.js").then(({
+    import("./pipeline-B1sHtY79.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -17146,7 +17222,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-ZkIrcUkr.js").then(({
+    import("./pipeline-B1sHtY79.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

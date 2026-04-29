@@ -32,11 +32,21 @@ export async function loader({ request }: { request: Request }) {
     select: { name: true, email: true, role: true },
   });
 
-  const rules = await prisma.scoringRule.findMany({
-    orderBy: { priority: "asc" },
-  });
+  let rules: any[] = [];
+  try {
+    rules = await prisma.scoringRule.findMany({
+      orderBy: { priority: "asc" },
+    });
+  } catch (err) {
+    console.error("[scoring-rules] Failed to load rules — run pending migrations:", err);
+  }
 
-  const scoreConfig = await prisma.scoreConfig.findUnique({ where: { id: "default" } });
+  let scoreConfig: any = null;
+  try {
+    scoreConfig = await prisma.scoreConfig.findUnique({ where: { id: "default" } });
+  } catch (err) {
+    console.error("[scoring-rules] Failed to load score config:", err);
+  }
 
   return {
     rules: rules as unknown as ScoringRuleRow[],
@@ -62,9 +72,14 @@ export async function action({ request }: { request: Request }) {
       return { error: "Name and value are required" };
     }
 
-    await prisma.scoringRule.create({
-      data: { name: name.trim(), fieldType, operator, value: value.trim(), points, priority },
-    });
+    try {
+      await prisma.scoringRule.create({
+        data: { name: name.trim(), fieldType, operator, value: value.trim(), points, priority },
+      });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to create rule:", err);
+      return { error: "Failed to create scoring rule. Make sure database migrations are up to date." };
+    }
 
     return { success: true, created: name };
   }
@@ -72,7 +87,12 @@ export async function action({ request }: { request: Request }) {
   if (intent === "delete") {
     const ruleId = formData.get("ruleId") as string;
     if (!ruleId) return { error: "Rule ID required" };
-    await prisma.scoringRule.delete({ where: { id: ruleId } });
+    try {
+      await prisma.scoringRule.delete({ where: { id: ruleId } });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to delete rule:", err);
+      return { error: "Failed to delete scoring rule." };
+    }
     return { success: true, deleted: true };
   }
 
@@ -80,22 +100,37 @@ export async function action({ request }: { request: Request }) {
     const ruleId = formData.get("ruleId") as string;
     const active = formData.get("active") === "true";
     if (!ruleId) return { error: "Rule ID required" };
-    await prisma.scoringRule.update({ where: { id: ruleId }, data: { active: !active } });
+    try {
+      await prisma.scoringRule.update({ where: { id: ruleId }, data: { active: !active } });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to toggle rule:", err);
+      return { error: "Failed to update scoring rule." };
+    }
     return { success: true };
   }
 
   if (intent === "toggleAutoScore") {
-    const current = await prisma.scoreConfig.findUnique({ where: { id: "default" } });
-    await prisma.scoreConfig.update({
-      where: { id: "default" },
-      data: { autoScore: !(current?.autoScore ?? true) },
-    });
+    try {
+      const current = await prisma.scoreConfig.findUnique({ where: { id: "default" } });
+      await prisma.scoreConfig.update({
+        where: { id: "default" },
+        data: { autoScore: !(current?.autoScore ?? true) },
+      });
+    } catch (err) {
+      console.error("[scoring-rules] Failed to toggle auto-score:", err);
+      return { error: "Failed to update auto-score setting. Make sure database migrations are up to date." };
+    }
     return { success: true };
   }
 
   if (intent === "recalculateAll") {
-    const result = await recalculateAllLeadScores();
-    return { success: true, updated: result.updated, errors: result.errors };
+    try {
+      const result = await recalculateAllLeadScores();
+      return { success: true, updated: result.updated, errors: result.errors };
+    } catch (err) {
+      console.error("[scoring-rules] Failed to recalculate:", err);
+      return { error: "Failed to recalculate lead scores." };
+    }
   }
 
   return {};

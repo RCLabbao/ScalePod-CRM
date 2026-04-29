@@ -52,18 +52,28 @@ export async function loader({ request }: { request: Request }) {
     select: { name: true, email: true, role: true },
   });
 
-  const rules = await prisma.workflowRule.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  let rules: any[] = [];
+  try {
+    rules = await prisma.workflowRule.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (err) {
+    console.error("[workflows] Failed to load rules — run pending migrations:", err);
+  }
 
-  const recentLogs = await prisma.workflowLog.findMany({
-    take: 20,
-    orderBy: { createdAt: "desc" },
-    include: {
-      rule: { select: { name: true } },
-      lead: { select: { companyName: true } },
-    },
-  });
+  let recentLogs: any[] = [];
+  try {
+    recentLogs = await prisma.workflowLog.findMany({
+      take: 20,
+      orderBy: { createdAt: "desc" },
+      include: {
+        rule: { select: { name: true } },
+        lead: { select: { companyName: true } },
+      },
+    });
+  } catch (err) {
+    console.error("[workflows] Failed to load logs — run pending migrations:", err);
+  }
 
   const users = await prisma.user.findMany({
     select: { id: true, name: true, email: true },
@@ -112,15 +122,20 @@ export async function action({ request }: { request: Request }) {
       }
     }
 
-    await prisma.workflowRule.create({
-      data: {
-        name: name.trim(),
-        triggerEvent,
-        triggerCondition,
-        action: actionType,
-        actionConfig: actionConfig as any,
-      },
-    });
+    try {
+      await prisma.workflowRule.create({
+        data: {
+          name: name.trim(),
+          triggerEvent,
+          triggerCondition: triggerCondition as any,
+          action: actionType,
+          actionConfig: actionConfig as any,
+        },
+      });
+    } catch (err) {
+      console.error("[workflows] Failed to create rule:", err);
+      return { error: "Failed to create workflow rule. Make sure database migrations are up to date." };
+    }
 
     return { success: true, created: name };
   }
@@ -128,7 +143,12 @@ export async function action({ request }: { request: Request }) {
   if (intent === "delete") {
     const ruleId = formData.get("ruleId") as string;
     if (!ruleId) return { error: "Rule ID required" };
-    await prisma.workflowRule.delete({ where: { id: ruleId } });
+    try {
+      await prisma.workflowRule.delete({ where: { id: ruleId } });
+    } catch (err) {
+      console.error("[workflows] Failed to delete rule:", err);
+      return { error: "Failed to delete workflow rule." };
+    }
     return { success: true, deleted: true };
   }
 
@@ -136,7 +156,12 @@ export async function action({ request }: { request: Request }) {
     const ruleId = formData.get("ruleId") as string;
     const active = formData.get("active") === "true";
     if (!ruleId) return { error: "Rule ID required" };
-    await prisma.workflowRule.update({ where: { id: ruleId }, data: { active: !active } });
+    try {
+      await prisma.workflowRule.update({ where: { id: ruleId }, data: { active: !active } });
+    } catch (err) {
+      console.error("[workflows] Failed to toggle rule:", err);
+      return { error: "Failed to update workflow rule." };
+    }
     return { success: true };
   }
 
