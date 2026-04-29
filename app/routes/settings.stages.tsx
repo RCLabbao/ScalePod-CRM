@@ -66,52 +66,47 @@ export async function action({ request }: { request: Request }) {
   // Ensure the PipelineStage table exists before any mutations
   await seedDefaultStages();
 
-  if (intent === "addStage") {
-    const name = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
-    const label = (formData.get("label") as string)?.trim();
-    const colorKey = formData.get("colorKey") as string;
+  try {
+    if (intent === "addStage") {
+      const name = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
+      const label = (formData.get("label") as string)?.trim();
+      const colorKey = formData.get("colorKey") as string;
 
-    if (!name || !label) {
-      return { error: "Stage name and label are required" };
-    }
+      if (!name || !label) {
+        return { error: "Stage name and label are required" };
+      }
 
-    const existing = await prisma.pipelineStage.findUnique({ where: { name } });
-    if (existing) {
-      return { error: `A stage with name "${name}" already exists` };
-    }
+      const existing = await prisma.pipelineStage.findUnique({ where: { name } });
+      if (existing) {
+        return { error: `A stage with name "${name}" already exists` };
+      }
 
-    const maxPos = await prisma.pipelineStage.aggregate({ _max: { position: true } });
-    const nextPos = (maxPos._max.position ?? -1) + 1;
+      const maxPos = await prisma.pipelineStage.aggregate({ _max: { position: true } });
+      const nextPos = (maxPos._max.position ?? -1) + 1;
 
-    try {
       await prisma.pipelineStage.create({
         data: { name, label, colorKey: colorKey || "slate", position: nextPos },
       });
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to create stage:", err);
-      return { error: "Failed to create stage" };
+
+      return redirect("/settings/stages");
     }
 
-    return redirect("/settings/stages");
-  }
+    if (intent === "editStage") {
+      const id = formData.get("id") as string;
+      const label = (formData.get("label") as string)?.trim();
+      const colorKey = formData.get("colorKey") as string;
+      const newName = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
 
-  if (intent === "editStage") {
-    const id = formData.get("id") as string;
-    const label = (formData.get("label") as string)?.trim();
-    const colorKey = formData.get("colorKey") as string;
-    const newName = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
+      if (!id || !label || !newName) {
+        return { error: "All fields are required" };
+      }
 
-    if (!id || !label || !newName) {
-      return { error: "All fields are required" };
-    }
+      const stage = await prisma.pipelineStage.findUnique({ where: { id } });
+      if (!stage) {
+        return { error: "Stage not found" };
+      }
 
-    const stage = await prisma.pipelineStage.findUnique({ where: { id } });
-    if (!stage) {
-      return { error: "Stage not found" };
-    }
-
-    try {
       if (newName !== stage.name) {
         const existing = await prisma.pipelineStage.findUnique({ where: { name: newName } });
         if (existing && existing.id !== id) {
@@ -132,44 +127,32 @@ export async function action({ request }: { request: Request }) {
       }
 
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to update stage:", err);
-      return { error: "Failed to update stage" };
+      return redirect("/settings/stages");
     }
 
-    return redirect("/settings/stages");
-  }
+    if (intent === "deleteStage") {
+      const id = formData.get("id") as string;
+      const stage = await prisma.pipelineStage.findUnique({ where: { id } });
+      if (!stage) {
+        return { error: "Stage not found" };
+      }
 
-  if (intent === "deleteStage") {
-    const id = formData.get("id") as string;
-    const stage = await prisma.pipelineStage.findUnique({ where: { id } });
-    if (!stage) {
-      return { error: "Stage not found" };
-    }
+      const leadCount = await prisma.lead.count({ where: { stage: stage.name } });
+      if (leadCount > 0) {
+        return {
+          error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`,
+        };
+      }
 
-    const leadCount = await prisma.lead.count({ where: { stage: stage.name } });
-    if (leadCount > 0) {
-      return {
-        error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`,
-      };
-    }
-
-    try {
       await prisma.pipelineStage.delete({ where: { id } });
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to delete stage:", err);
-      return { error: "Failed to delete stage" };
+      return redirect("/settings/stages");
     }
 
-    return redirect("/settings/stages");
-  }
+    if (intent === "reorderStages") {
+      const orderJson = formData.get("order") as string;
+      if (!orderJson) return { error: "No order provided" };
 
-  if (intent === "reorderStages") {
-    const orderJson = formData.get("order") as string;
-    if (!orderJson) return { error: "No order provided" };
-
-    try {
       const order: string[] = JSON.parse(orderJson);
       const txOps = order.map((id, index) =>
         prisma.pipelineStage.update({
@@ -179,12 +162,12 @@ export async function action({ request }: { request: Request }) {
       );
       await prisma.$transaction(txOps);
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to reorder stages:", err);
-      return { error: "Failed to reorder stages" };
+      return redirect("/settings/stages");
     }
-
-    return redirect("/settings/stages");
+  } catch (err) {
+    console.error("[stages] Action failed:", err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return { error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage: ${msg}` };
   }
 
   return {};

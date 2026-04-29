@@ -16703,32 +16703,32 @@ async function action$5({
   const formData = await request.formData();
   const intent = formData.get("intent");
   await seedDefaultStages();
-  if (intent === "addStage") {
-    const name = (_a = formData.get("name")) == null ? void 0 : _a.trim().toUpperCase().replace(/\s+/g, "_");
-    const label = (_b = formData.get("label")) == null ? void 0 : _b.trim();
-    const colorKey = formData.get("colorKey");
-    if (!name || !label) {
-      return {
-        error: "Stage name and label are required"
-      };
-    }
-    const existing = await prisma.pipelineStage.findUnique({
-      where: {
-        name
+  try {
+    if (intent === "addStage") {
+      const name = (_a = formData.get("name")) == null ? void 0 : _a.trim().toUpperCase().replace(/\s+/g, "_");
+      const label = (_b = formData.get("label")) == null ? void 0 : _b.trim();
+      const colorKey = formData.get("colorKey");
+      if (!name || !label) {
+        return {
+          error: "Stage name and label are required"
+        };
       }
-    });
-    if (existing) {
-      return {
-        error: `A stage with name "${name}" already exists`
-      };
-    }
-    const maxPos = await prisma.pipelineStage.aggregate({
-      _max: {
-        position: true
+      const existing = await prisma.pipelineStage.findUnique({
+        where: {
+          name
+        }
+      });
+      if (existing) {
+        return {
+          error: `A stage with name "${name}" already exists`
+        };
       }
-    });
-    const nextPos = (maxPos._max.position ?? -1) + 1;
-    try {
+      const maxPos = await prisma.pipelineStage.aggregate({
+        _max: {
+          position: true
+        }
+      });
+      const nextPos = (maxPos._max.position ?? -1) + 1;
       await prisma.pipelineStage.create({
         data: {
           name,
@@ -16738,35 +16738,28 @@ async function action$5({
         }
       });
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to create stage:", err);
-      return {
-        error: "Failed to create stage"
-      };
+      return redirect("/settings/stages");
     }
-    return redirect("/settings/stages");
-  }
-  if (intent === "editStage") {
-    const id = formData.get("id");
-    const label = (_c = formData.get("label")) == null ? void 0 : _c.trim();
-    const colorKey = formData.get("colorKey");
-    const newName = (_d = formData.get("name")) == null ? void 0 : _d.trim().toUpperCase().replace(/\s+/g, "_");
-    if (!id || !label || !newName) {
-      return {
-        error: "All fields are required"
-      };
-    }
-    const stage = await prisma.pipelineStage.findUnique({
-      where: {
-        id
+    if (intent === "editStage") {
+      const id = formData.get("id");
+      const label = (_c = formData.get("label")) == null ? void 0 : _c.trim();
+      const colorKey = formData.get("colorKey");
+      const newName = (_d = formData.get("name")) == null ? void 0 : _d.trim().toUpperCase().replace(/\s+/g, "_");
+      if (!id || !label || !newName) {
+        return {
+          error: "All fields are required"
+        };
       }
-    });
-    if (!stage) {
-      return {
-        error: "Stage not found"
-      };
-    }
-    try {
+      const stage = await prisma.pipelineStage.findUnique({
+        where: {
+          id
+        }
+      });
+      if (!stage) {
+        return {
+          error: "Stage not found"
+        };
+      }
       if (newName !== stage.name) {
         const existing = await prisma.pipelineStage.findUnique({
           where: {
@@ -16821,57 +16814,43 @@ async function action$5({
         });
       }
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to update stage:", err);
-      return {
-        error: "Failed to update stage"
-      };
+      return redirect("/settings/stages");
     }
-    return redirect("/settings/stages");
-  }
-  if (intent === "deleteStage") {
-    const id = formData.get("id");
-    const stage = await prisma.pipelineStage.findUnique({
-      where: {
-        id
+    if (intent === "deleteStage") {
+      const id = formData.get("id");
+      const stage = await prisma.pipelineStage.findUnique({
+        where: {
+          id
+        }
+      });
+      if (!stage) {
+        return {
+          error: "Stage not found"
+        };
       }
-    });
-    if (!stage) {
-      return {
-        error: "Stage not found"
-      };
-    }
-    const leadCount = await prisma.lead.count({
-      where: {
-        stage: stage.name
+      const leadCount = await prisma.lead.count({
+        where: {
+          stage: stage.name
+        }
+      });
+      if (leadCount > 0) {
+        return {
+          error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`
+        };
       }
-    });
-    if (leadCount > 0) {
-      return {
-        error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`
-      };
-    }
-    try {
       await prisma.pipelineStage.delete({
         where: {
           id
         }
       });
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to delete stage:", err);
-      return {
-        error: "Failed to delete stage"
-      };
+      return redirect("/settings/stages");
     }
-    return redirect("/settings/stages");
-  }
-  if (intent === "reorderStages") {
-    const orderJson = formData.get("order");
-    if (!orderJson) return {
-      error: "No order provided"
-    };
-    try {
+    if (intent === "reorderStages") {
+      const orderJson = formData.get("order");
+      if (!orderJson) return {
+        error: "No order provided"
+      };
       const order = JSON.parse(orderJson);
       const txOps = order.map((id, index) => prisma.pipelineStage.update({
         where: {
@@ -16883,13 +16862,14 @@ async function action$5({
       }));
       await prisma.$transaction(txOps);
       invalidateStagesCache();
-    } catch (err) {
-      console.error("[stages] Failed to reorder stages:", err);
-      return {
-        error: "Failed to reorder stages"
-      };
+      return redirect("/settings/stages");
     }
-    return redirect("/settings/stages");
+  } catch (err) {
+    console.error("[stages] Action failed:", err);
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return {
+      error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage: ${msg}`
+    };
   }
   return {};
 }
@@ -19756,7 +19736,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-y1r4U2wM.js").then(({
+    import("./pipeline-ZGHjCnIa.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -19785,7 +19765,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-y1r4U2wM.js").then(({
+    import("./pipeline-ZGHjCnIa.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
