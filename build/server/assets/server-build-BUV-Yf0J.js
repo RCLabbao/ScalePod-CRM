@@ -7,7 +7,7 @@ import { FormStrategy } from "remix-auth-form";
 import pkg from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import * as React from "react";
-import React__default, { useState, useEffect as useEffect$1, useMemo, useCallback, forwardRef, useRef, useImperativeHandle } from "react";
+import React__default, { useState, useEffect as useEffect$1, useMemo, useCallback, forwardRef, useRef, useImperativeHandle, Fragment as Fragment$1 } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
 import { clsx } from "clsx";
@@ -127,7 +127,7 @@ const route0 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   default: root,
   links
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$C() {
+async function loader$D() {
   return redirect("/dashboard");
 }
 const home = UNSAFE_withComponentProps(function Index() {
@@ -136,7 +136,7 @@ const home = UNSAFE_withComponentProps(function Index() {
 const route1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: home,
-  loader: loader$C
+  loader: loader$D
 }, Symbol.toStringTag, { value: "Module" }));
 const STAGE_COLOR_PALETTE = {
   slate: { color: "border-t-slate-400", bg: "bg-slate-400/10", bar: "bg-slate-400/50", dot: "bg-slate-400", text: "text-slate-300", border: "border-slate-400/20" },
@@ -409,7 +409,7 @@ const CardContent = React.forwardRef(
   ({ className, ...props }, ref) => /* @__PURE__ */ jsx("div", { ref, className: cn("p-6 pt-0", className), ...props })
 );
 CardContent.displayName = "CardContent";
-async function loader$B({
+async function loader$C({
   request
 }) {
   const session = await getSession(request);
@@ -418,7 +418,7 @@ async function loader$B({
   }
   return {};
 }
-async function action$p({
+async function action$q({
   request
 }) {
   const formData = await request.clone().formData();
@@ -520,11 +520,11 @@ const login = UNSAFE_withComponentProps(function Login() {
 });
 const route2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$p,
+  action: action$q,
   default: login,
-  loader: loader$B
+  loader: loader$C
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$A({
+async function loader$B({
   request
 }) {
   const session = await getSession(request);
@@ -533,7 +533,7 @@ async function loader$A({
   }
   return {};
 }
-async function action$o({
+async function action$p({
   request
 }) {
   const formData = await request.formData();
@@ -702,9 +702,9 @@ const register = UNSAFE_withComponentProps(function Register() {
 });
 const route3 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$o,
+  action: action$p,
   default: register,
-  loader: loader$A
+  loader: loader$B
 }, Symbol.toStringTag, { value: "Module" }));
 const userExistenceCache = /* @__PURE__ */ new Map();
 const USER_CACHE_TTL_MS = 6e4;
@@ -987,7 +987,7 @@ async function getGmailSignature(userId) {
     return "";
   }
 }
-async function loader$z({
+async function loader$A({
   request
 }) {
   const userId = await requireAuth(request);
@@ -1017,9 +1017,9 @@ async function loader$z({
 }
 const route4 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  loader: loader$z
+  loader: loader$A
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$y({
+async function loader$z({
   request
 }) {
   const url = new URL(request.url);
@@ -1102,7 +1102,7 @@ async function loader$y({
 }
 const route5 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  loader: loader$y
+  loader: loader$z
 }, Symbol.toStringTag, { value: "Module" }));
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -1223,7 +1223,7 @@ function AppShell({ user, children }) {
     ] })
   ] });
 }
-async function loader$x({
+async function loader$y({
   request
 }) {
   const userId = await requireAuth(request);
@@ -1426,7 +1426,7 @@ function PipelineBreakdown({
 const route6 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: dashboard,
-  loader: loader$x
+  loader: loader$y
 }, Symbol.toStringTag, { value: "Module" }));
 function getActivityStyle(action2) {
   switch (action2) {
@@ -1498,7 +1498,7 @@ function rangeToStartDate(range, from) {
   }
   return d;
 }
-async function loader$w({
+async function loader$x({
   request
 }) {
   var _a;
@@ -2986,7 +2986,7 @@ const analytics = UNSAFE_withComponentProps(function Analytics() {
 const route7 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: analytics,
-  loader: loader$w
+  loader: loader$x
 }, Symbol.toStringTag, { value: "Module" }));
 async function scoreLead(responses) {
   const criteria = await prisma.verificationCriteria.findMany({
@@ -3039,14 +3039,30 @@ async function getScoreConfig() {
 async function evaluateWorkflows(event, leadId, metadata) {
   try {
     const rules = await prisma.workflowRule.findMany({
-      where: { triggerEvent: event, active: true }
+      where: { triggerEvent: event, active: true },
+      include: {
+        actions: {
+          where: { active: true },
+          orderBy: { order: "asc" }
+        }
+      }
     });
     for (const rule of rules) {
       try {
         const conditionMatch = matchesCondition(rule.triggerCondition, metadata);
         if (!conditionMatch) continue;
         const ctx = { leadId, metadata };
-        await executeAction(rule.action, rule.actionConfig, ctx, rule.id);
+        const actions = rule.actions && rule.actions.length > 0 ? rule.actions : (
+          // Fallback: legacy single-action rules that haven't been migrated yet
+          rule.action && rule.action !== "LEGACY" ? [{ id: `legacy_${rule.id}`, ruleId: rule.id, type: rule.action, config: rule.actionConfig, order: 0, active: true, createdAt: rule.createdAt, updatedAt: rule.updatedAt }] : []
+        );
+        for (const actionStep of actions) {
+          try {
+            await executeAction(actionStep.type, actionStep.config, ctx, rule.id);
+          } catch (err) {
+            await logWorkflowError(rule.id, leadId, err instanceof Error ? err.message : String(err));
+          }
+        }
       } catch (err) {
         await logWorkflowError(rule.id, leadId, err instanceof Error ? err.message : String(err));
       }
@@ -3076,6 +3092,9 @@ async function executeAction(action2, config, ctx, ruleId) {
       break;
     case "ADD_NOTE":
       await addNote(config, ctx, ruleId);
+      break;
+    case "SEND_EMAIL":
+      await sendWorkflowEmail(config, ctx, ruleId);
       break;
     default:
       await logWorkflowError(ruleId, ctx.leadId, `Unknown action: ${action2}`);
@@ -3168,6 +3187,102 @@ async function addNote(config, ctx, ruleId) {
     }
   });
 }
+function interpolateTemplate(template, lead) {
+  const vars = {
+    companyName: lead.companyName || "",
+    contactName: lead.contactName || "",
+    email: lead.email || "",
+    industry: lead.industry || "",
+    leadSource: lead.leadSource || "",
+    stage: lead.stage || "",
+    website: lead.website || ""
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
+async function sendWorkflowEmail(config, ctx, ruleId) {
+  const fromUserId = config.fromUserId;
+  const subjectTemplate = config.subject;
+  const bodyTemplate = config.body;
+  if (!fromUserId) {
+    await logWorkflowError(ruleId, ctx.leadId, "Missing fromUserId in actionConfig");
+    return;
+  }
+  if (!subjectTemplate || !bodyTemplate) {
+    await logWorkflowError(ruleId, ctx.leadId, "Missing subject or body in actionConfig");
+    return;
+  }
+  const lead = await prisma.lead.findUnique({
+    where: { id: ctx.leadId },
+    select: { id: true, companyName: true, contactName: true, email: true, industry: true, leadSource: true, stage: true, website: true }
+  });
+  if (!lead) {
+    await logWorkflowError(ruleId, ctx.leadId, "Lead not found");
+    return;
+  }
+  if (!lead.email) {
+    await logWorkflowError(ruleId, ctx.leadId, `SEND_EMAIL failed: Lead "${lead.companyName}" has no email address`);
+    return;
+  }
+  const gmailToken = await prisma.gmailToken.findUnique({ where: { userId: fromUserId } });
+  if (!gmailToken) {
+    const user = await prisma.user.findUnique({ where: { id: fromUserId }, select: { name: true } });
+    await logWorkflowError(ruleId, ctx.leadId, `SEND_EMAIL failed: User "${(user == null ? void 0 : user.name) || fromUserId}" does not have Gmail connected`);
+    return;
+  }
+  const subject = interpolateTemplate(subjectTemplate, lead);
+  const bodyPlain = interpolateTemplate(bodyTemplate, lead);
+  const htmlBody = plainTextToHtml(bodyPlain);
+  try {
+    const result = await sendEmail(fromUserId, {
+      to: lead.email,
+      subject,
+      body: bodyPlain,
+      htmlBody
+    });
+    const now = /* @__PURE__ */ new Date();
+    const thread = await prisma.emailThread.create({
+      data: {
+        leadId: lead.id,
+        gmailThreadId: result.gmailThreadId,
+        subject,
+        snippet: bodyPlain.substring(0, 200),
+        status: "SENT",
+        lastMessage: now
+      }
+    });
+    await prisma.emailMessage.create({
+      data: {
+        threadId: thread.id,
+        gmailMessageId: result.gmailMessageId,
+        fromAddress: gmailToken.gmailAddress || "me",
+        toAddress: lead.email,
+        subject,
+        bodyPlain,
+        bodyHtml: htmlBody,
+        snippet: bodyPlain.substring(0, 200),
+        direction: "sent",
+        sentAt: now
+      }
+    });
+    await prisma.workflowLog.create({
+      data: {
+        ruleId,
+        leadId: ctx.leadId,
+        success: true,
+        result: {
+          action: "SEND_EMAIL",
+          fromUserId,
+          fromAddress: gmailToken.gmailAddress,
+          toAddress: lead.email,
+          subject
+        }
+      }
+    });
+  } catch (sendErr) {
+    const errMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+    await logWorkflowError(ruleId, ctx.leadId, `SEND_EMAIL failed: ${errMsg}`);
+  }
+}
 async function logWorkflowError(ruleId, leadId, error) {
   try {
     await prisma.workflowLog.create({
@@ -3204,7 +3319,7 @@ async function logActivity(input) {
   });
   return log;
 }
-async function loader$v({
+async function loader$w({
   request
 }) {
   const userId = await requireAuth(request);
@@ -3278,7 +3393,7 @@ async function loader$v({
     stages
   };
 }
-async function action$n({
+async function action$o({
   request
 }) {
   const userId = await requireAuth(request);
@@ -3813,9 +3928,9 @@ function LeadRow({
 }
 const route8 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$n,
+  action: action$o,
   default: inbox,
-  loader: loader$v
+  loader: loader$w
 }, Symbol.toStringTag, { value: "Module" }));
 const Textarea = React.forwardRef(({ className, ...props }, ref) => {
   return /* @__PURE__ */ jsx(
@@ -3834,7 +3949,7 @@ Textarea.displayName = "Textarea";
 function isSafeUrl(url) {
   return /^https?:\/\//i.test(url);
 }
-async function loader$u({
+async function loader$v({
   request,
   params
 }) {
@@ -3945,7 +4060,7 @@ async function loader$u({
     gmailConnected: !!(user == null ? void 0 : user.gmailTokens)
   };
 }
-async function action$m({
+async function action$n({
   request
 }) {
   var _a;
@@ -4853,11 +4968,11 @@ function Field$1({
 }
 const route9 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$m,
+  action: action$n,
   default: inbox_$leadId,
-  loader: loader$u
+  loader: loader$v
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$t({
+async function loader$u({
   request
 }) {
   const userId = await requireAuth(request);
@@ -4889,7 +5004,7 @@ async function loader$t({
     criteria
   };
 }
-async function action$l({
+async function action$m({
   request
 }) {
   const userId = await requireAuth(request);
@@ -5501,9 +5616,9 @@ function TemperatureBadge({
 }
 const route10 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$l,
+  action: action$m,
   default: leads_new,
-  loader: loader$t
+  loader: loader$u
 }, Symbol.toStringTag, { value: "Module" }));
 const Select = React.forwardRef(
   ({ className, children, ...props }, ref) => /* @__PURE__ */ jsx(
@@ -5520,7 +5635,7 @@ const Select = React.forwardRef(
   )
 );
 Select.displayName = "Select";
-async function loader$s({
+async function loader$t({
   request
 }) {
   const userId = await requireAuth(request);
@@ -5546,7 +5661,7 @@ async function loader$s({
     scoreConfig
   };
 }
-async function action$k({
+async function action$l({
   request
 }) {
   await requireAdmin(request);
@@ -6031,11 +6146,11 @@ function CriteriaForm({
 }
 const route11 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$k,
+  action: action$l,
   default: verification_criteria,
-  loader: loader$s
+  loader: loader$t
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$r({
+async function loader$s({
   request,
   params
 }) {
@@ -6089,7 +6204,7 @@ async function loader$r({
     existingResponses
   };
 }
-async function action$j({
+async function action$k({
   request,
   params
 }) {
@@ -6452,12 +6567,12 @@ const verification_$leadId = UNSAFE_withComponentProps(function VerifyLead() {
 });
 const route12 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$j,
+  action: action$k,
   default: verification_$leadId,
-  loader: loader$r
+  loader: loader$s
 }, Symbol.toStringTag, { value: "Module" }));
 const ALLOWED_ROLES$1 = ["AGENT", "ADMIN"];
-async function loader$q({
+async function loader$r({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -6501,7 +6616,7 @@ async function loader$q({
     users: users2
   };
 }
-async function action$i({
+async function action$j({
   request
 }) {
   await requireAdmin(request);
@@ -6771,11 +6886,11 @@ const users = UNSAFE_withComponentProps(function UserList() {
 });
 const route13 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$i,
+  action: action$j,
   default: users,
-  loader: loader$q
+  loader: loader$r
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$p({
+async function loader$q({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -6793,7 +6908,7 @@ async function loader$p({
     user
   };
 }
-async function action$h({
+async function action$i({
   request
 }) {
   await requireAdmin(request);
@@ -6985,9 +7100,9 @@ const users_new = UNSAFE_withComponentProps(function NewUser() {
 });
 const route14 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$h,
+  action: action$i,
   default: users_new,
-  loader: loader$p
+  loader: loader$q
 }, Symbol.toStringTag, { value: "Module" }));
 function TemperatureIcon({ temp }) {
   if (temp === "HOT") return /* @__PURE__ */ jsx("div", { className: "flex h-5 w-5 items-center justify-center rounded-md bg-amber-500/10", children: /* @__PURE__ */ jsx(Flame, { className: "h-3 w-3 text-amber-400" }) });
@@ -7504,7 +7619,7 @@ function TimelineItem({
     ] })
   ] });
 }
-const TEMPERATURES$1 = [{
+const TEMPERATURES$2 = [{
   key: "ALL",
   label: "All",
   icon: SlidersHorizontal
@@ -7521,7 +7636,7 @@ const TEMPERATURES$1 = [{
   label: "Cold",
   icon: Snowflake
 }];
-async function loader$o({
+async function loader$p({
   request
 }) {
   const userId = await requireAuth(request);
@@ -7564,7 +7679,7 @@ async function loader$o({
     pipelineStages
   };
 }
-async function action$g({
+async function action$h({
   request
 }) {
   const userId = await requireAuth(request);
@@ -8092,7 +8207,7 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
           })]
         }), /* @__PURE__ */ jsx("div", {
           className: "flex items-center gap-1 rounded-2xl bg-muted/30 p-1 ring-1 ring-border/40",
-          children: TEMPERATURES$1.map((t) => {
+          children: TEMPERATURES$2.map((t) => {
             const Icon = t.icon;
             const active = tempFilter === t.key;
             return /* @__PURE__ */ jsxs("button", {
@@ -8212,11 +8327,11 @@ const pipeline = UNSAFE_withComponentProps(function Pipeline() {
 });
 const route15 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$g,
+  action: action$h,
   default: pipeline,
-  loader: loader$o
+  loader: loader$p
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$n({
+async function loader$o({
   request
 }) {
   var _a, _b, _c, _d, _e;
@@ -8849,7 +8964,7 @@ const emails = UNSAFE_withComponentProps(function EmailHub() {
 const route16 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: emails,
-  loader: loader$n
+  loader: loader$o
 }, Symbol.toStringTag, { value: "Module" }));
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
@@ -9041,7 +9156,7 @@ const RichEditor = forwardRef(
   }
 );
 RichEditor.displayName = "RichEditor";
-async function loader$m({
+async function loader$n({
   request
 }) {
   const userId = await requireAuth(request);
@@ -9065,7 +9180,7 @@ async function loader$m({
     templates
   };
 }
-async function action$f({
+async function action$g({
   request
 }) {
   await requireAuth(request);
@@ -9662,11 +9777,11 @@ const emails_templates = UNSAFE_withComponentProps(function EmailTemplates() {
 });
 const route17 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$f,
+  action: action$g,
   default: emails_templates,
-  loader: loader$m
+  loader: loader$n
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$l({
+async function loader$m({
   request,
   params
 }) {
@@ -9713,7 +9828,7 @@ async function loader$l({
     gmailConnected: !!(user == null ? void 0 : user.gmailTokens)
   };
 }
-async function action$e({
+async function action$f({
   request,
   params
 }) {
@@ -9986,11 +10101,11 @@ const emails_threads_$threadId = UNSAFE_withComponentProps(function ThreadDetail
 });
 const route18 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$e,
+  action: action$f,
   default: emails_threads_$threadId,
-  loader: loader$l
+  loader: loader$m
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$k({
+async function loader$l({
   request,
   params
 }) {
@@ -10052,7 +10167,7 @@ async function loader$k({
     matchedLead
   };
 }
-async function action$d({
+async function action$e({
   request,
   params
 }) {
@@ -10481,11 +10596,11 @@ const emails_inbox_$messageId = UNSAFE_withComponentProps(function GmailMessageD
 });
 const route19 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$d,
+  action: action$e,
   default: emails_inbox_$messageId,
-  loader: loader$k
+  loader: loader$l
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$j({
+async function loader$k({
   request,
   params
 }) {
@@ -10559,7 +10674,7 @@ async function loader$j({
     gmailSignature
   };
 }
-async function action$c({
+async function action$d({
   request,
   params
 }) {
@@ -11067,9 +11182,9 @@ function buildPreviewHtml(bodyContent) {
 }
 const route20 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$c,
+  action: action$d,
   default: leads_$leadId_emails,
-  loader: loader$j
+  loader: loader$k
 }, Symbol.toStringTag, { value: "Module" }));
 const TIER_LIMITS$1 = {
   FREE: { perMinute: 20, perDay: 1e3 },
@@ -11419,7 +11534,7 @@ function rateLimitHeaders(tier, remaining, resetAt) {
     "X-RateLimit-Reset": String(Math.ceil(resetAt / 1e3))
   };
 }
-async function loader$i({
+async function loader$j({
   request
 }) {
   const apiKey = await authenticate$2(request);
@@ -11491,7 +11606,7 @@ async function loader$i({
     headers: rateLimitHeaders(apiKey.tier, rl.remaining, rl.resetAt)
   });
 }
-async function action$b({
+async function action$c({
   request
 }) {
   const apiKey = await authenticate$2(request);
@@ -11649,8 +11764,8 @@ async function action$b({
 }
 const route21 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$b,
-  loader: loader$i
+  action: action$c,
+  loader: loader$j
 }, Symbol.toStringTag, { value: "Module" }));
 async function authenticate$1(request) {
   const apiKeyHeader = request.headers.get("X-API-Key");
@@ -11677,7 +11792,7 @@ async function authenticate$1(request) {
 const LeadDetailQuerySchema = z.object({
   leadId: z.string().min(1, "leadId is required").max(50)
 });
-async function loader$h({
+async function loader$i({
   request
 }) {
   await authenticate$1(request);
@@ -11771,7 +11886,7 @@ async function loader$h({
 }
 const route22 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  loader: loader$h
+  loader: loader$i
 }, Symbol.toStringTag, { value: "Module" }));
 async function authenticate(request) {
   const apiKeyHeader = request.headers.get("X-API-Key");
@@ -11798,7 +11913,7 @@ async function authenticate(request) {
 const ScraperQuerySchema = z.object({
   jobId: z.string().min(1, "jobId is required").max(50)
 });
-async function loader$g({
+async function loader$h({
   request
 }) {
   await authenticate(request);
@@ -11839,9 +11954,9 @@ async function loader$g({
 }
 const route23 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  loader: loader$g
+  loader: loader$h
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$f({
+async function loader$g({
   request
 }) {
   await requireAdmin(request);
@@ -11928,9 +12043,9 @@ async function loader$f({
 }
 const route24 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  loader: loader$f
+  loader: loader$g
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$e({
+async function loader$f({
   request
 }) {
   const userId = await requireAuth(request);
@@ -13333,10 +13448,10 @@ X-RateLimit-Reset: 1714329600`
 const route25 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: docs_api,
-  loader: loader$e,
+  loader: loader$f,
   meta
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$d({
+async function loader$e({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -13462,7 +13577,7 @@ function StatusBadge({
 const route26 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: imports,
-  loader: loader$d
+  loader: loader$e
 }, Symbol.toStringTag, { value: "Module" }));
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -13646,7 +13761,7 @@ async function processImport(importId) {
   });
   return { imported, skipped, errors };
 }
-async function loader$c({
+async function loader$d({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -13664,7 +13779,7 @@ async function loader$c({
     user
   };
 }
-async function action$a({
+async function action$b({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -13970,9 +14085,9 @@ function autoMap(header) {
 }
 const route27 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$a,
+  action: action$b,
   default: imports_new,
-  loader: loader$c
+  loader: loader$d
 }, Symbol.toStringTag, { value: "Module" }));
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -13990,7 +14105,7 @@ function useTheme() {
   };
   return { theme, toggleTheme };
 }
-async function loader$b({
+async function loader$c({
   request
 }) {
   const userId = await requireAuth(request);
@@ -14011,7 +14126,7 @@ async function loader$b({
     gmailStatus: url.searchParams.get("gmail")
   };
 }
-async function action$9({
+async function action$a({
   request
 }) {
   const userId = await requireAuth(request);
@@ -14346,12 +14461,12 @@ const settings = UNSAFE_withComponentProps(function Settings3() {
 });
 const route28 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$9,
+  action: action$a,
   default: settings,
-  loader: loader$b
+  loader: loader$c
 }, Symbol.toStringTag, { value: "Module" }));
 const ALLOWED_ROLES = ["AGENT", "ADMIN"];
-async function loader$a({
+async function loader$b({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -14382,7 +14497,7 @@ async function loader$a({
     users: users2
   };
 }
-async function action$8({
+async function action$9({
   request
 }) {
   await requireAdmin(request);
@@ -14672,9 +14787,9 @@ const settings_users = UNSAFE_withComponentProps(function UserManagement() {
 });
 const route29 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$8,
+  action: action$9,
   default: settings_users,
-  loader: loader$a
+  loader: loader$b
 }, Symbol.toStringTag, { value: "Module" }));
 function getNextMigrationNumber(dir) {
   const files = discoverMigrationFiles(dir);
@@ -15135,7 +15250,7 @@ async function applySchemaDiffSQL(sql) {
 function sanitizeErrorMessage(message) {
   return message.replace(/mysql:\/\//g, "mysql:[redacted]@").replace(/password=\S+/g, "password=[redacted]").replace(/host=\S+/g, "host=[redacted]").slice(0, 200);
 }
-async function loader$9({
+async function loader$a({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -15158,7 +15273,7 @@ async function loader$9({
     schemaDiff
   };
 }
-async function action$7({
+async function action$8({
   request
 }) {
   await requireAdmin(request);
@@ -15712,11 +15827,11 @@ const settings_database = UNSAFE_withComponentProps(function SettingsDatabase() 
 });
 const route30 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$7,
+  action: action$8,
   default: settings_database,
-  loader: loader$9
+  loader: loader$a
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$8({
+async function loader$9({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -15754,7 +15869,7 @@ async function loader$8({
     user
   };
 }
-async function action$6({
+async function action$7({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -16081,13 +16196,13 @@ const settings_apiKeys = UNSAFE_withComponentProps(function ApiKeysSettings() {
 });
 const route31 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$6,
+  action: action$7,
   default: settings_apiKeys,
-  loader: loader$8
+  loader: loader$9
 }, Symbol.toStringTag, { value: "Module" }));
 const FIELD_TYPES = ["INDUSTRY", "ESTIMATED_TRAFFIC", "TECH_STACK", "LEAD_SOURCE", "WEBSITE"];
 const OPERATORS = ["CONTAINS", "EQUALS", "STARTS_WITH", "REGEX"];
-async function loader$7({
+async function loader$8({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -16127,7 +16242,7 @@ async function loader$7({
     user
   };
 }
-async function action$5({
+async function action$6({
   request
 }) {
   await requireAdmin(request);
@@ -16545,11 +16660,11 @@ const settings_scoringRules = UNSAFE_withComponentProps(function ScoringRulesSet
 });
 const route32 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$5,
+  action: action$6,
   default: settings_scoringRules,
-  loader: loader$7
+  loader: loader$8
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$6({
+async function loader$7({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -16581,7 +16696,7 @@ async function loader$6({
     leadCounts
   };
 }
-async function action$4({
+async function action$5({
   request
 }) {
   var _a, _b, _c, _d;
@@ -17185,16 +17300,16 @@ const settings_stages = UNSAFE_withComponentProps(function SettingsStagesPage() 
 });
 const route33 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$4,
+  action: action$5,
   default: settings_stages,
-  loader: loader$6
+  loader: loader$7
 }, Symbol.toStringTag, { value: "Module" }));
-async function loader$5() {
+async function loader$6() {
   return redirect("/workflows");
 }
 const route34 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  loader: loader$5
+  loader: loader$6
 }, Symbol.toStringTag, { value: "Module" }));
 const TRIGGER_LABELS = {
   LEAD_CREATED: "Lead Created",
@@ -17224,7 +17339,8 @@ const ACTION_COLORS = {
   ASSIGN_TO_USER: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   SEND_NOTIFICATION: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   UPDATE_FIELD: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  ADD_NOTE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+  ADD_NOTE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  SEND_EMAIL: "bg-rose-500/10 text-rose-400 border-rose-500/20"
 };
 function formatCondition(event, condition) {
   if (condition.toStage) return `to ${formatStage(condition.toStage)}`;
@@ -17243,6 +17359,10 @@ function formatAction(action2, config, userMap) {
       return `Set ${config.field || "?"} → ${(config.value || "?").slice(0, 20)}`;
     case "ADD_NOTE":
       return `"${String(config.note || "").slice(0, 30)}"`;
+    case "SEND_EMAIL": {
+      const fromName = config.fromUserId ? userMap.get(config.fromUserId) || String(config.fromUserId).slice(0, 8) : "?";
+      return `Email from ${fromName}: "${String(config.subject || "").slice(0, 25)}"`;
+    }
     default:
       return action2;
   }
@@ -17250,7 +17370,7 @@ function formatAction(action2, config, userMap) {
 function hasCondition(triggerEvent) {
   return triggerEvent === "STAGE_CHANGED" || triggerEvent === "TEMPERATURE_CHANGED" || triggerEvent === "LEAD_SCORED";
 }
-async function loader$4({
+async function loader$5({
   request
 }) {
   const userId = await requireAdmin(request);
@@ -17269,6 +17389,16 @@ async function loader$4({
     rules = await prisma.workflowRule.findMany({
       orderBy: {
         createdAt: "desc"
+      },
+      include: {
+        actions: {
+          where: {
+            active: true
+          },
+          orderBy: {
+            order: "asc"
+          }
+        }
       }
     });
   } catch (err) {
@@ -17314,7 +17444,7 @@ async function loader$4({
     user
   };
 }
-async function action$3({
+async function action$4({
   request
 }) {
   await requireAdmin(request);
@@ -17374,6 +17504,14 @@ function RuleFlowCard({
   userMap
 }) {
   const showFilter = hasCondition(rule.triggerEvent) && rule.triggerCondition && Object.keys(rule.triggerCondition).length > 0;
+  const displayActions = rule.actions && rule.actions.length > 0 ? rule.actions : rule.action && rule.action !== "LEGACY" ? [{
+    id: `legacy_${rule.id}`,
+    ruleId: rule.id,
+    type: rule.action,
+    config: rule.actionConfig,
+    order: 0,
+    active: true
+  }] : [];
   return /* @__PURE__ */ jsxs("div", {
     className: "group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm transition-all duration-300 hover:border-border/60 hover:shadow-lg hover:shadow-primary/5",
     children: [/* @__PURE__ */ jsx("div", {
@@ -17411,9 +17549,7 @@ function RuleFlowCard({
               className: "text-xs font-medium text-blue-400/90",
               children: TRIGGER_LABELS[rule.triggerEvent] || rule.triggerEvent
             })]
-          }), showFilter ? /* @__PURE__ */ jsx(ArrowRight, {
-            className: "h-3.5 w-3.5 text-muted-foreground/30 shrink-0"
-          }) : /* @__PURE__ */ jsx(ArrowRight, {
+          }), /* @__PURE__ */ jsx(ArrowRight, {
             className: "h-3.5 w-3.5 text-muted-foreground/30 shrink-0"
           }), showFilter ? /* @__PURE__ */ jsxs(Fragment, {
             children: [/* @__PURE__ */ jsxs("div", {
@@ -17430,22 +17566,36 @@ function RuleFlowCard({
             }), /* @__PURE__ */ jsx(ArrowRight, {
               className: "h-3.5 w-3.5 text-muted-foreground/30 shrink-0"
             })]
-          }) : null, /* @__PURE__ */ jsxs("div", {
-            className: `flex items-center gap-2 rounded-xl border px-3 py-1.5 ${ACTION_COLORS[rule.action] || "bg-muted/40 border-border/40 text-muted-foreground"}`,
-            children: [/* @__PURE__ */ jsx("div", {
-              className: "flex h-6 w-6 items-center justify-center rounded-lg bg-white/5",
-              children: /* @__PURE__ */ jsx(Play, {
-                className: "h-3 w-3"
-              })
-            }), /* @__PURE__ */ jsx("span", {
-              className: "text-xs font-medium",
-              children: formatAction(rule.action, rule.actionConfig, userMap)
+          }) : null, displayActions.map((act, idx) => /* @__PURE__ */ jsxs(Fragment$1, {
+            children: [idx > 0 && /* @__PURE__ */ jsx(ArrowRight, {
+              className: "h-3.5 w-3.5 text-muted-foreground/30 shrink-0"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: `flex items-center gap-2 rounded-xl border px-3 py-1.5 ${ACTION_COLORS[act.type] || "bg-muted/40 border-border/40 text-muted-foreground"}`,
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-6 w-6 items-center justify-center rounded-lg bg-white/5",
+                children: /* @__PURE__ */ jsx(Play, {
+                  className: "h-3 w-3"
+                })
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-xs font-medium",
+                children: formatAction(act.type, act.config, userMap)
+              })]
             })]
-          })]
+          }, act.id))]
         })]
       }), /* @__PURE__ */ jsxs("div", {
         className: "flex items-center gap-2 shrink-0",
-        children: [/* @__PURE__ */ jsxs(Form, {
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: `/workflows/${rule.id}/edit`,
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "sm",
+            className: "h-8 w-8 p-0 rounded-lg text-muted-foreground/50 hover:text-blue-400 hover:bg-blue-500/10 opacity-60 group-hover:opacity-100 transition-all duration-200",
+            children: /* @__PURE__ */ jsx(Pencil, {
+              className: "h-3.5 w-3.5"
+            })
+          })
+        }), /* @__PURE__ */ jsxs(Form, {
           method: "post",
           children: [/* @__PURE__ */ jsx("input", {
             type: "hidden",
@@ -17681,47 +17831,850 @@ const workflows = UNSAFE_withComponentProps(function WorkflowsPage() {
 });
 const route35 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  action: action$3,
+  action: action$4,
   default: workflows,
+  loader: loader$5
+}, Symbol.toStringTag, { value: "Module" }));
+const TRIGGER_OPTIONS$1 = [{
+  value: "LEAD_CREATED",
+  label: "A lead is created"
+}, {
+  value: "STAGE_CHANGED",
+  label: "A lead's stage changes"
+}, {
+  value: "TEMPERATURE_CHANGED",
+  label: "A lead's temperature changes"
+}, {
+  value: "LEAD_APPROVED",
+  label: "A lead is approved"
+}, {
+  value: "LEAD_SCORED",
+  label: "A lead is scored"
+}];
+const ACTION_TYPES$1 = [{
+  value: "ASSIGN_TO_USER",
+  label: "Assign to a user",
+  icon: User,
+  color: "violet"
+}, {
+  value: "SEND_NOTIFICATION",
+  label: "Send a notification",
+  icon: MessageSquare,
+  color: "sky"
+}, {
+  value: "UPDATE_FIELD",
+  label: "Update a lead field",
+  icon: PenSquare,
+  color: "amber"
+}, {
+  value: "ADD_NOTE",
+  label: "Add a note",
+  icon: StickyNote,
+  color: "emerald"
+}, {
+  value: "SEND_EMAIL",
+  label: "Send an email",
+  icon: Mail,
+  color: "rose"
+}];
+const TEMPERATURES$1 = [{
+  value: "HOT",
+  label: "HOT"
+}, {
+  value: "WARM",
+  label: "WARM"
+}, {
+  value: "COLD",
+  label: "COLD"
+}];
+const UPDATE_FIELDS$1 = [{
+  value: "stage",
+  label: "Stage",
+  type: "select",
+  options: []
+}, {
+  value: "status",
+  label: "Status",
+  type: "select",
+  options: [{
+    value: "INBOX",
+    label: "Inbox"
+  }, {
+    value: "ACTIVE",
+    label: "Active"
+  }, {
+    value: "REJECTED",
+    label: "Rejected"
+  }]
+}, {
+  value: "temperature",
+  label: "Temperature",
+  type: "select",
+  options: TEMPERATURES$1
+}, {
+  value: "leadSource",
+  label: "Lead Source",
+  type: "text"
+}, {
+  value: "industry",
+  label: "Industry",
+  type: "text"
+}, {
+  value: "notes",
+  label: "Notes",
+  type: "textarea"
+}];
+const TRIGGERS_WITH_CONDITION$1 = /* @__PURE__ */ new Set(["STAGE_CHANGED", "TEMPERATURE_CHANGED", "LEAD_SCORED"]);
+const COLOR_MAP$1 = {
+  violet: "bg-violet-500/5 border-violet-500/10",
+  sky: "bg-sky-500/5 border-sky-500/10",
+  amber: "bg-amber-500/5 border-amber-500/10",
+  emerald: "bg-emerald-500/5 border-emerald-500/10",
+  rose: "bg-rose-500/5 border-rose-500/10"
+};
+const TEXT_COLOR_MAP$1 = {
+  violet: "text-violet-400",
+  sky: "text-sky-400",
+  amber: "text-amber-400",
+  emerald: "text-emerald-400",
+  rose: "text-rose-400"
+};
+function makeActionStep$1(type = "ASSIGN_TO_USER") {
+  return {
+    id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type,
+    configUserId: "",
+    configMessage: "",
+    configField: "stage",
+    configValue: "",
+    configNote: "",
+    configFromUserId: "",
+    configSubject: "",
+    configBody: ""
+  };
+}
+function StepConnector() {
+  return /* @__PURE__ */ jsx("div", {
+    className: "flex justify-center py-1",
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "flex flex-col items-center",
+      children: [/* @__PURE__ */ jsx("div", {
+        className: "h-4 w-px bg-gradient-to-b from-border via-border to-transparent"
+      }), /* @__PURE__ */ jsx(ChevronDown, {
+        className: "h-3.5 w-3.5 text-muted-foreground/30 -mt-1"
+      })]
+    })
+  });
+}
+async function loader$4({
+  request
+}) {
+  const userId = await requireAdmin(request);
+  const [user, users2, stages, gmailTokens] = await Promise.all([prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      name: true,
+      email: true,
+      role: true
+    }
+  }), prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true
+    },
+    orderBy: {
+      name: "asc"
+    }
+  }), getStagesWithMeta(), prisma.gmailToken.findMany({
+    select: {
+      userId: true,
+      gmailAddress: true
+    }
+  })]);
+  const gmailUserIds = new Set(gmailTokens.map((t) => t.userId));
+  const gmailAddressMap = new Map(gmailTokens.map((t) => [t.userId, t.gmailAddress || "Gmail connected"]));
+  return {
+    user,
+    users: users2,
+    stages,
+    gmailUserIds,
+    gmailAddressMap
+  };
+}
+function buildActionConfig(step) {
+  switch (step.type) {
+    case "ASSIGN_TO_USER":
+      if (!step.configUserId) return null;
+      return {
+        type: step.type,
+        config: {
+          userId: step.configUserId
+        }
+      };
+    case "SEND_NOTIFICATION":
+      if (!step.configMessage.trim()) return null;
+      return {
+        type: step.type,
+        config: {
+          message: step.configMessage.trim()
+        }
+      };
+    case "UPDATE_FIELD":
+      if (!step.configField || !step.configValue.trim()) return null;
+      return {
+        type: step.type,
+        config: {
+          field: step.configField,
+          value: step.configValue.trim()
+        }
+      };
+    case "ADD_NOTE":
+      if (!step.configNote.trim()) return null;
+      return {
+        type: step.type,
+        config: {
+          note: step.configNote.trim()
+        }
+      };
+    case "SEND_EMAIL":
+      if (!step.configFromUserId || !step.configSubject.trim() || !step.configBody.trim()) return null;
+      return {
+        type: step.type,
+        config: {
+          fromUserId: step.configFromUserId,
+          subject: step.configSubject.trim(),
+          body: step.configBody.trim()
+        }
+      };
+    default:
+      return null;
+  }
+}
+async function action$3({
+  request
+}) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent !== "create") return {};
+  const name = formData.get("name");
+  const triggerEvent = formData.get("triggerEvent");
+  const actionsJson = formData.get("actions");
+  if (!(name == null ? void 0 : name.trim()) || !triggerEvent) {
+    return {
+      error: "Name and trigger event are required"
+    };
+  }
+  let actions;
+  try {
+    actions = JSON.parse(actionsJson || "[]");
+  } catch {
+    return {
+      error: "Invalid action data"
+    };
+  }
+  if (actions.length === 0) {
+    return {
+      error: "At least one action is required"
+    };
+  }
+  for (const act of actions) {
+    if (act.type === "SEND_EMAIL") {
+      const fromUserId = act.config.fromUserId;
+      const senderToken = await prisma.gmailToken.findUnique({
+        where: {
+          userId: fromUserId
+        }
+      });
+      if (!senderToken) {
+        return {
+          error: "The selected email sender does not have Gmail connected. Choose another user or have them connect Gmail in Settings."
+        };
+      }
+    }
+  }
+  let triggerCondition = null;
+  if (triggerEvent === "STAGE_CHANGED") {
+    const toStage = formData.get("conditionToStage");
+    if (toStage) triggerCondition = {
+      toStage
+    };
+  } else if (triggerEvent === "TEMPERATURE_CHANGED" || triggerEvent === "LEAD_SCORED") {
+    const temperature = formData.get("conditionTemperature");
+    if (temperature) triggerCondition = {
+      temperature
+    };
+  }
+  try {
+    const rule = await prisma.workflowRule.create({
+      data: {
+        name: name.trim(),
+        triggerEvent,
+        triggerCondition,
+        action: "LEGACY",
+        actionConfig: {},
+        actions: {
+          create: actions.map((act, i) => ({
+            type: act.type,
+            config: act.config,
+            order: i
+          }))
+        }
+      }
+    });
+  } catch (err) {
+    console.error("[workflows] Failed to create rule:", err);
+    return {
+      error: "Failed to create workflow rule. Make sure database migrations are up to date."
+    };
+  }
+  return redirect("/workflows");
+}
+function ActionConfigFields$1({
+  step,
+  onChange,
+  users: users2,
+  stages,
+  gmailUserIds,
+  gmailAddressMap
+}) {
+  var _a, _b;
+  const actionDef = ACTION_TYPES$1.find((a) => a.value === step.type);
+  (actionDef == null ? void 0 : actionDef.icon) || Zap;
+  const color = (actionDef == null ? void 0 : actionDef.color) || "slate";
+  const selectedFieldDef = UPDATE_FIELDS$1.find((f) => f.value === step.configField);
+  const valueInputType = (selectedFieldDef == null ? void 0 : selectedFieldDef.type) || "text";
+  return /* @__PURE__ */ jsxs("div", {
+    className: `rounded-xl border ${COLOR_MAP$1[color] || ""} p-4 space-y-3`,
+    children: [step.type === "ASSIGN_TO_USER" && /* @__PURE__ */ jsxs(Select, {
+      value: step.configUserId,
+      onChange: (e) => onChange({
+        ...step,
+        configUserId: e.target.value
+      }),
+      className: "bg-background/50 border-border/60",
+      children: [/* @__PURE__ */ jsx("option", {
+        value: "",
+        children: "Select a user..."
+      }), users2.map((u) => /* @__PURE__ */ jsx("option", {
+        value: u.id,
+        children: u.name || u.email
+      }, u.id))]
+    }), step.type === "SEND_NOTIFICATION" && /* @__PURE__ */ jsx(Textarea, {
+      value: step.configMessage,
+      onChange: (e) => onChange({
+        ...step,
+        configMessage: e.target.value
+      }),
+      placeholder: "Enter the notification message...",
+      className: "bg-background/50 border-border/60 min-h-[80px]",
+      rows: 3
+    }), step.type === "UPDATE_FIELD" && /* @__PURE__ */ jsxs(Fragment, {
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Field"
+        }), /* @__PURE__ */ jsx(Select, {
+          value: step.configField,
+          onChange: (e) => onChange({
+            ...step,
+            configField: e.target.value,
+            configValue: ""
+          }),
+          className: "mt-1 bg-background/50 border-border/60",
+          children: UPDATE_FIELDS$1.map((f) => /* @__PURE__ */ jsx("option", {
+            value: f.value,
+            children: f.label
+          }, f.value))
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Value"
+        }), valueInputType === "select" ? /* @__PURE__ */ jsxs(Select, {
+          value: step.configValue,
+          onChange: (e) => onChange({
+            ...step,
+            configValue: e.target.value
+          }),
+          className: "mt-1 bg-background/50 border-border/60",
+          children: [/* @__PURE__ */ jsx("option", {
+            value: "",
+            children: "Select..."
+          }), step.configField === "stage" ? stages.map((s) => /* @__PURE__ */ jsx("option", {
+            value: s.name,
+            children: s.label
+          }, s.name)) : ((selectedFieldDef == null ? void 0 : selectedFieldDef.options) || []).map((opt) => /* @__PURE__ */ jsx("option", {
+            value: opt.value,
+            children: opt.label
+          }, opt.value))]
+        }) : valueInputType === "textarea" ? /* @__PURE__ */ jsx(Textarea, {
+          value: step.configValue,
+          onChange: (e) => onChange({
+            ...step,
+            configValue: e.target.value
+          }),
+          placeholder: `Enter new ${(_a = selectedFieldDef == null ? void 0 : selectedFieldDef.label) == null ? void 0 : _a.toLowerCase()}...`,
+          className: "mt-1 bg-background/50 border-border/60",
+          rows: 2
+        }) : /* @__PURE__ */ jsx(Input, {
+          type: "text",
+          value: step.configValue,
+          onChange: (e) => onChange({
+            ...step,
+            configValue: e.target.value
+          }),
+          placeholder: `Enter new ${(_b = selectedFieldDef == null ? void 0 : selectedFieldDef.label) == null ? void 0 : _b.toLowerCase()}...`,
+          className: "mt-1 bg-background/50 border-border/60"
+        })]
+      })]
+    }), step.type === "ADD_NOTE" && /* @__PURE__ */ jsx(Textarea, {
+      value: step.configNote,
+      onChange: (e) => onChange({
+        ...step,
+        configNote: e.target.value
+      }),
+      placeholder: "Enter the note to add...",
+      className: "bg-background/50 border-border/60 min-h-[80px]",
+      rows: 3
+    }), step.type === "SEND_EMAIL" && /* @__PURE__ */ jsxs("div", {
+      className: "space-y-3",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Send from"
+        }), /* @__PURE__ */ jsxs(Select, {
+          value: step.configFromUserId,
+          onChange: (e) => onChange({
+            ...step,
+            configFromUserId: e.target.value
+          }),
+          className: "mt-1 bg-background/50 border-border/60",
+          children: [/* @__PURE__ */ jsx("option", {
+            value: "",
+            children: "Select a sender..."
+          }), users2.map((u) => /* @__PURE__ */ jsxs("option", {
+            value: u.id,
+            disabled: !gmailUserIds.has(u.id),
+            children: [u.name || u.email, gmailUserIds.has(u.id) ? ` (${gmailAddressMap.get(u.id)})` : " — Gmail not connected"]
+          }, u.id))]
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Subject"
+        }), /* @__PURE__ */ jsx(Input, {
+          type: "text",
+          value: step.configSubject,
+          onChange: (e) => onChange({
+            ...step,
+            configSubject: e.target.value
+          }),
+          placeholder: 'e.g. "Re: {{companyName}}"',
+          className: "mt-1 bg-background/50 border-border/60"
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Body"
+        }), /* @__PURE__ */ jsx(Textarea, {
+          value: step.configBody,
+          onChange: (e) => onChange({
+            ...step,
+            configBody: e.target.value
+          }),
+          placeholder: "Hi {{contactName}}, I noticed {{companyName}}...",
+          className: "mt-1 bg-background/50 border-border/60 min-h-[100px]",
+          rows: 4
+        }), /* @__PURE__ */ jsxs("p", {
+          className: "text-[11px] text-muted-foreground mt-1",
+          children: ["Variables: ", "{{companyName}}", ", ", "{{contactName}}", ", ", "{{email}}", ", ", "{{industry}}", ", ", "{{stage}}", ", ", "{{website}}"]
+        })]
+      })]
+    })]
+  });
+}
+const workflows_new = UNSAFE_withComponentProps(function WorkflowsNewPage() {
+  const {
+    user,
+    users: users2,
+    stages,
+    gmailUserIds,
+    gmailAddressMap
+  } = useLoaderData();
+  const actionData = useActionData();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
+  const [triggerEvent, setTriggerEvent] = useState("LEAD_CREATED");
+  const [conditionToStage, setConditionToStage] = useState("");
+  const [conditionTemperature, setConditionTemperature] = useState("");
+  const [actionSteps, setActionSteps] = useState([makeActionStep$1()]);
+  const showFilter = TRIGGERS_WITH_CONDITION$1.has(triggerEvent);
+  function handleTriggerChange(e) {
+    setTriggerEvent(e.target.value);
+    setConditionToStage("");
+    setConditionTemperature("");
+  }
+  function addAction() {
+    setActionSteps((prev) => [...prev, makeActionStep$1()]);
+  }
+  function removeAction(id) {
+    setActionSteps((prev) => prev.filter((s) => s.id !== id));
+  }
+  function updateAction(updated) {
+    setActionSteps((prev) => prev.map((s) => s.id === updated.id ? updated : s));
+  }
+  function changeActionType(id, newType) {
+    setActionSteps((prev) => prev.map((s) => s.id === id ? {
+      ...makeActionStep$1(newType),
+      id: s.id
+    } : s));
+  }
+  function onDragEnd(result) {
+    if (!result.destination) return;
+    const items = Array.from(actionSteps);
+    const [moved] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, moved);
+    setActionSteps(items);
+  }
+  const actionsPayload = actionSteps.map((step) => buildActionConfig(step)).filter(Boolean);
+  return /* @__PURE__ */ jsx(AppShell, {
+    user,
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "space-y-6 max-w-2xl mx-auto",
+      children: [/* @__PURE__ */ jsxs("div", {
+        className: "flex items-center gap-4",
+        children: [/* @__PURE__ */ jsx(Link, {
+          to: "/workflows",
+          children: /* @__PURE__ */ jsx(Button, {
+            variant: "ghost",
+            size: "icon",
+            className: "rounded-xl hover:bg-muted/80",
+            children: /* @__PURE__ */ jsx(ArrowLeft, {
+              className: "h-4 w-4"
+            })
+          })
+        }), /* @__PURE__ */ jsxs("div", {
+          children: [/* @__PURE__ */ jsx("h1", {
+            className: "text-3xl font-bold tracking-tight",
+            children: "Create Workflow"
+          }), /* @__PURE__ */ jsx("p", {
+            className: "text-muted-foreground mt-0.5",
+            children: "Build an automation with multiple steps"
+          })]
+        })]
+      }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsxs("div", {
+        className: "rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-center gap-3",
+        children: [/* @__PURE__ */ jsx(AlertTriangle, {
+          className: "h-4 w-4 shrink-0"
+        }), actionData.error]
+      }), /* @__PURE__ */ jsxs(Form, {
+        method: "post",
+        className: "space-y-0",
+        children: [/* @__PURE__ */ jsx("input", {
+          type: "hidden",
+          name: "intent",
+          value: "create"
+        }), /* @__PURE__ */ jsx("input", {
+          type: "hidden",
+          name: "actions",
+          value: JSON.stringify(actionsPayload)
+        }), /* @__PURE__ */ jsxs(Card, {
+          className: "mb-4 border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden",
+          children: [/* @__PURE__ */ jsx("div", {
+            className: "h-1 w-full bg-gradient-to-r from-blue-500/40 via-violet-500/40 to-emerald-500/40"
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "pt-6",
+            children: [/* @__PURE__ */ jsx(Label, {
+              htmlFor: "name",
+              className: "text-sm font-semibold",
+              children: "Workflow Name"
+            }), /* @__PURE__ */ jsx(Input, {
+              id: "name",
+              name: "name",
+              type: "text",
+              required: true,
+              placeholder: 'e.g., "Assign HOT leads to sales manager"',
+              className: "mt-2 bg-background/50 border-border/60"
+            })]
+          })]
+        }), /* @__PURE__ */ jsxs(Card, {
+          className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden",
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            className: "pb-3",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2 rounded-xl border px-3 py-2 bg-blue-500/15 text-blue-400 border-blue-500/20 w-fit",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-7 w-7 items-center justify-center rounded-lg bg-white/5",
+                children: /* @__PURE__ */ jsx("span", {
+                  className: "text-xs font-bold",
+                  children: "1"
+                })
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm font-semibold",
+                children: "When this happens"
+              }), /* @__PURE__ */ jsx(Zap, {
+                className: "h-3.5 w-3.5 opacity-60"
+              })]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              className: "mt-2 pl-1",
+              children: "Choose the event that starts this workflow"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            children: [/* @__PURE__ */ jsx(Label, {
+              className: "text-sm font-medium",
+              children: "Trigger Event"
+            }), /* @__PURE__ */ jsx(Select, {
+              name: "triggerEvent",
+              value: triggerEvent,
+              onChange: handleTriggerChange,
+              className: "mt-2 bg-background/50 border-border/60",
+              children: TRIGGER_OPTIONS$1.map((opt) => /* @__PURE__ */ jsx("option", {
+                value: opt.value,
+                children: opt.label
+              }, opt.value))
+            })]
+          })]
+        }), /* @__PURE__ */ jsx(StepConnector, {}), showFilter ? /* @__PURE__ */ jsxs(Fragment, {
+          children: [/* @__PURE__ */ jsxs(Card, {
+            className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden",
+            children: [/* @__PURE__ */ jsx(CardHeader, {
+              className: "pb-3",
+              children: /* @__PURE__ */ jsxs("div", {
+                className: "flex items-center justify-between",
+                children: [/* @__PURE__ */ jsxs("div", {
+                  className: "flex items-center gap-2 rounded-xl border px-3 py-2 bg-amber-500/15 text-amber-400 border-amber-500/20",
+                  children: [/* @__PURE__ */ jsx("div", {
+                    className: "flex h-7 w-7 items-center justify-center rounded-lg bg-white/5",
+                    children: /* @__PURE__ */ jsx("span", {
+                      className: "text-xs font-bold",
+                      children: "2"
+                    })
+                  }), /* @__PURE__ */ jsx("span", {
+                    className: "text-sm font-semibold",
+                    children: "Filter"
+                  }), /* @__PURE__ */ jsx(Filter, {
+                    className: "h-3.5 w-3.5 opacity-60"
+                  })]
+                }), /* @__PURE__ */ jsx(Badge, {
+                  variant: "outline",
+                  className: "text-[10px]",
+                  children: "Optional"
+                })]
+              })
+            }), /* @__PURE__ */ jsx(CardContent, {
+              className: "space-y-4",
+              children: triggerEvent === "STAGE_CHANGED" ? /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx(Label, {
+                  className: "text-sm font-medium",
+                  children: "Only when stage changes to"
+                }), /* @__PURE__ */ jsxs(Select, {
+                  name: "conditionToStage",
+                  value: conditionToStage,
+                  onChange: (e) => setConditionToStage(e.target.value),
+                  className: "mt-2 bg-background/50 border-border/60",
+                  children: [/* @__PURE__ */ jsx("option", {
+                    value: "",
+                    children: "Any stage"
+                  }), stages.map((s) => /* @__PURE__ */ jsx("option", {
+                    value: s.name,
+                    children: s.label
+                  }, s.name))]
+                })]
+              }) : /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx(Label, {
+                  className: "text-sm font-medium",
+                  children: "Only when temperature is"
+                }), /* @__PURE__ */ jsxs(Select, {
+                  name: "conditionTemperature",
+                  value: conditionTemperature,
+                  onChange: (e) => setConditionTemperature(e.target.value),
+                  className: "mt-2 bg-background/50 border-border/60",
+                  children: [/* @__PURE__ */ jsx("option", {
+                    value: "",
+                    children: "Any temperature"
+                  }), TEMPERATURES$1.map((t) => /* @__PURE__ */ jsx("option", {
+                    value: t.value,
+                    children: t.label
+                  }, t.value))]
+                })]
+              })
+            })]
+          }), /* @__PURE__ */ jsx(StepConnector, {})]
+        }) : null, /* @__PURE__ */ jsxs(Card, {
+          className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden",
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            className: "pb-3",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2 rounded-xl border px-3 py-2 bg-emerald-500/15 text-emerald-400 border-emerald-500/20 w-fit",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-7 w-7 items-center justify-center rounded-lg bg-white/5",
+                children: /* @__PURE__ */ jsx("span", {
+                  className: "text-xs font-bold",
+                  children: showFilter ? "3" : "2"
+                })
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm font-semibold",
+                children: "Then do these"
+              }), /* @__PURE__ */ jsx(Rocket, {
+                className: "h-3.5 w-3.5 opacity-60"
+              })]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              className: "mt-2 pl-1",
+              children: "Add one or more actions to execute in order"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsx(DragDropContext, {
+              onDragEnd,
+              children: /* @__PURE__ */ jsx(Droppable, {
+                droppableId: "actions",
+                children: (provided) => /* @__PURE__ */ jsxs("div", {
+                  ref: provided.innerRef,
+                  ...provided.droppableProps,
+                  className: "space-y-3",
+                  children: [actionSteps.map((step, index) => {
+                    const actionDef = ACTION_TYPES$1.find((a) => a.value === step.type);
+                    const Icon = (actionDef == null ? void 0 : actionDef.icon) || Zap;
+                    const color = (actionDef == null ? void 0 : actionDef.color) || "slate";
+                    return /* @__PURE__ */ jsx(Draggable, {
+                      draggableId: step.id,
+                      index,
+                      children: (dragProvided, dragSnapshot) => /* @__PURE__ */ jsxs("div", {
+                        ref: dragProvided.innerRef,
+                        ...dragProvided.draggableProps,
+                        className: `rounded-xl border border-border/40 bg-card/60 p-4 space-y-3 transition-shadow ${dragSnapshot.isDragging ? "shadow-lg" : ""}`,
+                        children: [/* @__PURE__ */ jsxs("div", {
+                          className: "flex items-center gap-2",
+                          children: [/* @__PURE__ */ jsx("div", {
+                            ...dragProvided.dragHandleProps,
+                            className: "cursor-grab text-muted-foreground/30 hover:text-muted-foreground shrink-0",
+                            children: /* @__PURE__ */ jsx(GripVertical, {
+                              className: "h-4 w-4"
+                            })
+                          }), /* @__PURE__ */ jsx("div", {
+                            className: `flex h-6 w-6 items-center justify-center rounded-md ${COLOR_MAP$1[color] || "bg-muted"}`,
+                            children: /* @__PURE__ */ jsx(Icon, {
+                              className: `h-3 w-3 ${TEXT_COLOR_MAP$1[color] || "text-muted-foreground"}`
+                            })
+                          }), /* @__PURE__ */ jsxs(Badge, {
+                            variant: "outline",
+                            className: "text-[10px] tabular-nums",
+                            children: ["Step ", index + 1]
+                          }), /* @__PURE__ */ jsx(Select, {
+                            value: step.type,
+                            onChange: (e) => changeActionType(step.id, e.target.value),
+                            className: "flex-1 bg-background/50 border-border/60 h-8 text-sm",
+                            children: ACTION_TYPES$1.map((opt) => /* @__PURE__ */ jsx("option", {
+                              value: opt.value,
+                              children: opt.label
+                            }, opt.value))
+                          }), actionSteps.length > 1 && /* @__PURE__ */ jsx(Button, {
+                            type: "button",
+                            variant: "ghost",
+                            size: "sm",
+                            className: "h-7 w-7 p-0 text-muted-foreground/40 hover:text-red-400 shrink-0",
+                            onClick: () => removeAction(step.id),
+                            children: /* @__PURE__ */ jsx(Trash2, {
+                              className: "h-3.5 w-3.5"
+                            })
+                          })]
+                        }), /* @__PURE__ */ jsx(ActionConfigFields$1, {
+                          step,
+                          onChange: updateAction,
+                          users: users2,
+                          stages,
+                          gmailUserIds,
+                          gmailAddressMap
+                        })]
+                      })
+                    }, step.id);
+                  }), provided.placeholder]
+                })
+              })
+            }), /* @__PURE__ */ jsxs(Button, {
+              type: "button",
+              variant: "outline",
+              onClick: addAction,
+              className: "w-full border-dashed border-border/60 text-muted-foreground hover:text-foreground",
+              children: [/* @__PURE__ */ jsx(Plus, {
+                className: "h-4 w-4 mr-2"
+              }), "Add Action Step"]
+            })]
+          })]
+        }), /* @__PURE__ */ jsx("div", {
+          className: "pt-6 pb-2",
+          children: /* @__PURE__ */ jsx(Button, {
+            type: "submit",
+            disabled: isSubmitting || actionsPayload.length === 0,
+            className: "w-full h-11 text-base font-semibold shadow-lg shadow-primary/5 hover:shadow-primary/10 transition-all duration-300",
+            children: isSubmitting ? /* @__PURE__ */ jsxs("span", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(Sparkles, {
+                className: "h-4 w-4 animate-spin"
+              }), "Creating..."]
+            }) : /* @__PURE__ */ jsxs("span", {
+              className: "flex items-center gap-2",
+              children: [/* @__PURE__ */ jsx(Rocket, {
+                className: "h-4 w-4"
+              }), "Create Workflow"]
+            })
+          })
+        })]
+      })]
+    })
+  });
+});
+const route36 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  action: action$3,
+  default: workflows_new,
   loader: loader$4
 }, Symbol.toStringTag, { value: "Module" }));
 const TRIGGER_OPTIONS = [{
   value: "LEAD_CREATED",
-  label: "A lead is created",
-  icon: Sparkles
+  label: "A lead is created"
 }, {
   value: "STAGE_CHANGED",
-  label: "A lead's stage changes",
-  icon: ArrowRight
+  label: "A lead's stage changes"
 }, {
   value: "TEMPERATURE_CHANGED",
-  label: "A lead's temperature changes",
-  icon: Zap
+  label: "A lead's temperature changes"
 }, {
   value: "LEAD_APPROVED",
-  label: "A lead is approved",
-  icon: CheckCircle2
+  label: "A lead is approved"
 }, {
   value: "LEAD_SCORED",
-  label: "A lead is scored",
-  icon: Zap
+  label: "A lead is scored"
 }];
-const ACTION_OPTIONS = [{
+const ACTION_TYPES = [{
   value: "ASSIGN_TO_USER",
-  label: "Assign the lead to a user",
-  icon: User
+  label: "Assign to a user",
+  icon: User,
+  color: "violet"
 }, {
   value: "SEND_NOTIFICATION",
   label: "Send a notification",
-  icon: MessageSquare
+  icon: MessageSquare,
+  color: "sky"
 }, {
   value: "UPDATE_FIELD",
   label: "Update a lead field",
-  icon: PenSquare
+  icon: PenSquare,
+  color: "amber"
 }, {
   value: "ADD_NOTE",
-  label: "Add a note to the lead",
-  icon: StickyNote
+  label: "Add a note",
+  icon: StickyNote,
+  color: "emerald"
+}, {
+  value: "SEND_EMAIL",
+  label: "Send an email",
+  icon: Mail,
+  color: "rose"
 }];
 const TEMPERATURES = [{
   value: "HOT",
@@ -17771,65 +18724,70 @@ const UPDATE_FIELDS = [{
   type: "textarea"
 }];
 const TRIGGERS_WITH_CONDITION = /* @__PURE__ */ new Set(["STAGE_CHANGED", "TEMPERATURE_CHANGED", "LEAD_SCORED"]);
-const STEP_META = [{
-  n: 1,
-  color: "blue",
-  label: "Trigger",
-  icon: Zap
-}, {
-  n: 2,
-  color: "amber",
-  label: "Filter",
-  icon: Filter
-}, {
-  n: 3,
-  color: "emerald",
-  label: "Action",
-  icon: Rocket
-}];
-function StepConnector() {
-  return /* @__PURE__ */ jsx("div", {
-    className: "flex justify-center py-1",
-    children: /* @__PURE__ */ jsxs("div", {
-      className: "flex flex-col items-center",
-      children: [/* @__PURE__ */ jsx("div", {
-        className: "h-4 w-px bg-gradient-to-b from-border via-border to-transparent"
-      }), /* @__PURE__ */ jsx(ChevronDown, {
-        className: "h-3.5 w-3.5 text-muted-foreground/30 -mt-1"
-      })]
-    })
-  });
-}
-function StepBadge({
-  step
-}) {
-  const colorMap = {
-    blue: "bg-blue-500/15 text-blue-400 border-blue-500/20",
-    amber: "bg-amber-500/15 text-amber-400 border-amber-500/20",
-    emerald: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+const COLOR_MAP = {
+  violet: "bg-violet-500/5 border-violet-500/10",
+  sky: "bg-sky-500/5 border-sky-500/10",
+  amber: "bg-amber-500/5 border-amber-500/10",
+  emerald: "bg-emerald-500/5 border-emerald-500/10",
+  rose: "bg-rose-500/5 border-rose-500/10"
+};
+const TEXT_COLOR_MAP = {
+  violet: "text-violet-400",
+  sky: "text-sky-400",
+  amber: "text-amber-400",
+  emerald: "text-emerald-400",
+  rose: "text-rose-400"
+};
+function makeActionStep(type = "ASSIGN_TO_USER") {
+  return {
+    id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    type,
+    configUserId: "",
+    configMessage: "",
+    configField: "stage",
+    configValue: "",
+    configNote: "",
+    configFromUserId: "",
+    configSubject: "",
+    configBody: ""
   };
-  const Icon = step.icon;
-  return /* @__PURE__ */ jsxs("div", {
-    className: `flex items-center gap-2 rounded-xl border px-3 py-2 ${colorMap[step.color]}`,
-    children: [/* @__PURE__ */ jsx("div", {
-      className: `flex h-7 w-7 items-center justify-center rounded-lg bg-white/5`,
-      children: /* @__PURE__ */ jsx("span", {
-        className: "text-xs font-bold",
-        children: step.n
-      })
-    }), /* @__PURE__ */ jsx("span", {
-      className: "text-sm font-semibold",
-      children: step.label
-    }), /* @__PURE__ */ jsx(Icon, {
-      className: "h-3.5 w-3.5 opacity-60"
-    })]
-  });
+}
+function configFromStep(step) {
+  switch (step.type) {
+    case "ASSIGN_TO_USER":
+      return step.configUserId ? {
+        userId: step.configUserId
+      } : null;
+    case "SEND_NOTIFICATION":
+      return step.configMessage.trim() ? {
+        message: step.configMessage.trim()
+      } : null;
+    case "UPDATE_FIELD":
+      return step.configField && step.configValue.trim() ? {
+        field: step.configField,
+        value: step.configValue.trim()
+      } : null;
+    case "ADD_NOTE":
+      return step.configNote.trim() ? {
+        note: step.configNote.trim()
+      } : null;
+    case "SEND_EMAIL":
+      return step.configFromUserId && step.configSubject.trim() && step.configBody.trim() ? {
+        fromUserId: step.configFromUserId,
+        subject: step.configSubject.trim(),
+        body: step.configBody.trim()
+      } : null;
+    default:
+      return null;
+  }
 }
 async function loader$3({
-  request
+  request,
+  params
 }) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const userId = await requireAdmin(request);
-  const [user, users2, stages] = await Promise.all([prisma.user.findUnique({
+  const [user, users2, stages, gmailTokens, rule] = await Promise.all([prisma.user.findUnique({
     where: {
       id: userId
     },
@@ -17847,27 +18805,123 @@ async function loader$3({
     orderBy: {
       name: "asc"
     }
-  }), getStagesWithMeta()]);
+  }), getStagesWithMeta(), prisma.gmailToken.findMany({
+    select: {
+      userId: true,
+      gmailAddress: true
+    }
+  }), prisma.workflowRule.findUnique({
+    where: {
+      id: params.id
+    },
+    include: {
+      actions: {
+        orderBy: {
+          order: "asc"
+        }
+      }
+    }
+  })]);
+  if (!rule) {
+    throw new Response("Workflow not found", {
+      status: 404
+    });
+  }
+  const gmailUserIds = new Set(gmailTokens.map((t) => t.userId));
+  const gmailAddressMap = new Map(gmailTokens.map((t) => [t.userId, t.gmailAddress || "Gmail connected"]));
+  const actionSteps = rule.actions.length > 0 ? rule.actions.map((a) => {
+    const c = a.config;
+    return {
+      id: `act_${a.id}`,
+      dbId: a.id,
+      type: a.type,
+      configUserId: c.userId || "",
+      configMessage: c.message || "",
+      configField: c.field || "stage",
+      configValue: c.value || "",
+      configNote: c.note || "",
+      configFromUserId: c.fromUserId || "",
+      configSubject: c.subject || "",
+      configBody: c.body || ""
+    };
+  }) : (
+    // Legacy fallback: single action/actionConfig
+    [{
+      id: `act_legacy_${rule.id}`,
+      type: rule.action || "ASSIGN_TO_USER",
+      configUserId: ((_a = rule.actionConfig) == null ? void 0 : _a.userId) || "",
+      configMessage: ((_b = rule.actionConfig) == null ? void 0 : _b.message) || "",
+      configField: ((_c = rule.actionConfig) == null ? void 0 : _c.field) || "stage",
+      configValue: ((_d = rule.actionConfig) == null ? void 0 : _d.value) || "",
+      configNote: ((_e = rule.actionConfig) == null ? void 0 : _e.note) || "",
+      configFromUserId: ((_f = rule.actionConfig) == null ? void 0 : _f.fromUserId) || "",
+      configSubject: ((_g = rule.actionConfig) == null ? void 0 : _g.subject) || "",
+      configBody: ((_h = rule.actionConfig) == null ? void 0 : _h.body) || ""
+    }]
+  );
+  const triggerCondition = rule.triggerCondition;
   return {
     user,
     users: users2,
-    stages
+    stages,
+    gmailUserIds,
+    gmailAddressMap,
+    rule,
+    actionSteps,
+    triggerCondition
   };
 }
 async function action$2({
-  request
+  request,
+  params
 }) {
   await requireAdmin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
-  if (intent !== "create") return {};
+  if (intent === "deleteWorkflow") {
+    await prisma.workflowRule.delete({
+      where: {
+        id: params.id
+      }
+    });
+    return redirect("/workflows");
+  }
+  if (intent !== "update") return {};
   const name = formData.get("name");
   const triggerEvent = formData.get("triggerEvent");
-  const actionType = formData.get("actionType");
-  if (!(name == null ? void 0 : name.trim()) || !triggerEvent || !actionType) {
+  const actionsJson = formData.get("actions");
+  if (!(name == null ? void 0 : name.trim()) || !triggerEvent) {
     return {
-      error: "Name, trigger event, and action are required"
+      error: "Name and trigger event are required"
     };
+  }
+  let actions;
+  try {
+    actions = JSON.parse(actionsJson || "[]");
+  } catch {
+    return {
+      error: "Invalid action data"
+    };
+  }
+  if (actions.length === 0) {
+    return {
+      error: "At least one action is required"
+    };
+  }
+  for (const act of actions) {
+    if (act.type === "SEND_EMAIL") {
+      const fromUserId = act.config.fromUserId;
+      const senderToken = await prisma.gmailToken.findUnique({
+        where: {
+          userId: fromUserId
+        }
+      });
+      if (!senderToken) {
+        return {
+          error: "The selected email sender does not have Gmail connected."
+        };
+      }
+    }
   }
   let triggerCondition = null;
   if (triggerEvent === "STAGE_CHANGED") {
@@ -17881,110 +18935,241 @@ async function action$2({
       temperature
     };
   }
-  let actionConfig = {};
-  switch (actionType) {
-    case "ASSIGN_TO_USER": {
-      const userId = formData.get("configUserId");
-      if (!userId) return {
-        error: "Please select a user to assign"
-      };
-      actionConfig = {
-        userId
-      };
-      break;
-    }
-    case "SEND_NOTIFICATION": {
-      const message = formData.get("configMessage");
-      if (!(message == null ? void 0 : message.trim())) return {
-        error: "Please enter a notification message"
-      };
-      actionConfig = {
-        message: message.trim()
-      };
-      break;
-    }
-    case "UPDATE_FIELD": {
-      const field = formData.get("configField");
-      const value = formData.get("configValue");
-      if (!field || !(value == null ? void 0 : value.trim())) return {
-        error: "Please select a field and enter a value"
-      };
-      actionConfig = {
-        field,
-        value: value.trim()
-      };
-      break;
-    }
-    case "ADD_NOTE": {
-      const note = formData.get("configNote");
-      if (!(note == null ? void 0 : note.trim())) return {
-        error: "Please enter note text"
-      };
-      actionConfig = {
-        note: note.trim()
-      };
-      break;
-    }
-  }
   try {
-    await prisma.workflowRule.create({
+    await prisma.workflowAction.deleteMany({
+      where: {
+        ruleId: params.id
+      }
+    });
+    await prisma.workflowRule.update({
+      where: {
+        id: params.id
+      },
       data: {
         name: name.trim(),
         triggerEvent,
         triggerCondition,
-        action: actionType,
-        actionConfig
+        actions: {
+          create: actions.map((act, i) => ({
+            type: act.type,
+            config: act.config,
+            order: i
+          }))
+        }
       }
     });
   } catch (err) {
-    console.error("[workflows] Failed to create rule:", err);
+    console.error("[workflows] Failed to update rule:", err);
     return {
-      error: "Failed to create workflow rule. Make sure database migrations are up to date."
+      error: "Failed to update workflow rule."
     };
   }
   return redirect("/workflows");
 }
-const workflows_new = UNSAFE_withComponentProps(function WorkflowsNewPage() {
-  var _a, _b, _c;
+function ActionConfigFields({
+  step,
+  onChange,
+  users: users2,
+  stages,
+  gmailUserIds,
+  gmailAddressMap
+}) {
+  var _a, _b;
+  const selectedFieldDef = UPDATE_FIELDS.find((f) => f.value === step.configField);
+  const valueInputType = (selectedFieldDef == null ? void 0 : selectedFieldDef.type) || "text";
+  return /* @__PURE__ */ jsxs("div", {
+    className: "space-y-3",
+    children: [step.type === "ASSIGN_TO_USER" && /* @__PURE__ */ jsxs(Select, {
+      value: step.configUserId,
+      onChange: (e) => onChange({
+        ...step,
+        configUserId: e.target.value
+      }),
+      className: "bg-background/50 border-border/60",
+      children: [/* @__PURE__ */ jsx("option", {
+        value: "",
+        children: "Select a user..."
+      }), users2.map((u) => /* @__PURE__ */ jsx("option", {
+        value: u.id,
+        children: u.name || u.email
+      }, u.id))]
+    }), step.type === "SEND_NOTIFICATION" && /* @__PURE__ */ jsx(Textarea, {
+      value: step.configMessage,
+      onChange: (e) => onChange({
+        ...step,
+        configMessage: e.target.value
+      }),
+      placeholder: "Enter the notification message...",
+      className: "bg-background/50 border-border/60",
+      rows: 3
+    }), step.type === "UPDATE_FIELD" && /* @__PURE__ */ jsxs("div", {
+      className: "space-y-3",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Field"
+        }), /* @__PURE__ */ jsx(Select, {
+          value: step.configField,
+          onChange: (e) => onChange({
+            ...step,
+            configField: e.target.value,
+            configValue: ""
+          }),
+          className: "mt-1 bg-background/50 border-border/60",
+          children: UPDATE_FIELDS.map((f) => /* @__PURE__ */ jsx("option", {
+            value: f.value,
+            children: f.label
+          }, f.value))
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Value"
+        }), valueInputType === "select" ? /* @__PURE__ */ jsxs(Select, {
+          value: step.configValue,
+          onChange: (e) => onChange({
+            ...step,
+            configValue: e.target.value
+          }),
+          className: "mt-1 bg-background/50 border-border/60",
+          children: [/* @__PURE__ */ jsx("option", {
+            value: "",
+            children: "Select..."
+          }), step.configField === "stage" ? stages.map((s) => /* @__PURE__ */ jsx("option", {
+            value: s.name,
+            children: s.label
+          }, s.name)) : ((selectedFieldDef == null ? void 0 : selectedFieldDef.options) || []).map((opt) => /* @__PURE__ */ jsx("option", {
+            value: opt.value,
+            children: opt.label
+          }, opt.value))]
+        }) : valueInputType === "textarea" ? /* @__PURE__ */ jsx(Textarea, {
+          value: step.configValue,
+          onChange: (e) => onChange({
+            ...step,
+            configValue: e.target.value
+          }),
+          placeholder: `Enter new ${(_a = selectedFieldDef == null ? void 0 : selectedFieldDef.label) == null ? void 0 : _a.toLowerCase()}...`,
+          className: "mt-1 bg-background/50 border-border/60",
+          rows: 2
+        }) : /* @__PURE__ */ jsx(Input, {
+          type: "text",
+          value: step.configValue,
+          onChange: (e) => onChange({
+            ...step,
+            configValue: e.target.value
+          }),
+          placeholder: `Enter new ${(_b = selectedFieldDef == null ? void 0 : selectedFieldDef.label) == null ? void 0 : _b.toLowerCase()}...`,
+          className: "mt-1 bg-background/50 border-border/60"
+        })]
+      })]
+    }), step.type === "ADD_NOTE" && /* @__PURE__ */ jsx(Textarea, {
+      value: step.configNote,
+      onChange: (e) => onChange({
+        ...step,
+        configNote: e.target.value
+      }),
+      placeholder: "Enter the note to add...",
+      className: "bg-background/50 border-border/60",
+      rows: 3
+    }), step.type === "SEND_EMAIL" && /* @__PURE__ */ jsxs("div", {
+      className: "space-y-3",
+      children: [/* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Send from"
+        }), /* @__PURE__ */ jsxs(Select, {
+          value: step.configFromUserId,
+          onChange: (e) => onChange({
+            ...step,
+            configFromUserId: e.target.value
+          }),
+          className: "mt-1 bg-background/50 border-border/60",
+          children: [/* @__PURE__ */ jsx("option", {
+            value: "",
+            children: "Select a sender..."
+          }), users2.map((u) => /* @__PURE__ */ jsxs("option", {
+            value: u.id,
+            disabled: !gmailUserIds.has(u.id),
+            children: [u.name || u.email, gmailUserIds.has(u.id) ? ` (${gmailAddressMap.get(u.id)})` : " — Gmail not connected"]
+          }, u.id))]
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Subject"
+        }), /* @__PURE__ */ jsx(Input, {
+          type: "text",
+          value: step.configSubject,
+          onChange: (e) => onChange({
+            ...step,
+            configSubject: e.target.value
+          }),
+          placeholder: 'e.g. "Re: {{companyName}}"',
+          className: "mt-1 bg-background/50 border-border/60"
+        })]
+      }), /* @__PURE__ */ jsxs("div", {
+        children: [/* @__PURE__ */ jsx(Label, {
+          className: "text-xs font-medium",
+          children: "Body"
+        }), /* @__PURE__ */ jsx(Textarea, {
+          value: step.configBody,
+          onChange: (e) => onChange({
+            ...step,
+            configBody: e.target.value
+          }),
+          placeholder: "Hi {{contactName}}...",
+          className: "mt-1 bg-background/50 border-border/60",
+          rows: 4
+        }), /* @__PURE__ */ jsxs("p", {
+          className: "text-[11px] text-muted-foreground mt-1",
+          children: ["Variables: ", "{{companyName}}", ", ", "{{contactName}}", ", ", "{{email}}", ", ", "{{industry}}", ", ", "{{stage}}", ", ", "{{website}}"]
+        })]
+      })]
+    })]
+  });
+}
+const workflows_$id_edit = UNSAFE_withComponentProps(function WorkflowsEditPage() {
   const {
     user,
     users: users2,
-    stages
+    stages,
+    gmailUserIds,
+    gmailAddressMap,
+    rule,
+    actionSteps: initialSteps,
+    triggerCondition: initialCondition
   } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
-  const [triggerEvent, setTriggerEvent] = useState("LEAD_CREATED");
-  const [conditionToStage, setConditionToStage] = useState("");
-  const [conditionTemperature, setConditionTemperature] = useState("");
-  const [actionType, setActionType] = useState("ASSIGN_TO_USER");
-  const [configUserId, setConfigUserId] = useState("");
-  const [configMessage, setConfigMessage] = useState("");
-  const [configField, setConfigField] = useState("stage");
-  const [configValue, setConfigValue] = useState("");
-  const [configNote, setConfigNote] = useState("");
+  const [triggerEvent, setTriggerEvent] = useState(rule.triggerEvent);
+  const [conditionToStage, setConditionToStage] = useState((initialCondition == null ? void 0 : initialCondition.toStage) || "");
+  const [conditionTemperature, setConditionTemperature] = useState((initialCondition == null ? void 0 : initialCondition.temperature) || "");
+  const [actionSteps, setActionSteps] = useState(initialSteps);
   const showFilter = TRIGGERS_WITH_CONDITION.has(triggerEvent);
-  const selectedFieldDef = UPDATE_FIELDS.find((f) => f.value === configField);
-  const valueInputType = (selectedFieldDef == null ? void 0 : selectedFieldDef.type) || "text";
-  function handleTriggerChange(e) {
-    setTriggerEvent(e.target.value);
-    setConditionToStage("");
-    setConditionTemperature("");
+  function addAction() {
+    setActionSteps((prev) => [...prev, makeActionStep()]);
   }
-  function handleActionChange(e) {
-    setActionType(e.target.value);
-    setConfigUserId("");
-    setConfigMessage("");
-    setConfigField("stage");
-    setConfigValue("");
-    setConfigNote("");
+  function removeAction(id) {
+    setActionSteps((prev) => prev.filter((s) => s.id !== id));
   }
-  function handleFieldChange(e) {
-    setConfigField(e.target.value);
-    setConfigValue("");
+  function updateAction(updated) {
+    setActionSteps((prev) => prev.map((s) => s.id === updated.id ? updated : s));
   }
-  const triggerIcon = ((_a = TRIGGER_OPTIONS.find((t) => t.value === triggerEvent)) == null ? void 0 : _a.icon) || Zap;
-  const TriggerIcon = triggerIcon;
+  function changeActionType(id, newType) {
+    setActionSteps((prev) => prev.map((s) => s.id === id ? {
+      ...makeActionStep(newType),
+      id: s.id
+    } : s));
+  }
+  function onDragEnd(result) {
+    if (!result.destination) return;
+    const items = Array.from(actionSteps);
+    const [moved] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, moved);
+    setActionSteps(items);
+  }
+  const actionsPayload = actionSteps.map((s) => configFromStep(s)).filter(Boolean);
   return /* @__PURE__ */ jsx(AppShell, {
     user,
     children: /* @__PURE__ */ jsxs("div", {
@@ -17996,18 +19181,18 @@ const workflows_new = UNSAFE_withComponentProps(function WorkflowsNewPage() {
           children: /* @__PURE__ */ jsx(Button, {
             variant: "ghost",
             size: "icon",
-            className: "rounded-xl hover:bg-muted/80",
             children: /* @__PURE__ */ jsx(ArrowLeft, {
               className: "h-4 w-4"
             })
           })
         }), /* @__PURE__ */ jsxs("div", {
+          className: "flex-1",
           children: [/* @__PURE__ */ jsx("h1", {
             className: "text-3xl font-bold tracking-tight",
-            children: "Create Workflow"
+            children: "Edit Workflow"
           }), /* @__PURE__ */ jsx("p", {
             className: "text-muted-foreground mt-0.5",
-            children: "Build an automation rule in 3 steps"
+            children: rule.name
           })]
         })]
       }), (actionData == null ? void 0 : actionData.error) && /* @__PURE__ */ jsxs("div", {
@@ -18021,12 +19206,14 @@ const workflows_new = UNSAFE_withComponentProps(function WorkflowsNewPage() {
         children: [/* @__PURE__ */ jsx("input", {
           type: "hidden",
           name: "intent",
-          value: "create"
-        }), /* @__PURE__ */ jsxs(Card, {
-          className: "mb-4 border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden",
-          children: [/* @__PURE__ */ jsx("div", {
-            className: "h-1 w-full bg-gradient-to-r from-blue-500/40 via-violet-500/40 to-emerald-500/40"
-          }), /* @__PURE__ */ jsxs(CardContent, {
+          value: "update"
+        }), /* @__PURE__ */ jsx("input", {
+          type: "hidden",
+          name: "actions",
+          value: JSON.stringify(actionsPayload)
+        }), /* @__PURE__ */ jsx(Card, {
+          className: "mb-4 border-border/40 bg-gradient-to-br from-card/80 to-card/40",
+          children: /* @__PURE__ */ jsxs(CardContent, {
             className: "pt-6",
             children: [/* @__PURE__ */ jsx(Label, {
               htmlFor: "name",
@@ -18037,20 +19224,29 @@ const workflows_new = UNSAFE_withComponentProps(function WorkflowsNewPage() {
               name: "name",
               type: "text",
               required: true,
-              placeholder: 'e.g., "Assign HOT leads to sales manager"',
-              className: "mt-2 bg-background/50 border-border/60 focus:border-primary/40 focus:ring-primary/20"
+              defaultValue: rule.name,
+              className: "mt-2 bg-background/50 border-border/60"
             })]
-          })]
+          })
         }), /* @__PURE__ */ jsxs(Card, {
-          className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-blue-500/20",
-          children: [/* @__PURE__ */ jsxs(CardHeader, {
+          className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40",
+          children: [/* @__PURE__ */ jsx(CardHeader, {
             className: "pb-3",
-            children: [/* @__PURE__ */ jsx(StepBadge, {
-              step: STEP_META[0]
-            }), /* @__PURE__ */ jsx(CardDescription, {
-              className: "mt-2 pl-1",
-              children: "Choose the event that starts this workflow"
-            })]
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2 rounded-xl border px-3 py-2 bg-blue-500/15 text-blue-400 border-blue-500/20 w-fit",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-7 w-7 items-center justify-center rounded-lg bg-white/5",
+                children: /* @__PURE__ */ jsx("span", {
+                  className: "text-xs font-bold",
+                  children: "1"
+                })
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm font-semibold",
+                children: "When this happens"
+              }), /* @__PURE__ */ jsx(Zap, {
+                className: "h-3.5 w-3.5 opacity-60"
+              })]
+            })
           }), /* @__PURE__ */ jsxs(CardContent, {
             children: [/* @__PURE__ */ jsx(Label, {
               className: "text-sm font-medium",
@@ -18058,258 +19254,225 @@ const workflows_new = UNSAFE_withComponentProps(function WorkflowsNewPage() {
             }), /* @__PURE__ */ jsx(Select, {
               name: "triggerEvent",
               value: triggerEvent,
-              onChange: handleTriggerChange,
-              className: "mt-2 bg-background/50 border-border/60 focus:border-blue-500/40",
+              onChange: (e) => {
+                setTriggerEvent(e.target.value);
+                setConditionToStage("");
+                setConditionTemperature("");
+              },
+              className: "mt-2 bg-background/50 border-border/60",
               children: TRIGGER_OPTIONS.map((opt) => /* @__PURE__ */ jsx("option", {
                 value: opt.value,
                 children: opt.label
               }, opt.value))
-            }), /* @__PURE__ */ jsxs("div", {
-              className: "mt-4 flex items-center gap-3 rounded-xl bg-blue-500/5 border border-blue-500/10 p-3",
-              children: [/* @__PURE__ */ jsx("div", {
-                className: "flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400",
-                children: /* @__PURE__ */ jsx(TriggerIcon, {
-                  className: "h-4 w-4"
-                })
-              }), /* @__PURE__ */ jsxs("p", {
-                className: "text-xs text-blue-400/80",
-                children: ["This workflow will run every time a lead", triggerEvent === "LEAD_CREATED" && " is created", triggerEvent === "STAGE_CHANGED" && " moves to a different stage", triggerEvent === "TEMPERATURE_CHANGED" && "'s temperature changes", triggerEvent === "LEAD_APPROVED" && " is approved", triggerEvent === "LEAD_SCORED" && " is scored"]
-              })]
             })]
           })]
-        }), /* @__PURE__ */ jsx(StepConnector, {}), showFilter ? /* @__PURE__ */ jsxs(Fragment, {
-          children: [/* @__PURE__ */ jsxs(Card, {
-            className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-amber-500/20",
-            children: [/* @__PURE__ */ jsxs(CardHeader, {
-              className: "pb-3",
-              children: [/* @__PURE__ */ jsxs("div", {
-                className: "flex items-center justify-between",
-                children: [/* @__PURE__ */ jsx(StepBadge, {
-                  step: STEP_META[1]
-                }), /* @__PURE__ */ jsx(Badge, {
-                  variant: "outline",
-                  className: "text-[10px] border-muted-foreground/20",
-                  children: "Optional"
-                })]
-              }), /* @__PURE__ */ jsx(CardDescription, {
-                className: "mt-2 pl-1",
-                children: "Narrow down when this workflow should run"
-              })]
-            }), /* @__PURE__ */ jsxs(CardContent, {
-              className: "space-y-4",
-              children: [triggerEvent === "STAGE_CHANGED" ? /* @__PURE__ */ jsxs("div", {
-                children: [/* @__PURE__ */ jsx(Label, {
-                  className: "text-sm font-medium",
-                  children: "Only when stage changes to"
-                }), /* @__PURE__ */ jsxs(Select, {
-                  name: "conditionToStage",
-                  value: conditionToStage,
-                  onChange: (e) => setConditionToStage(e.target.value),
-                  className: "mt-2 bg-background/50 border-border/60",
-                  children: [/* @__PURE__ */ jsx("option", {
-                    value: "",
-                    children: "Any stage"
-                  }), stages.map((s) => /* @__PURE__ */ jsx("option", {
-                    value: s.name,
-                    children: s.label
-                  }, s.name))]
-                })]
-              }) : /* @__PURE__ */ jsxs("div", {
-                children: [/* @__PURE__ */ jsx(Label, {
-                  className: "text-sm font-medium",
-                  children: "Only when temperature is"
-                }), /* @__PURE__ */ jsxs(Select, {
-                  name: "conditionTemperature",
-                  value: conditionTemperature,
-                  onChange: (e) => setConditionTemperature(e.target.value),
-                  className: "mt-2 bg-background/50 border-border/60",
-                  children: [/* @__PURE__ */ jsx("option", {
-                    value: "",
-                    children: "Any temperature"
-                  }), TEMPERATURES.map((t) => /* @__PURE__ */ jsx("option", {
-                    value: t.value,
-                    children: t.label
-                  }, t.value))]
-                })]
-              }), /* @__PURE__ */ jsxs("p", {
-                className: "text-xs text-muted-foreground",
-                children: ["Leave unselected to match all ", triggerEvent === "STAGE_CHANGED" ? "stages" : "temperatures", "."]
-              })]
-            })]
-          }), /* @__PURE__ */ jsx(StepConnector, {})]
-        }) : null, /* @__PURE__ */ jsxs(Card, {
-          className: "border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden transition-all duration-300 hover:border-emerald-500/20",
-          children: [/* @__PURE__ */ jsxs(CardHeader, {
+        }), showFilter ? /* @__PURE__ */ jsxs(Card, {
+          className: "mt-3 border-border/40 bg-gradient-to-br from-card/80 to-card/40",
+          children: [/* @__PURE__ */ jsx(CardHeader, {
             className: "pb-3",
-            children: [/* @__PURE__ */ jsx(StepBadge, {
-              step: STEP_META[2]
-            }), /* @__PURE__ */ jsx(CardDescription, {
-              className: "mt-2 pl-1",
-              children: "Choose what happens when the trigger fires"
-            })]
-          }), /* @__PURE__ */ jsxs(CardContent, {
-            className: "space-y-5",
-            children: [/* @__PURE__ */ jsxs("div", {
+            children: /* @__PURE__ */ jsxs("div", {
+              className: "flex items-center justify-between",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex items-center gap-2 rounded-xl border px-3 py-2 bg-amber-500/15 text-amber-400 border-amber-500/20",
+                children: [/* @__PURE__ */ jsx("div", {
+                  className: "flex h-7 w-7 items-center justify-center rounded-lg bg-white/5",
+                  children: /* @__PURE__ */ jsx("span", {
+                    className: "text-xs font-bold",
+                    children: "2"
+                  })
+                }), /* @__PURE__ */ jsx("span", {
+                  className: "text-sm font-semibold",
+                  children: "Filter"
+                }), /* @__PURE__ */ jsx(Filter, {
+                  className: "h-3.5 w-3.5 opacity-60"
+                })]
+              }), /* @__PURE__ */ jsx(Badge, {
+                variant: "outline",
+                className: "text-[10px]",
+                children: "Optional"
+              })]
+            })
+          }), /* @__PURE__ */ jsx(CardContent, {
+            children: triggerEvent === "STAGE_CHANGED" ? /* @__PURE__ */ jsxs("div", {
               children: [/* @__PURE__ */ jsx(Label, {
                 className: "text-sm font-medium",
-                children: "Action"
-              }), /* @__PURE__ */ jsx(Select, {
-                name: "actionType",
-                value: actionType,
-                onChange: handleActionChange,
-                className: "mt-2 bg-background/50 border-border/60",
-                children: ACTION_OPTIONS.map((opt) => /* @__PURE__ */ jsx("option", {
-                  value: opt.value,
-                  children: opt.label
-                }, opt.value))
-              })]
-            }), actionType === "ASSIGN_TO_USER" && /* @__PURE__ */ jsxs("div", {
-              className: "rounded-xl bg-violet-500/5 border border-violet-500/10 p-4 space-y-3",
-              children: [/* @__PURE__ */ jsxs("div", {
-                className: "flex items-center gap-2",
-                children: [/* @__PURE__ */ jsx(User, {
-                  className: "h-4 w-4 text-violet-400"
-                }), /* @__PURE__ */ jsx("span", {
-                  className: "text-sm font-medium text-violet-400/90",
-                  children: "Assign to"
-                })]
+                children: "Only when stage changes to"
               }), /* @__PURE__ */ jsxs(Select, {
-                name: "configUserId",
-                value: configUserId,
-                onChange: (e) => setConfigUserId(e.target.value),
-                className: "bg-background/50 border-border/60",
+                name: "conditionToStage",
+                value: conditionToStage,
+                onChange: (e) => setConditionToStage(e.target.value),
+                className: "mt-2 bg-background/50 border-border/60",
                 children: [/* @__PURE__ */ jsx("option", {
                   value: "",
-                  children: "Select a user..."
-                }), users2.map((u) => /* @__PURE__ */ jsx("option", {
-                  value: u.id,
-                  children: u.name || u.email
-                }, u.id))]
+                  children: "Any stage"
+                }), stages.map((s) => /* @__PURE__ */ jsx("option", {
+                  value: s.name,
+                  children: s.label
+                }, s.name))]
               })]
-            }), actionType === "SEND_NOTIFICATION" && /* @__PURE__ */ jsxs("div", {
-              className: "rounded-xl bg-sky-500/5 border border-sky-500/10 p-4 space-y-3",
-              children: [/* @__PURE__ */ jsxs("div", {
-                className: "flex items-center gap-2",
-                children: [/* @__PURE__ */ jsx(MessageSquare, {
-                  className: "h-4 w-4 text-sky-400"
-                }), /* @__PURE__ */ jsx("span", {
-                  className: "text-sm font-medium text-sky-400/90",
-                  children: "Message"
-                })]
-              }), /* @__PURE__ */ jsx(Textarea, {
-                name: "configMessage",
-                value: configMessage,
-                onChange: (e) => setConfigMessage(e.target.value),
-                placeholder: "Enter the notification message...",
-                className: "bg-background/50 border-border/60 min-h-[80px]",
-                rows: 3
+            }) : /* @__PURE__ */ jsxs("div", {
+              children: [/* @__PURE__ */ jsx(Label, {
+                className: "text-sm font-medium",
+                children: "Only when temperature is"
+              }), /* @__PURE__ */ jsxs(Select, {
+                name: "conditionTemperature",
+                value: conditionTemperature,
+                onChange: (e) => setConditionTemperature(e.target.value),
+                className: "mt-2 bg-background/50 border-border/60",
+                children: [/* @__PURE__ */ jsx("option", {
+                  value: "",
+                  children: "Any temperature"
+                }), TEMPERATURES.map((t) => /* @__PURE__ */ jsx("option", {
+                  value: t.value,
+                  children: t.label
+                }, t.value))]
               })]
-            }), actionType === "UPDATE_FIELD" && /* @__PURE__ */ jsxs("div", {
-              className: "rounded-xl bg-amber-500/5 border border-amber-500/10 p-4 space-y-4",
-              children: [/* @__PURE__ */ jsxs("div", {
-                className: "flex items-center gap-2",
-                children: [/* @__PURE__ */ jsx(PenSquare, {
-                  className: "h-4 w-4 text-amber-400"
-                }), /* @__PURE__ */ jsx("span", {
-                  className: "text-sm font-medium text-amber-400/90",
-                  children: "Field Update"
-                })]
-              }), /* @__PURE__ */ jsxs("div", {
-                children: [/* @__PURE__ */ jsx(Label, {
-                  className: "text-xs font-medium",
-                  children: "Field to update"
-                }), /* @__PURE__ */ jsx(Select, {
-                  name: "configField",
-                  value: configField,
-                  onChange: handleFieldChange,
-                  className: "mt-1.5 bg-background/50 border-border/60",
-                  children: UPDATE_FIELDS.map((f) => /* @__PURE__ */ jsx("option", {
-                    value: f.value,
-                    children: f.label
-                  }, f.value))
-                })]
-              }), /* @__PURE__ */ jsxs("div", {
-                children: [/* @__PURE__ */ jsx(Label, {
-                  className: "text-xs font-medium",
-                  children: "Set value to"
-                }), valueInputType === "select" ? /* @__PURE__ */ jsxs(Select, {
-                  name: "configValue",
-                  value: configValue,
-                  onChange: (e) => setConfigValue(e.target.value),
-                  className: "mt-1.5 bg-background/50 border-border/60",
-                  children: [/* @__PURE__ */ jsx("option", {
-                    value: "",
-                    children: "Select..."
-                  }), configField === "stage" ? stages.map((s) => /* @__PURE__ */ jsx("option", {
-                    value: s.name,
-                    children: s.label
-                  }, s.name)) : ((selectedFieldDef == null ? void 0 : selectedFieldDef.options) || []).map((opt) => /* @__PURE__ */ jsx("option", {
-                    value: opt.value,
-                    children: opt.label
-                  }, opt.value))]
-                }) : valueInputType === "textarea" ? /* @__PURE__ */ jsx(Textarea, {
-                  name: "configValue",
-                  value: configValue,
-                  onChange: (e) => setConfigValue(e.target.value),
-                  placeholder: `Enter new ${(_b = selectedFieldDef == null ? void 0 : selectedFieldDef.label) == null ? void 0 : _b.toLowerCase()}...`,
-                  className: "mt-1.5 bg-background/50 border-border/60 min-h-[60px]",
-                  rows: 2
-                }) : /* @__PURE__ */ jsx(Input, {
-                  name: "configValue",
-                  type: "text",
-                  value: configValue,
-                  onChange: (e) => setConfigValue(e.target.value),
-                  placeholder: `Enter new ${(_c = selectedFieldDef == null ? void 0 : selectedFieldDef.label) == null ? void 0 : _c.toLowerCase()}...`,
-                  className: "mt-1.5 bg-background/50 border-border/60"
-                })]
+            })
+          })]
+        }) : null, /* @__PURE__ */ jsxs(Card, {
+          className: "mt-3 border-border/40 bg-gradient-to-br from-card/80 to-card/40",
+          children: [/* @__PURE__ */ jsxs(CardHeader, {
+            className: "pb-3",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex items-center gap-2 rounded-xl border px-3 py-2 bg-emerald-500/15 text-emerald-400 border-emerald-500/20 w-fit",
+              children: [/* @__PURE__ */ jsx("div", {
+                className: "flex h-7 w-7 items-center justify-center rounded-lg bg-white/5",
+                children: /* @__PURE__ */ jsx("span", {
+                  className: "text-xs font-bold",
+                  children: showFilter ? "3" : "2"
+                })
+              }), /* @__PURE__ */ jsx("span", {
+                className: "text-sm font-semibold",
+                children: "Then do these"
+              }), /* @__PURE__ */ jsx(Rocket, {
+                className: "h-3.5 w-3.5 opacity-60"
               })]
-            }), actionType === "ADD_NOTE" && /* @__PURE__ */ jsxs("div", {
-              className: "rounded-xl bg-emerald-500/5 border border-emerald-500/10 p-4 space-y-3",
-              children: [/* @__PURE__ */ jsxs("div", {
-                className: "flex items-center gap-2",
-                children: [/* @__PURE__ */ jsx(StickyNote, {
-                  className: "h-4 w-4 text-emerald-400"
-                }), /* @__PURE__ */ jsx("span", {
-                  className: "text-sm font-medium text-emerald-400/90",
-                  children: "Note"
-                })]
-              }), /* @__PURE__ */ jsx(Textarea, {
-                name: "configNote",
-                value: configNote,
-                onChange: (e) => setConfigNote(e.target.value),
-                placeholder: "Enter the note to add to the lead...",
-                className: "bg-background/50 border-border/60 min-h-[80px]",
-                rows: 3
-              })]
+            }), /* @__PURE__ */ jsx(CardDescription, {
+              className: "mt-2 pl-1",
+              children: "Add, remove, or reorder action steps"
+            })]
+          }), /* @__PURE__ */ jsxs(CardContent, {
+            className: "space-y-4",
+            children: [/* @__PURE__ */ jsx(DragDropContext, {
+              onDragEnd,
+              children: /* @__PURE__ */ jsx(Droppable, {
+                droppableId: "actions",
+                children: (provided) => /* @__PURE__ */ jsxs("div", {
+                  ref: provided.innerRef,
+                  ...provided.droppableProps,
+                  className: "space-y-3",
+                  children: [actionSteps.map((step, index) => {
+                    const actionDef = ACTION_TYPES.find((a) => a.value === step.type);
+                    const Icon = (actionDef == null ? void 0 : actionDef.icon) || Zap;
+                    const color = (actionDef == null ? void 0 : actionDef.color) || "slate";
+                    return /* @__PURE__ */ jsx(Draggable, {
+                      draggableId: step.id,
+                      index,
+                      children: (dragProvided, dragSnapshot) => /* @__PURE__ */ jsxs("div", {
+                        ref: dragProvided.innerRef,
+                        ...dragProvided.draggableProps,
+                        className: `rounded-xl border border-border/40 bg-card/60 p-4 space-y-3 transition-shadow ${dragSnapshot.isDragging ? "shadow-lg" : ""}`,
+                        children: [/* @__PURE__ */ jsxs("div", {
+                          className: "flex items-center gap-2",
+                          children: [/* @__PURE__ */ jsx("div", {
+                            ...dragProvided.dragHandleProps,
+                            className: "cursor-grab text-muted-foreground/30 hover:text-muted-foreground shrink-0",
+                            children: /* @__PURE__ */ jsx(GripVertical, {
+                              className: "h-4 w-4"
+                            })
+                          }), /* @__PURE__ */ jsx("div", {
+                            className: `flex h-6 w-6 items-center justify-center rounded-md ${COLOR_MAP[color] || "bg-muted"}`,
+                            children: /* @__PURE__ */ jsx(Icon, {
+                              className: `h-3 w-3 ${TEXT_COLOR_MAP[color] || "text-muted-foreground"}`
+                            })
+                          }), /* @__PURE__ */ jsxs(Badge, {
+                            variant: "outline",
+                            className: "text-[10px] tabular-nums",
+                            children: ["Step ", index + 1]
+                          }), /* @__PURE__ */ jsx(Select, {
+                            value: step.type,
+                            onChange: (e) => changeActionType(step.id, e.target.value),
+                            className: "flex-1 bg-background/50 border-border/60 h-8 text-sm",
+                            children: ACTION_TYPES.map((opt) => /* @__PURE__ */ jsx("option", {
+                              value: opt.value,
+                              children: opt.label
+                            }, opt.value))
+                          }), actionSteps.length > 1 && /* @__PURE__ */ jsx(Button, {
+                            type: "button",
+                            variant: "ghost",
+                            size: "sm",
+                            className: "h-7 w-7 p-0 text-muted-foreground/40 hover:text-red-400 shrink-0",
+                            onClick: () => removeAction(step.id),
+                            children: /* @__PURE__ */ jsx(Trash2, {
+                              className: "h-3.5 w-3.5"
+                            })
+                          })]
+                        }), /* @__PURE__ */ jsx(ActionConfigFields, {
+                          step,
+                          onChange: updateAction,
+                          users: users2,
+                          stages,
+                          gmailUserIds,
+                          gmailAddressMap
+                        })]
+                      })
+                    }, step.id);
+                  }), provided.placeholder]
+                })
+              })
+            }), /* @__PURE__ */ jsxs(Button, {
+              type: "button",
+              variant: "outline",
+              onClick: addAction,
+              className: "w-full border-dashed border-border/60 text-muted-foreground hover:text-foreground",
+              children: [/* @__PURE__ */ jsx(Plus, {
+                className: "h-4 w-4 mr-2"
+              }), "Add Action Step"]
             })]
           })]
-        }), /* @__PURE__ */ jsx("div", {
-          className: "pt-6 pb-2",
-          children: /* @__PURE__ */ jsx(Button, {
+        }), /* @__PURE__ */ jsxs("div", {
+          className: "pt-6 pb-2 flex gap-3",
+          children: [/* @__PURE__ */ jsx(Button, {
             type: "submit",
-            disabled: isSubmitting,
-            className: "w-full h-11 text-base font-semibold shadow-lg shadow-primary/5 hover:shadow-primary/10 transition-all duration-300",
+            disabled: isSubmitting || actionsPayload.length === 0,
+            className: "flex-1 h-11 text-base font-semibold shadow-lg shadow-primary/5 hover:shadow-primary/10",
             children: isSubmitting ? /* @__PURE__ */ jsxs("span", {
               className: "flex items-center gap-2",
               children: [/* @__PURE__ */ jsx(Sparkles, {
                 className: "h-4 w-4 animate-spin"
-              }), "Creating..."]
+              }), "Saving..."]
             }) : /* @__PURE__ */ jsxs("span", {
               className: "flex items-center gap-2",
-              children: [/* @__PURE__ */ jsx(Rocket, {
+              children: [/* @__PURE__ */ jsx(CheckCircle2, {
                 className: "h-4 w-4"
-              }), "Create Workflow"]
+              }), "Save Changes"]
             })
-          })
+          }), /* @__PURE__ */ jsxs(Form, {
+            method: "post",
+            className: "inline",
+            children: [/* @__PURE__ */ jsx("input", {
+              type: "hidden",
+              name: "intent",
+              value: "deleteWorkflow"
+            }), /* @__PURE__ */ jsxs(Button, {
+              type: "submit",
+              variant: "outline",
+              className: "text-red-400 hover:text-red-300 hover:border-red-500/30",
+              disabled: isSubmitting,
+              children: [/* @__PURE__ */ jsx(Trash2, {
+                className: "h-4 w-4 mr-2"
+              }), "Delete"]
+            })]
+          })]
         })]
       })]
     })
   });
 });
-const route36 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route37 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   action: action$2,
-  default: workflows_new,
+  default: workflows_$id_edit,
   loader: loader$3
 }, Symbol.toStringTag, { value: "Module" }));
 async function loader$2({
@@ -18461,7 +19624,7 @@ function ScraperStatusBadge$1({
     children: status
   });
 }
-const route37 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route38 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: scraper,
   loader: loader$2
@@ -18517,7 +19680,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-LNulaA8M.js").then(({
+    import("./pipeline-DsE_tJZO.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -18546,7 +19709,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-LNulaA8M.js").then(({
+    import("./pipeline-DsE_tJZO.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -18714,7 +19877,7 @@ const scraper_new = UNSAFE_withComponentProps(function ScraperNew() {
     })
   });
 });
-const route38 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route39 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   action: action$1,
   default: scraper_new,
@@ -19084,13 +20247,13 @@ function ScraperStatusBadge({
     children: status
   });
 }
-const route39 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const route40 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   action,
   default: scraper_$jobId,
   loader
 }, Symbol.toStringTag, { value: "Module" }));
-const serverManifest = { "entry": { "module": "/assets/entry.client-C_G8n_uG.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/index-DwQcVxz_.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-D9IStiqv.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/index-DwQcVxz_.js"], "css": ["/assets/root-DPMgnGVJ.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bv0yp0_A.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-DhnMYjjD.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-CtrzlPQm.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-BlDXzj-_.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/trending-up-CMJUIi-W.js", "/assets/button-BzD4dEQS.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-gfUDjdce.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/stages-D3OpmkBZ.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/button-BzD4dEQS.js", "/assets/target-8zJQTku0.js", "/assets/zap-hxRe82mn.js", "/assets/clock-fXwO6rwC.js", "/assets/layers-5PCYnPU_.js", "/assets/trending-up-CMJUIi-W.js", "/assets/activity-Cs5Q3wMQ.js", "/assets/chevron-down-hWcYwWZo.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-U-MKulJn.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/plus-CKQmuqgk.js", "/assets/chevron-down-hWcYwWZo.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/circle-x-CcmLvm4B.js", "/assets/snowflake-DYO2kuLB.js", "/assets/sun-D5wbcKGA.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-D13BmYRK.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/textarea-DdgqXUtb.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/activity-log-DH7qE_2n.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-x-CcmLvm4B.js", "/assets/user-B_UkjLKA.js", "/assets/save-B6x4vJLe.js", "/assets/twitter-NK69595T.js", "/assets/activity-Cs5Q3wMQ.js", "/assets/clock-fXwO6rwC.js", "/assets/send-DpJcvcuU.js", "/assets/stages-D3OpmkBZ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-BFYppF3o.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/snowflake-DYO2kuLB.js", "/assets/sun-D5wbcKGA.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/circle-alert-DKG883Eb.js", "/assets/user-B_UkjLKA.js", "/assets/building-2-BMK6oK14.js", "/assets/twitter-NK69595T.js", "/assets/globe-BJRi8l2b.js", "/assets/loader-circle-B97ViLfp.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-DKlzPSgM.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/select-BkRFjuOF.js", "/assets/badge-BOBE8P4s.js", "/assets/card-CFdKZ9YC.js", "/assets/plus-CKQmuqgk.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-DMNW31TH.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/textarea-DdgqXUtb.js", "/assets/card-CFdKZ9YC.js", "/assets/snowflake-DYO2kuLB.js", "/assets/sun-D5wbcKGA.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-CB5n3YwX.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/badge-BOBE8P4s.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/user-B_UkjLKA.js", "/assets/activity-Cs5Q3wMQ.js", "/assets/target-8zJQTku0.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-BC31_Mxu.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-DpIaMN-T.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/dnd.esm-DPtlM8vO.js", "/assets/card-CFdKZ9YC.js", "/assets/snowflake-DYO2kuLB.js", "/assets/dialog-Cu3tcv22.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/activity-log-DH7qE_2n.js", "/assets/building-2-BMK6oK14.js", "/assets/save-B6x4vJLe.js", "/assets/user-B_UkjLKA.js", "/assets/globe-BJRi8l2b.js", "/assets/link-YSTzHXqy.js", "/assets/stages-D3OpmkBZ.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/clock-fXwO6rwC.js", "/assets/circle-alert-DKG883Eb.js", "/assets/index-DwQcVxz_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-Dmi7uKEC.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/send-DpJcvcuU.js", "/assets/circle-alert-DKG883Eb.js", "/assets/sparkles-C_UsOhu4.js", "/assets/loader-circle-B97ViLfp.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/clock-fXwO6rwC.js", "/assets/message-square-B7wyHtsu.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-D0MSu1Ae.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js", "/assets/rich-editor-C6-p66Uv.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/plus-CKQmuqgk.js", "/assets/sparkles-C_UsOhu4.js", "/assets/save-B6x4vJLe.js", "/assets/trash-2-CqzlFwpQ.js", "/assets/clock-fXwO6rwC.js", "/assets/link-YSTzHXqy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-BDVjS0TB.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/textarea-DdgqXUtb.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/user-B_UkjLKA.js", "/assets/reply-D99KUyiR.js", "/assets/send-DpJcvcuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-CSzcDSSN.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/textarea-DdgqXUtb.js", "/assets/label-AEHRrbgY.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/reply-D99KUyiR.js", "/assets/send-DpJcvcuU.js", "/assets/user-B_UkjLKA.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-CKOcOBXf.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/select-BkRFjuOF.js", "/assets/label-AEHRrbgY.js", "/assets/input-GOqtI8vL.js", "/assets/rich-editor-C6-p66Uv.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-alert-DKG883Eb.js", "/assets/user-B_UkjLKA.js", "/assets/sparkles-C_UsOhu4.js", "/assets/send-DpJcvcuU.js", "/assets/clock-fXwO6rwC.js", "/assets/chevron-up-CO8iE6ce.js", "/assets/chevron-down-hWcYwWZo.js", "/assets/link-YSTzHXqy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-DT-a-5Em.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.lead-detail": { "id": "routes/api.lead-detail", "parentId": "root", "path": "api/lead-detail", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.lead-detail-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.diagnostic": { "id": "routes/api.diagnostic", "parentId": "root", "path": "api/diagnostic", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.diagnostic-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/docs.api": { "id": "routes/docs.api", "parentId": "root", "path": "docs/api", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/docs.api-D2eRzTlS.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/button-BzD4dEQS.js", "/assets/zap-hxRe82mn.js", "/assets/clock-fXwO6rwC.js", "/assets/shield-Bvz9Fpko.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/chevron-up-CO8iE6ce.js", "/assets/globe-BJRi8l2b.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-CLqvu2Z7.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-BCpyYrJr.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-bo3G69J3.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/sun-D5wbcKGA.js", "/assets/database-BnaxoFpr.js", "/assets/key-BG9cY_wB.js", "/assets/zap-hxRe82mn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-CMz7yUuN.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/badge-BOBE8P4s.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/dialog-Cu3tcv22.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/plus-CKQmuqgk.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database-DUYjJWvC.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/database-BnaxoFpr.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/circle-alert-DKG883Eb.js", "/assets/play-D-CYOOG5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.api-keys": { "id": "routes/settings.api-keys", "parentId": "root", "path": "settings/api-keys", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.api-keys-CfRnXcae.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/key-BG9cY_wB.js", "/assets/shield-Bvz9Fpko.js", "/assets/plus-CKQmuqgk.js", "/assets/clock-fXwO6rwC.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.scoring-rules": { "id": "routes/settings.scoring-rules", "parentId": "root", "path": "settings/scoring-rules", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.scoring-rules-DfLIPrxm.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/zap-hxRe82mn.js", "/assets/plus-CKQmuqgk.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.stages": { "id": "routes/settings.stages", "parentId": "root", "path": "settings/stages", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.stages-BkMncIkk.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/stages-D3OpmkBZ.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/select-BkRFjuOF.js", "/assets/dnd.esm-DPtlM8vO.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/layers-5PCYnPU_.js", "/assets/plus-CKQmuqgk.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/save-B6x4vJLe.js", "/assets/trash-2-CqzlFwpQ.js", "/assets/index-DwQcVxz_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.workflows": { "id": "routes/settings.workflows", "parentId": "root", "path": "settings/workflows", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/settings.workflows-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/workflows": { "id": "routes/workflows", "parentId": "root", "path": "workflows", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/workflows-D8nnzHNz.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/stages-D3OpmkBZ.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/plus-CKQmuqgk.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/zap-hxRe82mn.js", "/assets/clock-fXwO6rwC.js", "/assets/circle-x-CcmLvm4B.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/funnel-CZFWOZLj.js", "/assets/play-D-CYOOG5.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/workflows.new": { "id": "routes/workflows.new", "parentId": "root", "path": "workflows/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/workflows.new-BK9nBRdT.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/textarea-DdgqXUtb.js", "/assets/label-AEHRrbgY.js", "/assets/select-BkRFjuOF.js", "/assets/sparkles-C_UsOhu4.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/zap-hxRe82mn.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/funnel-CZFWOZLj.js", "/assets/user-B_UkjLKA.js", "/assets/message-square-B7wyHtsu.js", "/assets/chevron-down-hWcYwWZo.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-BrLVEjhZ.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/globe-BJRi8l2b.js", "/assets/zap-hxRe82mn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-DihP2KIm.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/globe-BJRi8l2b.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-DIpqcIJz.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/loader-circle-B97ViLfp.js", "/assets/globe-BJRi8l2b.js", "/assets/clock-fXwO6rwC.js", "/assets/triangle-alert-CDBYWix3.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-48111940.js", "version": "48111940", "sri": void 0 };
+const serverManifest = { "entry": { "module": "/assets/entry.client-C_G8n_uG.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/index-DwQcVxz_.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": true, "module": "/assets/root-DJNdoIm-.js", "imports": ["/assets/jsx-runtime-D_zvdyIk.js", "/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/index-DwQcVxz_.js"], "css": ["/assets/root-BgKEFjc1.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/home-Bv0yp0_A.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "login", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/login-DhnMYjjD.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/register": { "id": "routes/register", "parentId": "root", "path": "register", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/register-CtrzlPQm.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google": { "id": "routes/auth.google", "parentId": "root", "path": "auth/google", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/auth.google.callback": { "id": "routes/auth.google.callback", "parentId": "root", "path": "auth/google/callback", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/auth.google.callback-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/dashboard": { "id": "routes/dashboard", "parentId": "root", "path": "dashboard", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/dashboard-BlDXzj-_.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/trending-up-CMJUIi-W.js", "/assets/button-BzD4dEQS.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/analytics": { "id": "routes/analytics", "parentId": "root", "path": "analytics", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/analytics-gfUDjdce.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/stages-D3OpmkBZ.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/button-BzD4dEQS.js", "/assets/target-8zJQTku0.js", "/assets/zap-hxRe82mn.js", "/assets/clock-fXwO6rwC.js", "/assets/layers-5PCYnPU_.js", "/assets/trending-up-CMJUIi-W.js", "/assets/activity-Cs5Q3wMQ.js", "/assets/chevron-down-hWcYwWZo.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox": { "id": "routes/inbox", "parentId": "root", "path": "inbox", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox-U-MKulJn.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/plus-CKQmuqgk.js", "/assets/chevron-down-hWcYwWZo.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/circle-x-CcmLvm4B.js", "/assets/snowflake-DYO2kuLB.js", "/assets/sun-D5wbcKGA.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/inbox.$leadId": { "id": "routes/inbox.$leadId", "parentId": "root", "path": "inbox/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/inbox._leadId-Ds-70tJZ.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/textarea-DdgqXUtb.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/activity-log-DH7qE_2n.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-x-CcmLvm4B.js", "/assets/user-B_UkjLKA.js", "/assets/pencil-3dCsYsP0.js", "/assets/save-OhtTfQbj.js", "/assets/twitter-NK69595T.js", "/assets/activity-Cs5Q3wMQ.js", "/assets/clock-fXwO6rwC.js", "/assets/send-DpJcvcuU.js", "/assets/stages-D3OpmkBZ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.new": { "id": "routes/leads.new", "parentId": "root", "path": "leads/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads.new-BFYppF3o.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/snowflake-DYO2kuLB.js", "/assets/sun-D5wbcKGA.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/circle-alert-DKG883Eb.js", "/assets/user-B_UkjLKA.js", "/assets/building-2-BMK6oK14.js", "/assets/twitter-NK69595T.js", "/assets/globe-BJRi8l2b.js", "/assets/loader-circle-B97ViLfp.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.criteria": { "id": "routes/verification.criteria", "parentId": "root", "path": "verification/criteria", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification.criteria-DKlzPSgM.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/select-BkRFjuOF.js", "/assets/badge-BOBE8P4s.js", "/assets/card-CFdKZ9YC.js", "/assets/plus-CKQmuqgk.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/verification.$leadId": { "id": "routes/verification.$leadId", "parentId": "root", "path": "verification/:leadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/verification._leadId-DMNW31TH.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/textarea-DdgqXUtb.js", "/assets/card-CFdKZ9YC.js", "/assets/snowflake-DYO2kuLB.js", "/assets/sun-D5wbcKGA.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users": { "id": "routes/users", "parentId": "root", "path": "users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users-CB5n3YwX.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/badge-BOBE8P4s.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/user-B_UkjLKA.js", "/assets/activity-Cs5Q3wMQ.js", "/assets/target-8zJQTku0.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/users.new": { "id": "routes/users.new", "parentId": "root", "path": "users/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/users.new-BC31_Mxu.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/pipeline": { "id": "routes/pipeline", "parentId": "root", "path": "pipeline", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/pipeline-CnZYpKFL.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/dnd.esm-DPtlM8vO.js", "/assets/card-CFdKZ9YC.js", "/assets/snowflake-DYO2kuLB.js", "/assets/dialog-Cu3tcv22.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/activity-log-DH7qE_2n.js", "/assets/building-2-BMK6oK14.js", "/assets/pencil-3dCsYsP0.js", "/assets/save-OhtTfQbj.js", "/assets/user-B_UkjLKA.js", "/assets/globe-BJRi8l2b.js", "/assets/link-YSTzHXqy.js", "/assets/stages-D3OpmkBZ.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/clock-fXwO6rwC.js", "/assets/circle-alert-DKG883Eb.js", "/assets/index-DwQcVxz_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails": { "id": "routes/emails", "parentId": "root", "path": "emails", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails-Dmi7uKEC.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/send-DpJcvcuU.js", "/assets/circle-alert-DKG883Eb.js", "/assets/sparkles-C_UsOhu4.js", "/assets/loader-circle-B97ViLfp.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/clock-fXwO6rwC.js", "/assets/message-square-B7wyHtsu.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.templates": { "id": "routes/emails.templates", "parentId": "root", "path": "emails/templates", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.templates-CrOjuRcE.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/card-CFdKZ9YC.js", "/assets/rich-editor-C6-p66Uv.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/plus-CKQmuqgk.js", "/assets/sparkles-C_UsOhu4.js", "/assets/save-OhtTfQbj.js", "/assets/pencil-3dCsYsP0.js", "/assets/trash-2-CqzlFwpQ.js", "/assets/clock-fXwO6rwC.js", "/assets/link-YSTzHXqy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.threads.$threadId": { "id": "routes/emails.threads.$threadId", "parentId": "root", "path": "emails/threads/:threadId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.threads._threadId-BDVjS0TB.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/textarea-DdgqXUtb.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/user-B_UkjLKA.js", "/assets/reply-D99KUyiR.js", "/assets/send-DpJcvcuU.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/emails.inbox.$messageId": { "id": "routes/emails.inbox.$messageId", "parentId": "root", "path": "emails/inbox/:messageId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/emails.inbox._messageId-CSzcDSSN.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/textarea-DdgqXUtb.js", "/assets/label-AEHRrbgY.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/reply-D99KUyiR.js", "/assets/send-DpJcvcuU.js", "/assets/user-B_UkjLKA.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/leads.$leadId.emails": { "id": "routes/leads.$leadId.emails", "parentId": "root", "path": "leads/:leadId/emails", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/leads._leadId.emails-CKOcOBXf.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/select-BkRFjuOF.js", "/assets/label-AEHRrbgY.js", "/assets/input-GOqtI8vL.js", "/assets/rich-editor-C6-p66Uv.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-alert-DKG883Eb.js", "/assets/user-B_UkjLKA.js", "/assets/sparkles-C_UsOhu4.js", "/assets/send-DpJcvcuU.js", "/assets/clock-fXwO6rwC.js", "/assets/chevron-up-CO8iE6ce.js", "/assets/chevron-down-hWcYwWZo.js", "/assets/link-YSTzHXqy.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.leads": { "id": "routes/api.leads", "parentId": "root", "path": "api/leads", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.leads-DT-a-5Em.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.lead-detail": { "id": "routes/api.lead-detail", "parentId": "root", "path": "api/lead-detail", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.lead-detail-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.scraper": { "id": "routes/api.scraper", "parentId": "root", "path": "api/scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.scraper-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/api.diagnostic": { "id": "routes/api.diagnostic", "parentId": "root", "path": "api/diagnostic", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/api.diagnostic-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/docs.api": { "id": "routes/docs.api", "parentId": "root", "path": "docs/api", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/docs.api-D2eRzTlS.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/button-BzD4dEQS.js", "/assets/zap-hxRe82mn.js", "/assets/clock-fXwO6rwC.js", "/assets/shield-Bvz9Fpko.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/chevron-up-CO8iE6ce.js", "/assets/globe-BJRi8l2b.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports": { "id": "routes/imports", "parentId": "root", "path": "imports", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports-CLqvu2Z7.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/imports.new": { "id": "routes/imports.new", "parentId": "root", "path": "imports/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/imports.new-BCpyYrJr.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/circle-check-Bd7GRUCN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings": { "id": "routes/settings", "parentId": "root", "path": "settings", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings-bo3G69J3.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/sun-D5wbcKGA.js", "/assets/database-BnaxoFpr.js", "/assets/key-BG9cY_wB.js", "/assets/zap-hxRe82mn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.users": { "id": "routes/settings.users", "parentId": "root", "path": "settings/users", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.users-CMz7yUuN.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/badge-BOBE8P4s.js", "/assets/card-CFdKZ9YC.js", "/assets/select-BkRFjuOF.js", "/assets/dialog-Cu3tcv22.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/plus-CKQmuqgk.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.database": { "id": "routes/settings.database", "parentId": "root", "path": "settings/database", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.database-DUYjJWvC.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/textarea-DdgqXUtb.js", "/assets/database-BnaxoFpr.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/circle-alert-DKG883Eb.js", "/assets/play-D-CYOOG5.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.api-keys": { "id": "routes/settings.api-keys", "parentId": "root", "path": "settings/api-keys", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.api-keys-CfRnXcae.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/key-BG9cY_wB.js", "/assets/shield-Bvz9Fpko.js", "/assets/plus-CKQmuqgk.js", "/assets/clock-fXwO6rwC.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.scoring-rules": { "id": "routes/settings.scoring-rules", "parentId": "root", "path": "settings/scoring-rules", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.scoring-rules-DfLIPrxm.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/zap-hxRe82mn.js", "/assets/plus-CKQmuqgk.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.stages": { "id": "routes/settings.stages", "parentId": "root", "path": "settings/stages", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/settings.stages-DuLgpp7k.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/stages-D3OpmkBZ.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/label-AEHRrbgY.js", "/assets/select-BkRFjuOF.js", "/assets/dnd.esm-DPtlM8vO.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/layers-5PCYnPU_.js", "/assets/plus-CKQmuqgk.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/save-OhtTfQbj.js", "/assets/pencil-3dCsYsP0.js", "/assets/trash-2-CqzlFwpQ.js", "/assets/index-DwQcVxz_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/settings.workflows": { "id": "routes/settings.workflows", "parentId": "root", "path": "settings/workflows", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": false, "hasErrorBoundary": false, "module": "/assets/settings.workflows-l0sNRNKZ.js", "imports": [], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/workflows": { "id": "routes/workflows", "parentId": "root", "path": "workflows", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/workflows-6ktHDYhq.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/stages-D3OpmkBZ.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/plus-CKQmuqgk.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/zap-hxRe82mn.js", "/assets/clock-fXwO6rwC.js", "/assets/circle-x-CcmLvm4B.js", "/assets/arrow-right-BR0jhrU9.js", "/assets/funnel-CZFWOZLj.js", "/assets/play-D-CYOOG5.js", "/assets/pencil-3dCsYsP0.js", "/assets/trash-2-CqzlFwpQ.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/workflows.new": { "id": "routes/workflows.new", "parentId": "root", "path": "workflows/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/workflows.new-C8Wu516B.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/textarea-DdgqXUtb.js", "/assets/label-AEHRrbgY.js", "/assets/select-BkRFjuOF.js", "/assets/dnd.esm-DPtlM8vO.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/zap-hxRe82mn.js", "/assets/funnel-CZFWOZLj.js", "/assets/sticky-note-vqy8P-yr.js", "/assets/user-B_UkjLKA.js", "/assets/message-square-B7wyHtsu.js", "/assets/trash-2-CqzlFwpQ.js", "/assets/plus-CKQmuqgk.js", "/assets/sparkles-C_UsOhu4.js", "/assets/chevron-down-hWcYwWZo.js", "/assets/index-DwQcVxz_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/workflows.$id.edit": { "id": "routes/workflows.$id.edit", "parentId": "root", "path": "workflows/:id/edit", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/workflows._id.edit-Cx_Fx4Bi.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/input-GOqtI8vL.js", "/assets/textarea-DdgqXUtb.js", "/assets/label-AEHRrbgY.js", "/assets/select-BkRFjuOF.js", "/assets/dnd.esm-DPtlM8vO.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/triangle-alert-CDBYWix3.js", "/assets/zap-hxRe82mn.js", "/assets/funnel-CZFWOZLj.js", "/assets/sticky-note-vqy8P-yr.js", "/assets/user-B_UkjLKA.js", "/assets/message-square-B7wyHtsu.js", "/assets/trash-2-CqzlFwpQ.js", "/assets/plus-CKQmuqgk.js", "/assets/sparkles-C_UsOhu4.js", "/assets/circle-check-Bd7GRUCN.js", "/assets/index-DwQcVxz_.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper": { "id": "routes/scraper", "parentId": "root", "path": "scraper", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper-BrLVEjhZ.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/globe-BJRi8l2b.js", "/assets/zap-hxRe82mn.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.new": { "id": "routes/scraper.new", "parentId": "root", "path": "scraper/new", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper.new-DihP2KIm.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/globe-BJRi8l2b.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/scraper.$jobId": { "id": "routes/scraper.$jobId", "parentId": "root", "path": "scraper/:jobId", "index": void 0, "caseSensitive": void 0, "hasAction": true, "hasLoader": true, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasDefaultExport": true, "hasErrorBoundary": false, "module": "/assets/scraper._jobId-DIpqcIJz.js", "imports": ["/assets/chunk-QFMPRPBF-CKC-AdDy.js", "/assets/jsx-runtime-D_zvdyIk.js", "/assets/app-shell-Dgyy5-9s.js", "/assets/button-BzD4dEQS.js", "/assets/card-CFdKZ9YC.js", "/assets/badge-BOBE8P4s.js", "/assets/arrow-left-VVe-IVuZ.js", "/assets/loader-circle-B97ViLfp.js", "/assets/globe-BJRi8l2b.js", "/assets/clock-fXwO6rwC.js", "/assets/triangle-alert-CDBYWix3.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-809bffc5.js", "version": "809bffc5", "sri": void 0 };
 const assetsBuildDirectory = "build\\client";
 const basename = "/";
 const future = { "unstable_optimizeDeps": false, "unstable_passThroughRequests": false, "unstable_subResourceIntegrity": false, "unstable_trailingSlashAwareDataRequests": false, "unstable_previewServerPrerendering": false, "v8_middleware": false, "v8_splitRouteModules": false, "v8_viteEnvironmentApi": false };
@@ -19397,13 +20560,21 @@ const routes = {
     caseSensitive: void 0,
     module: route36
   },
+  "routes/workflows.$id.edit": {
+    id: "routes/workflows.$id.edit",
+    parentId: "root",
+    path: "workflows/:id/edit",
+    index: void 0,
+    caseSensitive: void 0,
+    module: route37
+  },
   "routes/scraper": {
     id: "routes/scraper",
     parentId: "root",
     path: "scraper",
     index: void 0,
     caseSensitive: void 0,
-    module: route37
+    module: route38
   },
   "routes/scraper.new": {
     id: "routes/scraper.new",
@@ -19411,7 +20582,7 @@ const routes = {
     path: "scraper/new",
     index: void 0,
     caseSensitive: void 0,
-    module: route38
+    module: route39
   },
   "routes/scraper.$jobId": {
     id: "routes/scraper.$jobId",
@@ -19419,7 +20590,7 @@ const routes = {
     path: "scraper/:jobId",
     index: void 0,
     caseSensitive: void 0,
-    module: route39
+    module: route40
   }
 };
 const allowedActionOrigins = false;

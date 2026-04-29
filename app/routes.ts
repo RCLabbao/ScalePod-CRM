@@ -49,6 +49,7 @@ export default [
   // Workflows
   route("workflows", "routes/workflows.tsx"),
   route("workflows/new", "routes/workflows.new.tsx"),
+  route("workflows/:id/edit", "routes/workflows.$id.edit.tsx"),
   // Shopify Scraper
   route("scraper", "routes/scraper.tsx"),
   route("scraper/new", "routes/scraper.new.tsx"),

@@ -466,15 +466,30 @@ model WorkflowRule {
   description      String?  @db.Text
   triggerEvent     String   // LEAD_CREATED, STAGE_CHANGED, TEMPERATURE_CHANGED, LEAD_APPROVED, LEAD_SCORED
   triggerCondition Json?    // optional filter, e.g. { "temperature": "HOT", "toStage": "MEETING_BOOKED" }
-  action           String   // ASSIGN_TO_USER, SEND_NOTIFICATION, UPDATE_FIELD, ADD_NOTE
-  actionConfig     Json     // e.g. { "userId": "...", "field": "stage", "value": "..." }
+  action           String   @default("LEGACY") // kept for backward compat — new rules use WorkflowAction rows
+  actionConfig     Json?    // kept for backward compat — new rules use WorkflowAction rows
   active           Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  logs WorkflowLog[]
+  actions WorkflowAction[]
+  logs    WorkflowLog[]
 
   @@index([triggerEvent, active])
+}
+
+model WorkflowAction {
+  id        String   @id @default(cuid())
+  ruleId    String
+  rule      WorkflowRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  type      String   // ASSIGN_TO_USER, SEND_NOTIFICATION, UPDATE_FIELD, ADD_NOTE, SEND_EMAIL
+  config    Json     // action-specific config
+  order     Int      // execution order within the rule
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ruleId, order])
 }
 
 model WorkflowLog {

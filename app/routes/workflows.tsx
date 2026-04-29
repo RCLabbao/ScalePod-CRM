@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Form, Link, useActionData, useLoaderData, useNavigation } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAdmin } from "../lib/auth.guard.server";
@@ -9,6 +10,7 @@ import { Badge } from "../components/ui/badge";
 import {
   Plus,
   Trash2,
+  Pencil,
   Workflow,
   History,
   Zap,
@@ -21,6 +23,15 @@ import {
   Clock,
 } from "lucide-react";
 
+type WorkflowActionRow = {
+  id: string;
+  ruleId: string;
+  type: string;
+  config: Record<string, unknown>;
+  order: number;
+  active: boolean;
+};
+
 type WorkflowRuleRow = {
   id: string;
   name: string;
@@ -31,6 +42,7 @@ type WorkflowRuleRow = {
   actionConfig: Record<string, unknown>;
   active: boolean;
   createdAt: string;
+  actions: WorkflowActionRow[];
 };
 
 type WorkflowLogRow = {
@@ -68,6 +80,7 @@ const ACTION_LABELS: Record<string, string> = {
   SEND_NOTIFICATION: "Send Notification",
   UPDATE_FIELD: "Update Field",
   ADD_NOTE: "Add Note",
+  SEND_EMAIL: "Send Email",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -75,6 +88,7 @@ const ACTION_COLORS: Record<string, string> = {
   SEND_NOTIFICATION: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   UPDATE_FIELD: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   ADD_NOTE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  SEND_EMAIL: "bg-rose-500/10 text-rose-400 border-rose-500/20",
 };
 
 function formatCondition(event: string, condition: Record<string, unknown>): string {
@@ -99,6 +113,12 @@ function formatAction(action: string, config: Record<string, unknown>, userMap: 
       return `Set ${config.field as string || "?"} → ${(config.value as string || "?").slice(0, 20)}`;
     case "ADD_NOTE":
       return `"${String(config.note || "").slice(0, 30)}"`;
+    case "SEND_EMAIL": {
+      const fromName = config.fromUserId
+        ? userMap.get(config.fromUserId as string) || String(config.fromUserId).slice(0, 8)
+        : "?";
+      return `Email from ${fromName}: "${String(config.subject || "").slice(0, 25)}"`;
+    }
     default:
       return action;
   }
@@ -126,6 +146,12 @@ export async function loader({ request }: { request: Request }) {
   try {
     rules = await prisma.workflowRule.findMany({
       orderBy: { createdAt: "desc" },
+      include: {
+        actions: {
+          where: { active: true },
+          orderBy: { order: "asc" },
+        },
+      },
     });
   } catch (err) {
     console.error("[workflows] Failed to load rules — run pending migrations:", err);
@@ -210,6 +236,14 @@ function RuleFlowCard({
     rule.triggerCondition &&
     Object.keys(rule.triggerCondition).length > 0;
 
+  // Resolve actions: prefer WorkflowAction rows, fall back to legacy single action
+  const displayActions: WorkflowActionRow[] =
+    rule.actions && rule.actions.length > 0
+      ? rule.actions
+      : rule.action && rule.action !== "LEGACY"
+        ? [{ id: `legacy_${rule.id}`, ruleId: rule.id, type: rule.action, config: rule.actionConfig, order: 0, active: true }]
+        : [];
+
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm transition-all duration-300 hover:border-border/60 hover:shadow-lg hover:shadow-primary/5">
       {/* Subtle gradient accent on the left */}
@@ -256,11 +290,7 @@ function RuleFlowCard({
             </div>
 
             {/* Arrow */}
-            {showFilter ? (
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
-            ) : (
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
-            )}
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
 
             {/* Condition node (if applicable) */}
             {showFilter ? (
@@ -277,24 +307,40 @@ function RuleFlowCard({
               </>
             ) : null}
 
-            {/* Action node */}
-            <div
-              className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 ${
-                ACTION_COLORS[rule.action] || "bg-muted/40 border-border/40 text-muted-foreground"
-              }`}
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5">
-                <Play className="h-3 w-3" />
-              </div>
-              <span className="text-xs font-medium">
-                {formatAction(rule.action, rule.actionConfig, userMap)}
-              </span>
-            </div>
+            {/* Action nodes — one chip per action step */}
+            {displayActions.map((act, idx) => (
+              <Fragment key={act.id}>
+                {idx > 0 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />}
+                <div
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 ${
+                    ACTION_COLORS[act.type] || "bg-muted/40 border-border/40 text-muted-foreground"
+                  }`}
+                >
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5">
+                    <Play className="h-3 w-3" />
+                  </div>
+                  <span className="text-xs font-medium">
+                    {formatAction(act.type, act.config, userMap)}
+                  </span>
+                </div>
+              </Fragment>
+            ))}
           </div>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Edit link */}
+          <Link to={`/workflows/${rule.id}/edit`}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground/50 hover:text-blue-400 hover:bg-blue-500/10 opacity-60 group-hover:opacity-100 transition-all duration-200"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+
           {/* Modern toggle switch */}
           <Form method="post">
             <input type="hidden" name="intent" value="toggleActive" />
