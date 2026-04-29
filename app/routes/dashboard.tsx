@@ -1,6 +1,7 @@
 import { Link, useLoaderData } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
+import { getStagesWithMeta } from "../lib/stages.server";
 import { AppShell } from "../components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Inbox, Kanban, Mail, TrendingUp } from "lucide-react";
@@ -18,18 +19,20 @@ export async function loader({ request }: { request: Request }) {
     activeCount,
     emailCount,
     wonCount,
+    stages,
   ] = await Promise.all([
     prisma.lead.count({ where: { status: "INBOX" } }),
     prisma.lead.count({ where: { status: "ACTIVE" } }),
     prisma.emailThread.count(),
     prisma.lead.count({ where: { stage: "CLOSED_WON" } }),
+    getStagesWithMeta(),
   ]);
 
-  return { user, stats: { inboxCount, activeCount, emailCount, wonCount } };
+  return { user, stats: { inboxCount, activeCount, emailCount, wonCount }, stages };
 }
 
 export default function Dashboard() {
-  const { user, stats } = useLoaderData<typeof loader>();
+  const { user, stats, stages } = useLoaderData<typeof loader>();
 
   const statCards = [
     {
@@ -145,7 +148,7 @@ export default function Dashboard() {
               <CardTitle>Pipeline Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
-              <PipelineBreakdown />
+              <PipelineBreakdown stages={stages} />
             </CardContent>
           </Card>
         </div>
@@ -154,23 +157,15 @@ export default function Dashboard() {
   );
 }
 
-function PipelineBreakdown() {
+function PipelineBreakdown({ stages }: { stages: Array<{ label: string; meta: { dot: string; bg: string; bar: string } }> }) {
   return (
     <div className="space-y-3 text-sm">
-      {[
-        { stage: "Sourced", color: "bg-slate-400", bar: "bg-slate-400/20" },
-        { stage: "Qualified", color: "bg-blue-400", bar: "bg-blue-400/20" },
-        { stage: "First Contact", color: "bg-violet-400", bar: "bg-violet-400/20" },
-        { stage: "Meeting Booked", color: "bg-amber-400", bar: "bg-amber-400/20" },
-        { stage: "Proposal Sent", color: "bg-orange-400", bar: "bg-orange-400/20" },
-        { stage: "Closed Won", color: "bg-emerald-400", bar: "bg-emerald-400/20" },
-        { stage: "Closed Lost", color: "bg-red-400", bar: "bg-red-400/20" },
-      ].map((item) => (
-        <div key={item.stage} className="flex items-center gap-3">
-          <div className={`h-3 w-3 rounded-full ${item.color}`} />
-          <span className="flex-1">{item.stage}</span>
-          <div className={`h-2 w-16 rounded-full ${item.bar}`}>
-            <div className={`h-2 w-1/3 rounded-full ${item.color}`} />
+      {stages.map((stage) => (
+        <div key={stage.label} className="flex items-center gap-3">
+          <div className={`h-3 w-3 rounded-full ${stage.meta.dot}`} />
+          <span className="flex-1">{stage.label}</span>
+          <div className={`h-2 w-16 rounded-full ${stage.meta.bg}`}>
+            <div className={`h-2 w-1/3 rounded-full ${stage.meta.bar}`} />
           </div>
         </div>
       ))}

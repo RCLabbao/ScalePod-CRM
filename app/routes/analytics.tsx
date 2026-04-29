@@ -2,6 +2,9 @@ import { Link, useLoaderData } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
 import { formatStage } from "../lib/activity-log";
+import { getStagesWithMeta } from "../lib/stages.server";
+import { getStageClasses } from "../lib/stages";
+import type { StageWithMeta } from "../lib/stages.server";
 import { AppShell } from "../components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -31,25 +34,6 @@ import { useState } from "react";
 
 // ── Constants ──────────────────────────────────────────────────
 
-const PIPELINE_STAGES = [
-  "SOURCED",
-  "QUALIFIED",
-  "FIRST_CONTACT",
-  "MEETING_BOOKED",
-  "PROPOSAL_SENT",
-  "CLOSED_WON",
-] as const;
-
-const STAGE_META: Record<string, { color: string; bg: string; bar: string; dot: string; text: string }> = {
-  SOURCED:       { color: "border-t-slate-400",  bg: "bg-slate-400/10",  bar: "bg-slate-400/50",  dot: "bg-slate-400",  text: "text-slate-300" },
-  QUALIFIED:     { color: "border-t-blue-400",   bg: "bg-blue-400/10",   bar: "bg-blue-400/60",   dot: "bg-blue-400",   text: "text-blue-400" },
-  FIRST_CONTACT: { color: "border-t-violet-400", bg: "bg-violet-400/10", bar: "bg-violet-400/60", dot: "bg-violet-400", text: "text-violet-400" },
-  MEETING_BOOKED:{ color: "border-t-amber-400",  bg: "bg-amber-400/10",  bar: "bg-amber-400/60",  dot: "bg-amber-400",  text: "text-amber-400" },
-  PROPOSAL_SENT: { color: "border-t-orange-400", bg: "bg-orange-400/10", bar: "bg-orange-400/60", dot: "bg-orange-400", text: "text-orange-400" },
-  CLOSED_WON:    { color: "border-t-emerald-400",bg: "bg-emerald-400/10",bar: "bg-emerald-400/60",dot: "bg-emerald-400",text: "text-emerald-400" },
-  CLOSED_LOST:   { color: "border-t-red-400",    bg: "bg-red-400/10",    bar: "bg-red-400/60",    dot: "bg-red-400",    text: "text-red-400" },
-};
-
 type DateRange = "7d" | "30d" | "90d" | "1y" | "all" | "custom";
 
 function rangeToStartDate(range: DateRange, from?: string): Date | undefined {
@@ -70,6 +54,7 @@ function rangeToStartDate(range: DateRange, from?: string): Date | undefined {
 
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAuth(request);
+  const allStages = await getStagesWithMeta();
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { name: true, email: true, role: true },
@@ -143,7 +128,7 @@ export async function loader({ request }: { request: Request }) {
     : dedupedHistory;
 
   const stageCounts: Record<string, number> = {};
-  for (const stage of [...PIPELINE_STAGES, "CLOSED_LOST"]) {
+  for (const stage of allStages.map(s => s.name)) {
     stageCounts[stage] = stageHistory.filter((h) => h.toStage === stage).length;
   }
 
@@ -342,7 +327,7 @@ export async function loader({ request }: { request: Request }) {
         }
       }
     }
-    for (const stage of [...PIPELINE_STAGES, "CLOSED_LOST"]) {
+    for (const stage of allStages.map(s => s.name)) {
       const durations = stageDurations[stage] || [];
       if (durations.length > 0) {
         pipelineVelocity.push({
@@ -366,6 +351,7 @@ export async function loader({ request }: { request: Request }) {
 
   return {
     user,
+    stages: allStages,
     range,
     totalLeads,
     stageCounts,
@@ -537,9 +523,9 @@ function GroupedBarChart({ data }: { data: { month: string; contacted: number; w
   );
 }
 
-function FunnelBar({ stage, count, maxCount, convRate }: { stage: string; count: number; maxCount: number; convRate: number | null }) {
+function FunnelBar({ stage, count, maxCount, convRate, stages }: { stage: string; count: number; maxCount: number; convRate: number | null; stages: StageWithMeta[] }) {
   const width = maxCount > 0 ? Math.max((count / maxCount) * 100, count > 0 ? 6 : 0) : 0;
-  const meta = STAGE_META[stage] || STAGE_META.SOURCED;
+  const meta = stages.find(s => s.name === stage)?.meta || getStageClasses("slate");
   return (
     <div className="group">
       <div className="flex items-center gap-3">
@@ -574,6 +560,7 @@ function FunnelBar({ stage, count, maxCount, convRate }: { stage: string; count:
 
 function DataTable({
   rows,
+  stages,
 }: {
   rows: {
     id: string;
@@ -584,6 +571,7 @@ function DataTable({
     changedBy: string;
     currentStage: string;
   }[];
+  stages: StageWithMeta[];
 }) {
   if (rows.length === 0) {
     return (
@@ -622,7 +610,7 @@ function DataTable({
               </td>
               <td className="py-2.5 pr-4 text-muted-foreground">{r.changedBy || "—"}</td>
               <td className="py-2.5">
-                <Badge className={`text-[10px] rounded-full ${STAGE_META[r.currentStage]?.bg || "bg-muted"} ${STAGE_META[r.currentStage]?.text || "text-muted-foreground"} border-0`}>
+                <Badge className={`text-[10px] rounded-full ${stages.find(s => s.name === r.currentStage)?.meta?.bg || "bg-muted"} ${stages.find(s => s.name === r.currentStage)?.meta?.text || "text-muted-foreground"} border-0`}>
                   {formatStage(r.currentStage)}
                 </Badge>
               </td>
@@ -691,7 +679,7 @@ export default function Analytics() {
 
   const maxSource = Math.max(...data.leadSources.map((s) => s.count), 1);
   const maxTeam = Math.max(...data.teamStats.map((t) => t.contacted + t.dealsWon), 1);
-  const maxStageCount = data.stageCounts["SOURCED"] || Math.max(...Object.values(data.stageCounts), 1);
+  const maxStageCount = data.stageCounts[data.stages[0]?.name ?? ""] || Math.max(...Object.values(data.stageCounts), 1);
 
   return (
     <AppShell user={data.user!}>
@@ -711,8 +699,8 @@ export default function Analytics() {
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <KPICard icon={Users} label="Total Leads" value={data.totalLeads} accent="slate" />
           <KPICard icon={Mail} label="Emails Sent" value={data.totalEmailsSent} accent="blue" />
-          <KPICard icon={UserCheck} label="Contacted" value={data.stageCounts["FIRST_CONTACT"]} sub="Reached First Contact" accent="violet" />
-          <KPICard icon={FileCheck} label="Proposals Sent" value={data.stageCounts["PROPOSAL_SENT"]} accent="orange" />
+          <KPICard icon={UserCheck} label="Contacted" value={data.stageCounts[data.stages.find(s => s.name === "FIRST_CONTACT")?.name ?? ""]} sub="Reached First Contact" accent="violet" />
+          <KPICard icon={FileCheck} label="Proposals Sent" value={data.stageCounts[data.stages.find(s => s.name === "PROPOSAL_SENT")?.name ?? ""]} accent="orange" />
           <KPICard icon={Trophy} label="Deals Won" value={data.won} accent="emerald" />
           <KPICard icon={Target} label="Win Rate" value={`${data.winRate}%`} sub={`${data.won}W / ${data.lost}L`} accent="amber" />
         </div>
@@ -737,19 +725,20 @@ export default function Analytics() {
               </div>
             </CardHeader>
             <CardContent className="space-y-1">
-              {PIPELINE_STAGES.map((stage, i) => {
-                const count = data.stageCounts[stage];
-                const prevCount = i > 0 ? data.stageCounts[PIPELINE_STAGES[i - 1]] : 0;
+              {data.stages.map((s, i) => {
+                const count = data.stageCounts[s.name];
+                const prevCount = i > 0 ? data.stageCounts[data.stages[i - 1].name] : 0;
                 const convRate = i > 0 && prevCount > 0 && count > 0
                   ? Math.round((count / prevCount) * 100)
                   : null;
                 return (
                   <FunnelBar
-                    key={stage}
-                    stage={stage}
+                    key={s.name}
+                    stage={s.name}
                     count={count}
                     maxCount={maxStageCount}
                     convRate={convRate}
+                    stages={data.stages}
                   />
                 );
               })}
@@ -1092,7 +1081,7 @@ export default function Analytics() {
               ) : (
                 <div className="space-y-2.5">
                   {data.pipelineVelocity.map((v) => {
-                    const meta = STAGE_META[v.stage] || STAGE_META.SOURCED;
+                    const meta = data.stages.find(s => s.name === v.stage)?.meta || getStageClasses("slate");
                     const maxDays = Math.max(...data.pipelineVelocity.map((x) => x.avgDays), 1);
                     return (
                       <div key={v.stage} className="flex items-center gap-3 group">
@@ -1172,7 +1161,7 @@ export default function Analytics() {
             </div>
           </CardHeader>
           <CardContent>
-            <DataTable rows={tabData[activeTab]} />
+            <DataTable rows={tabData[activeTab]} stages={data.stages} />
           </CardContent>
         </Card>
       </div>

@@ -4,6 +4,7 @@ import { logActivity } from "../lib/activity-log.server";
 import { validateApiKey, hasScope, type ApiKeyTier, TIER_LIMITS } from "../lib/api-key.server";
 import { scoreLeadWithRules } from "../lib/scoring-rules.server";
 import { getScoreConfig } from "../lib/scoring.server";
+import { getValidStageNames, getFirstStageName } from "../lib/stages.server";
 import { z } from "zod";
 
 // ── API Key Auth ──────────────────────────────────────────────────
@@ -30,7 +31,6 @@ function requireScope(scopes: string[], scope: string) {
 // ── Zod Schemas ───────────────────────────────────────────────────
 
 const LEAD_STATUSES = ["INBOX", "ACTIVE", "REJECTED"] as const;
-const LEAD_STAGES = ["SOURCED", "QUALIFIED", "FIRST_CONTACT", "MEETING_BOOKED", "PROPOSAL_SENT", "CLOSED_WON", "CLOSED_LOST"] as const;
 
 const LeadPayloadSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
@@ -50,7 +50,7 @@ const LeadPayloadSchema = z.object({
 
 const LeadsQuerySchema = z.object({
   status: z.enum(LEAD_STATUSES).optional(),
-  stage: z.enum(LEAD_STAGES).optional(),
+  stage: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -143,6 +143,14 @@ export async function loader({ request }: { request: Request }) {
     throw data({ error: "Invalid query parameters", issues: queryResult.error.issues }, { status: 400 });
   }
   const { status, stage, limit, offset } = queryResult.data;
+
+  // Runtime stage validation against DB-driven stages
+  if (stage) {
+    const validStages = await getValidStageNames();
+    if (!validStages.includes(stage)) {
+      throw data({ error: `Invalid stage. Valid stages: ${validStages.join(", ")}` }, { status: 400 });
+    }
+  }
 
   const where = {
     ...(status ? { status } : {}),
@@ -245,7 +253,7 @@ export async function action({ request }: { request: Request }) {
         leadSource: payload.leadSource,
         notes: payload.notes,
         status: "INBOX",
-        stage: "SOURCED",
+        stage: await getFirstStageName(),
       },
     });
 

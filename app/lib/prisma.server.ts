@@ -29,3 +29,7 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+// Seed default pipeline stages on first startup
+import { seedDefaultStages } from "./stages.server";
+seedDefaultStages().catch((err) => console.error("[DB] Stage seed failed:", err));

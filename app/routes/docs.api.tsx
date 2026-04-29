@@ -565,7 +565,7 @@ X-RateLimit-Reset: 1714329600`}
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Query Parameters</p>
                   <div className="rounded-xl border border-border/30 bg-muted/10 px-4">
                     <ParamRow name="status" type="string" desc="Filter by lead status: INBOX, ACTIVE, REJECTED" />
-                    <ParamRow name="stage" type="string" desc="Filter by pipeline stage: SOURCED, QUALIFIED, FIRST_CONTACT, MEETING_BOOKED, PROPOSAL_SENT, CLOSED_WON, CLOSED_LOST" />
+                    <ParamRow name="stage" type="string" desc="Filter by any active pipeline stage (e.g. SOURCED, QUALIFIED, etc.)" />
                     <ParamRow name="limit" type="integer" desc="Number of results per page (max 100, default 50)" />
                     <ParamRow name="offset" type="integer" desc="Number of results to skip (default 0)" />
                   </div>
@@ -626,7 +626,7 @@ X-RateLimit-Reset: 1714329600`}
                     <ResponseField name="instagram" type="string" desc="Instagram profile URL" nullable />
                     <ResponseField name="twitter" type="string" desc="Twitter/X profile URL" nullable />
                     <ResponseField name="status" type="string" desc="Lead status: INBOX, ACTIVE, REJECTED" />
-                    <ResponseField name="stage" type="string" desc="Pipeline stage: SOURCED, QUALIFIED, FIRST_CONTACT, MEETING_BOOKED, PROPOSAL_SENT, CLOSED_WON, CLOSED_LOST" />
+                    <ResponseField name="stage" type="string" desc="Pipeline stage — any active stage configured in Settings > Pipeline Stages" />
                     <ResponseField name="leadSource" type="string" desc="Origin of the lead" />
                     <ResponseField name="createdAt" type="string (ISO 8601)" desc="Record creation timestamp" />
                   </div>

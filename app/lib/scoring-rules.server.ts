@@ -230,6 +230,7 @@ export async function recalculateAllLeadScores(): Promise<{ updated: number; err
           metadata: {
             previousTemperature: currentLead.temperature,
             newTemperature: result.temperature,
+            temperature: result.temperature,
             score: result.score,
             maxScore: result.maxScore,
             percentage: Math.round(result.percentage),

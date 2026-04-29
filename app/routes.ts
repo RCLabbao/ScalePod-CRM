@@ -44,7 +44,11 @@ export default [
   route("settings/database", "routes/settings.database.tsx"),
   route("settings/api-keys", "routes/settings.api-keys.tsx"),
   route("settings/scoring-rules", "routes/settings.scoring-rules.tsx"),
+  route("settings/stages", "routes/settings.stages.tsx"),
   route("settings/workflows", "routes/settings.workflows.tsx"),
+  // Workflows
+  route("workflows", "routes/workflows.tsx"),
+  route("workflows/new", "routes/workflows.new.tsx"),
   // Shopify Scraper
   route("scraper", "routes/scraper.tsx"),
   route("scraper/new", "routes/scraper.new.tsx"),

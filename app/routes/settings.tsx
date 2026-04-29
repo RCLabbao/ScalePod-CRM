@@ -5,7 +5,7 @@ import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { Key, Users, ShieldCheck, Database, Sun, Moon, Zap, Workflow } from "lucide-react";
+import { Key, Users, ShieldCheck, Database, Sun, Moon, Zap, Columns3 } from "lucide-react";
 import { useTheme } from "../hooks/use-theme";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
@@ -291,21 +291,21 @@ export default function Settings() {
             </Card>
           )}
 
-          {/* Workflows (Admin) */}
+          {/* Pipeline Stages (Admin) */}
           {user?.role === "ADMIN" && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Workflow className="h-4 w-4" />
-                  Workflows
+                  <Columns3 className="h-4 w-4" />
+                  Pipeline Stages
                 </CardTitle>
-                <CardDescription>Automate actions when leads change state</CardDescription>
+                <CardDescription>Customize your sales pipeline stages and order</CardDescription>
               </CardHeader>
               <CardContent>
-                <Link to="/settings/workflows">
+                <Link to="/settings/stages">
                   <Button variant="outline" className="w-full">
-                    <Workflow className="mr-2 h-4 w-4" />
-                    Manage Workflows
+                    <Columns3 className="mr-2 h-4 w-4" />
+                    Manage Stages
                   </Button>
                 </Link>
               </CardContent>

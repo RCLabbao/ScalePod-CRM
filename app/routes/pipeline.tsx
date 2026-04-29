@@ -9,8 +9,10 @@ import { LeadCard } from "../components/lead-card";
 import { LeadDetailModal } from "../components/lead-detail-modal";
 import { logActivity } from "../lib/activity-log.server";
 import { formatStage } from "../lib/activity-log";
+import { getStagesWithMeta, invalidateStagesCache } from "../lib/stages.server";
+import type { StageWithMeta } from "../lib/stages.server";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { DragDropContext, Droppable, type DropResult } from "@hello-pangea/dnd";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import {
   X,
   Search,
@@ -20,19 +22,10 @@ import {
   SlidersHorizontal,
   Inbox,
   AlertCircle,
+  GripVertical,
 } from "lucide-react";
 
-const STAGES = [
-  { id: "SOURCED", label: "Sourced", color: "border-t-slate-400", bg: "bg-slate-500/10", dot: "bg-slate-400" },
-  { id: "QUALIFIED", label: "Qualified", color: "border-t-blue-400", bg: "bg-blue-500/10", dot: "bg-blue-400" },
-  { id: "FIRST_CONTACT", label: "First Contact", color: "border-t-violet-400", bg: "bg-violet-500/10", dot: "bg-violet-400" },
-  { id: "MEETING_BOOKED", label: "Meeting Booked", color: "border-t-amber-400", bg: "bg-amber-500/10", dot: "bg-amber-400" },
-  { id: "PROPOSAL_SENT", label: "Proposal Sent", color: "border-t-orange-400", bg: "bg-orange-500/10", dot: "bg-orange-400" },
-  { id: "CLOSED_WON", label: "Closed Won", color: "border-t-emerald-400", bg: "bg-emerald-500/10", dot: "bg-emerald-400" },
-  { id: "CLOSED_LOST", label: "Closed Lost", color: "border-t-red-400", bg: "bg-red-500/10", dot: "bg-red-400" },
-] as const;
-
-type Stage = (typeof STAGES)[number]["id"];
+type Stage = string;
 
 const TEMPERATURES = [
   { key: "ALL", label: "All", icon: SlidersHorizontal },
@@ -63,20 +56,27 @@ export async function loader({ request }: { request: Request }) {
     select: { name: true, email: true, role: true },
   });
 
-  const leads = await prisma.lead.findMany({
-    where: { status: "ACTIVE" },
-    orderBy: { updatedAt: "desc" },
-    include: {
-      assignedTo: { select: { name: true } },
-    },
-  });
+  const [leads, pipelineStages] = await Promise.all([
+    prisma.lead.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        assignedTo: { select: { name: true } },
+      },
+    }),
+    getStagesWithMeta(),
+  ]);
 
-  const grouped = STAGES.map((stage) => ({
-    ...stage,
-    leads: leads.filter((l) => l.stage === stage.id) as LoaderLead[],
+  const grouped = pipelineStages.map((stage) => ({
+    id: stage.name,
+    label: stage.label,
+    color: stage.meta.color,
+    bg: stage.meta.bg,
+    dot: stage.meta.dot,
+    leads: leads.filter((l) => l.stage === stage.name) as LoaderLead[],
   }));
 
-  return { user, stages: grouped };
+  return { user, stages: grouped, pipelineStages };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -257,6 +257,27 @@ export async function action({ request }: { request: Request }) {
     return { success: true };
   }
 
+  // Reorder pipeline columns
+  if (intent === "reorderStages") {
+    const orderJson = formData.get("order") as string;
+    if (!orderJson) return { success: false };
+    try {
+      const order: string[] = JSON.parse(orderJson);
+      const txOps = order.map((name, index) =>
+        prisma.pipelineStage.update({
+          where: { name },
+          data: { position: index },
+        })
+      );
+      await prisma.$transaction(txOps);
+      invalidateStagesCache();
+    } catch (err) {
+      console.error("[pipeline] Failed to reorder stages:", err);
+      return { success: false };
+    }
+    return { success: true };
+  }
+
   return {};
 }
 
@@ -275,7 +296,7 @@ function filterLeads(leads: LoaderLead[], search: string, tempFilter: Temperatur
 }
 
 export default function Pipeline() {
-  const { user, stages: serverStages } = useLoaderData<typeof loader>();
+  const { user, stages: serverStages, pipelineStages } = useLoaderData<typeof loader>();
   const [localStages, setLocalStages] = useState(serverStages);
   const [search, setSearch] = useState("");
   const [tempFilter, setTempFilter] = useState<TemperatureKey>("ALL");
@@ -286,6 +307,7 @@ export default function Pipeline() {
 
   const detailFetcher = useFetcher<{ lead: Record<string, unknown>; edited?: boolean }>();
   const moveFetcher = useFetcher<{ success: boolean }>();
+  const reorderFetcher = useFetcher<{ success: boolean }>();
 
   // Sync server data into local state when it changes
   useEffect(() => {
@@ -362,7 +384,28 @@ export default function Pipeline() {
   }, []);
 
   const onDragEnd = useCallback(
-    async (result: DropResult) => {
+    (result: DropResult) => {
+      // Column reorder
+      if (result.type === "STAGE_COLUMNS") {
+        if (!result.destination) return;
+        setLocalStages((prev) => {
+          const items = Array.from(prev);
+          const [moved] = items.splice(result.source.index, 1);
+          items.splice(result.destination.index, 0, moved);
+          return items;
+        });
+        // Persist the new order
+        const currentStages = [...localStages];
+        const [moved] = currentStages.splice(result.source.index, 1);
+        currentStages.splice(result.destination.index, 0, moved);
+        reorderFetcher.submit(
+          { intent: "reorderStages", order: JSON.stringify(currentStages.map((s) => s.id)) },
+          { method: "POST", action: "/pipeline" }
+        );
+        return;
+      }
+
+      // Lead card move
       if (user?.role !== "ADMIN") return;
       if (!result.destination) return;
 
@@ -407,7 +450,7 @@ export default function Pipeline() {
         );
       }
     },
-    [user?.role, selectedIds, moveFetcher]
+    [user?.role, selectedIds, moveFetcher, reorderFetcher, localStages]
   );
 
   const activeFilters = (search ? 1 : 0) + (tempFilter !== "ALL" ? 1 : 0);
@@ -421,7 +464,7 @@ export default function Pipeline() {
             <h1 className="text-3xl font-bold tracking-tight">Pipeline</h1>
             <p className="text-muted-foreground mt-1">
               {totalVisible === totalAll
-                ? `${totalAll} active leads across ${STAGES.length} stages`
+                ? `${totalAll} active leads across ${serverStages.length} stages`
                 : `Showing ${totalVisible} of ${totalAll} leads`}
             </p>
           </div>
@@ -519,75 +562,90 @@ export default function Pipeline() {
         )}
 
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {displayStages.map((stage) => (
-              <div
-                key={stage.id}
-                className="flex w-72 shrink-0 flex-col"
-              >
-                {/* Column header */}
-                <div
-                  className={`rounded-t-xl border border-b-0 px-4 py-3 ${stage.color} ${stage.bg}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2 w-2 rounded-full ${stage.dot}`} />
-                      <h3 className="text-sm font-semibold text-card-foreground">
-                        {stage.label}
-                      </h3>
-                    </div>
-                    <Badge
-                      variant="secondary"
-                      className="text-[11px] text-secondary-foreground tabular-nums"
-                    >
-                      {stage.leads.length}
-                    </Badge>
-                  </div>
-                </div>
-
-                <Droppable droppableId={stage.id}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={`flex-1 space-y-2 rounded-b-xl border border-t-0 bg-muted/30 p-2 transition-colors overflow-y-auto ${
-                        snapshot.isDraggingOver ? "bg-muted/60" : ""
-                      }`}
-                      style={{ maxHeight: "calc(100vh - 320px)", minHeight: "200px" }}
-                    >
-                      {stage.leads.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-8 px-2 text-center">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 ring-1 ring-border/50">
-                            <Inbox className="h-4 w-4 text-muted-foreground/40" />
+          <Droppable droppableId="STAGE_COLUMNS" type="STAGE_COLUMNS" direction="horizontal">
+            {(colProvided) => (
+              <div ref={colProvided.innerRef} {...colProvided.droppableProps} className="flex gap-4 overflow-x-auto pb-4">
+                {displayStages.map((stage, colIndex) => (
+                  <Draggable key={stage.id} draggableId={`column-${stage.id}`} index={colIndex}>
+                    {(colDragProvided, colDragSnapshot) => (
+                      <div
+                        ref={colDragProvided.innerRef}
+                        {...colDragProvided.draggableProps}
+                        className={`flex w-72 shrink-0 flex-col transition-shadow ${colDragSnapshot.isDragging ? "shadow-lg opacity-90" : ""}`}
+                      >
+                        {/* Column header with drag handle */}
+                        <div
+                          {...colDragProvided.dragHandleProps}
+                          className={`rounded-t-xl border border-b-0 px-4 py-3 ${stage.color} ${stage.bg} cursor-grab active:cursor-grabbing`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {user?.role === "ADMIN" && (
+                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30" />
+                              )}
+                              <div className={`h-2 w-2 rounded-full ${stage.dot}`} />
+                              <h3 className="text-sm font-semibold text-card-foreground">
+                                {stage.label}
+                              </h3>
+                            </div>
+                            <Badge
+                              variant="secondary"
+                              className="text-[11px] text-secondary-foreground tabular-nums"
+                            >
+                              {stage.leads.length}
+                            </Badge>
                           </div>
-                          <p className="mt-2 text-xs text-muted-foreground/60">
-                            No leads
-                          </p>
                         </div>
-                      ) : (
-                        stage.leads.map((lead, index) => (
-                          <LeadCard
-                            key={lead.id}
-                            lead={lead}
-                            index={index}
-                            draggable={user?.role === "ADMIN"}
-                            onClick={handleLeadClick}
-                            selected={selectedIds.has(lead.id)}
-                            onSelect={handleSelect}
-                          />
-                        ))
-                      )}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
+
+                        <Droppable droppableId={stage.id}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                              className={`flex-1 space-y-2 rounded-b-xl border border-t-0 bg-muted/30 p-2 transition-colors overflow-y-auto ${
+                                snapshot.isDraggingOver ? "bg-muted/60" : ""
+                              }`}
+                              style={{ maxHeight: "calc(100vh - 320px)", minHeight: "200px" }}
+                            >
+                              {stage.leads.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 px-2 text-center">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 ring-1 ring-border/50">
+                                    <Inbox className="h-4 w-4 text-muted-foreground/40" />
+                                  </div>
+                                  <p className="mt-2 text-xs text-muted-foreground/60">
+                                    No leads
+                                  </p>
+                                </div>
+                              ) : (
+                                stage.leads.map((lead, index) => (
+                                  <LeadCard
+                                    key={lead.id}
+                                    lead={lead}
+                                    index={index}
+                                    draggable={user?.role === "ADMIN"}
+                                    onClick={handleLeadClick}
+                                    selected={selectedIds.has(lead.id)}
+                                    onSelect={handleSelect}
+                                  />
+                                ))
+                              )}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {colProvided.placeholder}
               </div>
-            ))}
-          </div>
+            )}
+          </Droppable>
         </DragDropContext>
 
         <LeadDetailModal
           lead={selectedLead as never}
+          stages={pipelineStages}
           open={modalOpen}
           onOpenChange={setModalOpen}
           onSave={user?.role === "ADMIN" ? handleSaveLead : undefined}

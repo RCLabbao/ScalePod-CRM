@@ -12,6 +12,7 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { formatStage, getActivityStyle } from "../lib/activity-log";
 import type { ActivityAction } from "../lib/activity-log";
+import { type StageWithMeta } from "../lib/stages.server";
 import {
   Building2,
   Globe,
@@ -81,6 +82,7 @@ export interface LeadDetail {
 
 interface LeadDetailModalProps {
   lead: LeadDetail | null;
+  stages: StageWithMeta[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave?: (formData: FormData) => void;
@@ -103,18 +105,10 @@ const TEMP_COLORS: Record<string, string> = {
   COLD: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
-const STAGE_COLORS: Record<string, string> = {
-  SOURCED: "bg-slate-500/20 text-slate-300",
-  QUALIFIED: "bg-blue-500/20 text-blue-300",
-  FIRST_CONTACT: "bg-violet-500/20 text-violet-300",
-  MEETING_BOOKED: "bg-amber-500/20 text-amber-300",
-  PROPOSAL_SENT: "bg-orange-500/20 text-orange-300",
-  CLOSED_WON: "bg-emerald-500/20 text-emerald-300",
-  CLOSED_LOST: "bg-red-500/20 text-red-300",
-};
 
 export function LeadDetailModal({
   lead,
+  stages,
   open,
   onOpenChange,
   onSave,
@@ -128,6 +122,9 @@ export function LeadDetailModal({
   }, [lead?.id]);
 
   if (!lead) return null;
+
+  const stageMeta = stages.find(s => s.name === lead.stage)?.meta;
+  const stageClasses = stageMeta ? `${stageMeta.bg} ${stageMeta.text}` : "bg-muted text-muted-foreground";
 
   const mergedTimeline = [
     ...lead.stageHistory.map((s) => ({
@@ -292,7 +289,7 @@ export function LeadDetailModal({
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground">Current Stage</p>
                 <Badge
-                  className={`mt-1 ${STAGE_COLORS[lead.stage] || "bg-muted text-muted-foreground"}`}
+                  className={`mt-1 ${stageClasses}`}
                 >
                   {formatStage(lead.stage)}
                 </Badge>

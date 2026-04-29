@@ -2,6 +2,7 @@ import { prisma } from "../prisma.server";
 import { logActivity } from "../activity-log.server";
 import { scoreLeadWithRules } from "../scoring-rules.server";
 import { getScoreConfig } from "../scoring.server";
+import { getFirstStageName } from "../stages.server";
 import { parseUploadedUrls, deduplicateUrls } from "./discovery";
 import { discoverFromDNS } from "./discovery-dns";
 import { validateShopifyStore } from "./validator";
@@ -240,7 +241,7 @@ async function importStore(store: StoreResult, jobId: string, userId: string) {
       techStack: "Shopify",
       leadSource: "SHOPIFY_SCRAPER",
       status: "INBOX",
-      stage: "SOURCED",
+      stage: await getFirstStageName(),
       temperature: "COLD",
       facebook: store.facebook,
       instagram: store.instagram,

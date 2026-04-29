@@ -1,0 +1,467 @@
+import { Form, Link, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
+import { prisma } from "../lib/prisma.server";
+import { requireAdmin } from "../lib/auth.guard.server";
+import { getStagesWithMeta, invalidateStagesCache } from "../lib/stages.server";
+import { STAGE_COLOR_PALETTE, PALETTE_OPTIONS } from "../lib/stages";
+import { AppShell } from "../components/app-shell";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Select } from "../components/ui/select";
+import { ArrowLeft, Plus, Trash2, GripVertical, Pencil, Save, X } from "lucide-react";
+import { useState } from "react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+
+// ── Loader ────────────────────────────────────────────────────
+
+export async function loader({ request }: { request: Request }) {
+  const userId = await requireAdmin(request);
+
+  const [user, stages] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, role: true },
+    }),
+    getStagesWithMeta(),
+  ]);
+
+  // Count leads per stage
+  const leadCounts: Record<string, number> = {};
+  for (const stage of stages) {
+    try {
+      leadCounts[stage.name] = await prisma.lead.count({
+        where: { stage: stage.name },
+      });
+    } catch {
+      leadCounts[stage.name] = 0;
+    }
+  }
+
+  return { user, stages, leadCounts };
+}
+
+// ── Action ────────────────────────────────────────────────────
+
+export async function action({ request }: { request: Request }) {
+  await requireAdmin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent") as string;
+
+  if (intent === "addStage") {
+    const name = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
+    const label = (formData.get("label") as string)?.trim();
+    const colorKey = formData.get("colorKey") as string;
+
+    if (!name || !label) {
+      return { error: "Stage name and label are required" };
+    }
+
+    // Check for duplicate name
+    const existing = await prisma.pipelineStage.findUnique({ where: { name } });
+    if (existing) {
+      return { error: `A stage with name "${name}" already exists` };
+    }
+
+    const maxPos = await prisma.pipelineStage.aggregate({ _max: { position: true } });
+    const nextPos = (maxPos._max.position ?? -1) + 1;
+
+    try {
+      await prisma.pipelineStage.create({
+        data: { name, label, colorKey: colorKey || "slate", position: nextPos },
+      });
+      invalidateStagesCache();
+    } catch (err) {
+      console.error("[stages] Failed to create stage:", err);
+      return { error: "Failed to create stage" };
+    }
+
+    return redirect("/settings/stages");
+  }
+
+  if (intent === "editStage") {
+    const id = formData.get("id") as string;
+    const label = (formData.get("label") as string)?.trim();
+    const colorKey = formData.get("colorKey") as string;
+    const newName = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
+
+    if (!id || !label || !newName) {
+      return { error: "All fields are required" };
+    }
+
+    const stage = await prisma.pipelineStage.findUnique({ where: { id } });
+    if (!stage) {
+      return { error: "Stage not found" };
+    }
+
+    try {
+      // If name changed, cascade update all leads and stage history
+      if (newName !== stage.name) {
+        const existing = await prisma.pipelineStage.findUnique({ where: { name: newName } });
+        if (existing && existing.id !== id) {
+          return { error: `A stage with name "${newName}" already exists` };
+        }
+
+        await prisma.$transaction([
+          prisma.pipelineStage.update({ where: { id }, data: { name: newName, label, colorKey } }),
+          prisma.lead.updateMany({ where: { stage: stage.name }, data: { stage: newName } }),
+          prisma.stageHistory.updateMany({ where: { fromStage: stage.name }, data: { fromStage: newName } }),
+          prisma.stageHistory.updateMany({ where: { toStage: stage.name }, data: { toStage: newName } }),
+        ]);
+      } else {
+        await prisma.pipelineStage.update({
+          where: { id },
+          data: { label, colorKey },
+        });
+      }
+
+      invalidateStagesCache();
+    } catch (err) {
+      console.error("[stages] Failed to update stage:", err);
+      return { error: "Failed to update stage" };
+    }
+
+    return redirect("/settings/stages");
+  }
+
+  if (intent === "deleteStage") {
+    const id = formData.get("id") as string;
+    const stage = await prisma.pipelineStage.findUnique({ where: { id } });
+    if (!stage) {
+      return { error: "Stage not found" };
+    }
+
+    // Safety check: cannot delete if leads exist in this stage
+    const leadCount = await prisma.lead.count({ where: { stage: stage.name } });
+    if (leadCount > 0) {
+      return { error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.` };
+    }
+
+    try {
+      await prisma.pipelineStage.delete({ where: { id } });
+      invalidateStagesCache();
+    } catch (err) {
+      console.error("[stages] Failed to delete stage:", err);
+      return { error: "Failed to delete stage" };
+    }
+
+    return redirect("/settings/stages");
+  }
+
+  if (intent === "reorderStages") {
+    const orderJson = formData.get("order") as string;
+    if (!orderJson) return { error: "No order provided" };
+
+    try {
+      const order: string[] = JSON.parse(orderJson);
+      const txOps = order.map((id, index) =>
+        prisma.pipelineStage.update({
+          where: { id },
+          data: { position: index },
+        })
+      );
+      await prisma.$transaction(txOps);
+      invalidateStagesCache();
+    } catch (err) {
+      console.error("[stages] Failed to reorder stages:", err);
+      return { error: "Failed to reorder stages" };
+    }
+
+    return redirect("/settings/stages");
+  }
+
+  return {};
+}
+
+// ── Color swatch component ────────────────────────────────────
+
+function ColorSwatch({ colorKey }: { colorKey: string }) {
+  const classes = STAGE_COLOR_PALETTE[colorKey] || STAGE_COLOR_PALETTE.slate;
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`h-3 w-3 rounded-full ${classes.dot}`} />
+      <span className="text-xs text-muted-foreground capitalize">{colorKey}</span>
+    </div>
+  );
+}
+
+// ── Page Component ────────────────────────────────────────────
+
+export default function SettingsStagesPage() {
+  const { user, stages, leadCounts } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [localStages, setLocalStages] = useState(stages);
+  const [editName, setEditName] = useState("");
+
+  // Sync from server data
+  if (navigation.state === "idle" && localStages !== stages) {
+    setLocalStages(stages);
+    setEditingId(null);
+    setShowAdd(false);
+  }
+
+  function onDragEnd(result: DropResult) {
+    if (!result.destination) return;
+
+    const items = Array.from(localStages);
+    const [moved] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, moved);
+    setLocalStages(items);
+  }
+
+  function submitReorder() {
+    const form = document.getElementById("reorderForm") as HTMLFormElement;
+    const orderInput = form.querySelector('[name="order"]') as HTMLInputElement;
+    orderInput.value = JSON.stringify(localStages.map((s) => s.id));
+    form.requestSubmit();
+  }
+
+  const orderChanged = localStages.some((s, i) => s.id !== stages[i]?.id);
+
+  return (
+    <AppShell user={user!}>
+      <div className="space-y-6 max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Link to="/settings">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight">Pipeline Stages</h1>
+            <p className="text-muted-foreground">Add, edit, delete, and reorder your pipeline stages</p>
+          </div>
+          <Button
+            onClick={() => { setShowAdd(!showAdd); setEditingId(null); }}
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add Stage
+          </Button>
+        </div>
+
+        {actionData?.error && (
+          <div className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+            {actionData.error}
+          </div>
+        )}
+
+        {/* Add stage form */}
+        {showAdd && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">New Stage</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Form method="post" className="space-y-4">
+                <input type="hidden" name="intent" value="addStage" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="add-name">Name (stored key)</Label>
+                    <Input
+                      id="add-name"
+                      name="name"
+                      type="text"
+                      required
+                      placeholder="e.g. NEGOTIATION"
+                      className="mt-1.5 uppercase"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Auto-formatted to UPPERCASE_SNAKE
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="add-label">Display Label</Label>
+                    <Input
+                      id="add-label"
+                      name="label"
+                      type="text"
+                      required
+                      placeholder="e.g. Negotiation"
+                      className="mt-1.5"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="add-colorKey">Color</Label>
+                  <Select name="colorKey" defaultValue="slate" className="mt-1.5">
+                    {PALETTE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={isSubmitting} size="sm">
+                    {isSubmitting ? "Creating..." : "Create Stage"}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel
+                  </Button>
+                </div>
+              </Form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Stage list with drag-and-drop */}
+        <Form id="reorderForm" method="post">
+          <input type="hidden" name="intent" value="reorderStages" />
+          <input type="hidden" name="order" value="" />
+        </Form>
+
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="stages">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                {localStages.map((stage, index) => {
+                  const isEditing = editingId === stage.id;
+                  const count = leadCounts[stage.name] ?? 0;
+                  const meta = stage.meta;
+
+                  return (
+                    <Draggable key={stage.id} draggableId={stage.id} index={index}>
+                      {(dragProvided, dragSnapshot) => (
+                        <div
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          className={`rounded-xl border ${meta.border} ${meta.bg} transition-shadow ${
+                            dragSnapshot.isDragging ? "shadow-lg" : ""
+                          }`}
+                        >
+                          {isEditing ? (
+                            /* Edit mode */
+                            <Form method="post" className="p-4 space-y-4">
+                              <input type="hidden" name="intent" value="editStage" />
+                              <input type="hidden" name="id" value={stage.id} />
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label>Name (stored key)</Label>
+                                  <Input
+                                    name="name"
+                                    type="text"
+                                    required
+                                    defaultValue={stage.name}
+                                    className="mt-1.5 uppercase"
+                                    onChange={(e) => setEditName(e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Display Label</Label>
+                                  <Input
+                                    name="label"
+                                    type="text"
+                                    required
+                                    defaultValue={stage.label}
+                                    className="mt-1.5"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <Label>Color</Label>
+                                <Select name="colorKey" defaultValue={stage.colorKey} className="mt-1.5">
+                                  {PALETTE_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                  ))}
+                                </Select>
+                              </div>
+                              {editName.toUpperCase().replace(/\s+/g, "_") !== stage.name && editName !== "" && (
+                                <p className="text-xs text-amber-400">
+                                  Renaming will cascade update all leads and stage history in this stage.
+                                </p>
+                              )}
+                              <div className="flex gap-2">
+                                <Button type="submit" disabled={isSubmitting} size="sm">
+                                  <Save className="h-3.5 w-3.5 mr-1" />
+                                  {isSubmitting ? "Saving..." : "Save"}
+                                </Button>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </Form>
+                          ) : (
+                            /* Display mode */
+                            <div className="flex items-center gap-3 p-4">
+                              <div {...dragProvided.dragHandleProps} className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground shrink-0">
+                                <GripVertical className="h-4 w-4" />
+                              </div>
+                              <div className={`h-2.5 w-2.5 rounded-full ${meta.dot} shrink-0`} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">{stage.label}</span>
+                                  <Badge variant="outline" className="text-[10px] font-mono">
+                                    {stage.name}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {count} lead{count !== 1 ? "s" : ""} &middot; Position {stage.position}
+                                </p>
+                              </div>
+                              <ColorSwatch colorKey={stage.colorKey} />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => { setEditingId(stage.id); setShowAdd(false); setEditName(stage.name); }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Form method="post" className="inline">
+                                <input type="hidden" name="intent" value="deleteStage" />
+                                <input type="hidden" name="id" value={stage.id} />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-red-400"
+                                  disabled={isSubmitting}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </Form>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
+
+        {orderChanged && (
+          <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+            <p className="text-sm text-amber-400 flex-1">
+              Stage order has changed. Save to persist the new order.
+            </p>
+            <Button size="sm" onClick={submitReorder} disabled={isSubmitting}>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {isSubmitting ? "Saving..." : "Save Order"}
+            </Button>
+          </div>
+        )}
+
+        {stages.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">No pipeline stages configured.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add stages to define your sales pipeline workflow.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </AppShell>
+  );
+}

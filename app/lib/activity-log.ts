@@ -21,14 +21,9 @@ export interface ActivityLogInput {
 
 /**
  * Format stage name for display
+ * Re-exported from stages.ts for backward compatibility
  */
-export function formatStage(stage: string): string {
-  return stage
-    .replace(/_/g, " ")
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
+export { formatStage } from "./stages";
 
 /**
  * Get the icon/color for an activity action

@@ -1,6 +1,7 @@
 import { Form, Link, useLoaderData, useActionData, useSearchParams } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
+import { getStagesWithMeta } from "../lib/stages.server";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -45,7 +46,9 @@ export async function loader({ request }: { request: Request }) {
     orderBy: { sortOrder: "asc" },
   });
 
-  return { user, leads, search, status, tempFilter, criteria };
+  const stages = await getStagesWithMeta();
+
+  return { user, leads, search, status, tempFilter, criteria, stages };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -184,7 +187,7 @@ export async function action({ request }: { request: Request }) {
 }
 
 export default function Inbox() {
-  const { user, leads, search, status, tempFilter, criteria } = useLoaderData<typeof loader>();
+  const { user, leads, search, status, tempFilter, criteria, stages } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [searchParams, setSearchParams] = useSearchParams();
   const isAdmin = user?.role === "ADMIN";
@@ -312,7 +315,7 @@ export default function Inbox() {
                   </tr>
                 ) : (
                   leads.map((lead) => (
-                    <LeadRow key={lead.id} lead={lead} isAdmin={isAdmin} />
+                    <LeadRow key={lead.id} lead={lead} isAdmin={isAdmin} stages={stages} />
                   ))
                 )}
               </tbody>
@@ -324,19 +327,13 @@ export default function Inbox() {
   );
 }
 
-function StageBadge({ stage }: { stage: string }) {
-  const config: Record<string, { classes: string }> = {
-    SOURCED:        { classes: "bg-slate-500/15 text-slate-300 border-slate-500/20" },
-    QUALIFIED:      { classes: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
-    FIRST_CONTACT:  { classes: "bg-violet-500/15 text-violet-400 border-violet-500/20" },
-    MEETING_BOOKED: { classes: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
-    PROPOSAL_SENT:  { classes: "bg-orange-500/15 text-orange-400 border-orange-500/20" },
-    CLOSED_WON:     { classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
-    CLOSED_LOST:    { classes: "bg-red-500/15 text-red-400 border-red-500/20" },
-  };
-  const c = config[stage] || config.SOURCED;
+function StageBadge({ stage, stages }: { stage: string; stages: Array<{ name: string; meta: { bg: string; text: string; border: string } }> }) {
+  const meta = stages.find(s => s.name === stage)?.meta;
+  const bg = meta?.bg ?? "bg-slate-400/10";
+  const text = meta?.text ?? "text-slate-300";
+  const border = meta?.border ?? "border-slate-400/20";
   return (
-    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`}>
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${bg} ${text} ${border}`}>
       {stage.replace(/_/g, " ")}
     </span>
   );
@@ -358,7 +355,7 @@ function TemperatureBadge({ temperature }: { temperature: string }) {
   );
 }
 
-function LeadRow({ lead, isAdmin }: { lead: any; isAdmin: boolean }) {
+function LeadRow({ lead, isAdmin, stages }: { lead: any; isAdmin: boolean; stages: Array<{ name: string; meta: { bg: string; text: string; border: string } }> }) {
   const [expanded, setExpanded] = useState(false);
   const responses = lead.criteriaResponses || [];
   const hasScores = responses.length > 0;
@@ -406,7 +403,7 @@ function LeadRow({ lead, isAdmin }: { lead: any; isAdmin: boolean }) {
           <TemperatureBadge temperature={lead.temperature} />
         </td>
         <td className="px-4 py-3">
-          <StageBadge stage={lead.stage} />
+          <StageBadge stage={lead.stage} stages={stages} />
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-1">

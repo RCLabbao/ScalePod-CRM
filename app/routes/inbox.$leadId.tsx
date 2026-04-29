@@ -15,6 +15,8 @@ import { useState } from "react";
 import { logActivity } from "../lib/activity-log.server";
 import { getActivityStyle, formatStage } from "../lib/activity-log";
 import type { ActivityAction } from "../lib/activity-log";
+import { getStagesWithMeta } from "../lib/stages.server";
+import type { StageWithMeta } from "../lib/stages.server";
 
 function isSafeUrl(url: string): boolean {
   return /^https?:\/\//i.test(url);
@@ -60,7 +62,9 @@ export async function loader({ request, params }: { request: Request; params: { 
     orderBy: { name: "asc" },
   });
 
-  return { user, lead, users, gmailConnected: !!user?.gmailTokens };
+  const stages = await getStagesWithMeta();
+
+  return { user, lead, users, stages, gmailConnected: !!user?.gmailTokens };
 }
 
 export async function action({ request }: { request: Request }) {
@@ -244,7 +248,7 @@ export async function action({ request }: { request: Request }) {
 }
 
 export default function LeadDetail() {
-  const { user, lead, users, gmailConnected } = useLoaderData<typeof loader>();
+  const { user, lead, users, stages, gmailConnected } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isAdmin = user?.role === "ADMIN";
   const [editing, setEditing] = useState(false);
@@ -262,7 +266,7 @@ export default function LeadDetail() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{lead.companyName}</h1>
               <StatusBadge status={lead.status} />
-              <StageBadge stage={lead.stage} />
+              <StageBadge stage={lead.stage} stages={stages} />
             </div>
             <p className="text-muted-foreground">{lead.email}</p>
           </div>
@@ -359,15 +363,9 @@ export default function LeadDetail() {
                         { value: "WARM", label: "Warm" },
                         { value: "COLD", label: "Cold" },
                       ]} />
-                      <Field label="Stage" name="stage" type="select" defaultValue={lead.stage} options={[
-                        { value: "SOURCED", label: "Sourced" },
-                        { value: "QUALIFIED", label: "Qualified" },
-                        { value: "FIRST_CONTACT", label: "First Contact" },
-                        { value: "MEETING_BOOKED", label: "Meeting Booked" },
-                        { value: "PROPOSAL_SENT", label: "Proposal Sent" },
-                        { value: "CLOSED_WON", label: "Closed Won" },
-                        { value: "CLOSED_LOST", label: "Closed Lost" },
-                      ]} />
+                      <Field label="Stage" name="stage" type="select" defaultValue={lead.stage} options={
+                        stages.map((s) => ({ value: s.name, label: s.label }))
+                      } />
                       <Field label="Status" name="status" type="select" defaultValue={lead.status} options={[
                         { value: "INBOX", label: "Inbox" },
                         { value: "ACTIVE", label: "Active" },
@@ -410,7 +408,7 @@ export default function LeadDetail() {
                     {/* Temperature & Stage badges */}
                     <div className="mb-4 flex items-center gap-3">
                       <StatusBadge status={lead.status} />
-                      <StageBadge stage={lead.stage} />
+                      <StageBadge stage={lead.stage} stages={stages} />
                       <TemperatureBadge temperature={lead.temperature} />
                       <span className="text-sm text-muted-foreground">
                         Score: {Math.round(lead.score)}/{Math.round(lead.maxScore)}
@@ -701,20 +699,12 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StageBadge({ stage }: { stage: string }) {
-  const config: Record<string, { classes: string }> = {
-    SOURCED: { classes: "bg-slate-500/15 text-slate-300 border-slate-500/20" },
-    QUALIFIED: { classes: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
-    FIRST_CONTACT: { classes: "bg-violet-500/15 text-violet-400 border-violet-500/20" },
-    MEETING_BOOKED: { classes: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
-    PROPOSAL_SENT: { classes: "bg-orange-500/15 text-orange-400 border-orange-500/20" },
-    CLOSED_WON: { classes: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
-    CLOSED_LOST: { classes: "bg-red-500/15 text-red-400 border-red-500/20" },
-  };
-  const c = config[stage] || config.SOURCED;
+function StageBadge({ stage, stages }: { stage: string; stages: StageWithMeta[] }) {
+  const meta = stages.find(s => s.name === stage)?.meta;
+  const classes = meta ? `${meta.bg} ${meta.text}` : "bg-muted text-muted-foreground";
   return (
-    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${c.classes}`}>
-      {stage.replace(/_/g, " ")}
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${classes}`}>
+      {formatStage(stage)}
     </span>
   );
 }

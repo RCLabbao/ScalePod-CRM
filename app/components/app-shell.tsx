@@ -16,6 +16,7 @@ import {
   BarChart3,
   Search,
   FileJson,
+  Workflow,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -31,6 +32,7 @@ const navItems = [
   { to: "/imports", label: "Import", icon: Upload, adminOnly: true },
   { to: "/scraper", label: "Scraper", icon: Search, adminOnly: true },
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
+  { to: "/workflows", label: "Workflows", icon: Workflow, adminOnly: true },
   { to: "/verification/criteria", label: "Criteria", icon: ShieldCheck, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/docs/api", label: "API Docs", icon: FileJson },
