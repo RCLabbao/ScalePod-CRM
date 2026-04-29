@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
@@ -23,6 +24,7 @@ import {
   Inbox,
   AlertCircle,
   GripVertical,
+  Settings2,
 } from "lucide-react";
 
 type Stage = string;
@@ -468,22 +470,32 @@ export default function Pipeline() {
                 : `Showing ${totalVisible} of ${totalAll} leads`}
             </p>
           </div>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-sm px-3 py-1 rounded-full">
-                {selectedIds.size} selected
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearSelection}
-                className="h-7 px-2"
-              >
-                <X className="h-3.5 w-3.5 mr-1" />
-                Clear
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {user?.role === "ADMIN" && (
+              <Link to="/settings/stages">
+                <Button variant="outline" size="sm" className="h-8">
+                  <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+                  Manage Stages
+                </Button>
+              </Link>
+            )}
+            {selectedIds.size > 0 && (
+              <>
+                <Badge variant="secondary" className="text-sm px-3 py-1 rounded-full">
+                  {selectedIds.size} selected
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearSelection}
+                  className="h-7 px-2"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Clear
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Search + Filters */}
