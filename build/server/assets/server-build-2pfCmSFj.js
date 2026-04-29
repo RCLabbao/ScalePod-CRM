@@ -191,6 +191,15 @@ async function getStages() {
   } catch (err) {
     console.error("[stages] Failed to load pipeline stages — run pending migrations:", err);
   }
+  if (stages.length === 0) {
+    stages = DEFAULT_STAGE_SEED.map((s, i) => ({
+      id: `default_${i}`,
+      name: s.name,
+      label: s.label,
+      colorKey: s.colorKey,
+      position: s.position
+    }));
+  }
   stagesCache = stages;
   stagesCacheExpiry = Date.now() + CACHE_TTL_MS;
   return stages;
@@ -18262,7 +18271,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-Bk5gnuEo.js").then(({
+    import("./pipeline-usi1pVdd.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -18291,7 +18300,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-Bk5gnuEo.js").then(({
+    import("./pipeline-usi1pVdd.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

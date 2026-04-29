@@ -42,6 +42,18 @@ export async function getStages(): Promise<StageRow[]> {
     console.error("[stages] Failed to load pipeline stages — run pending migrations:", err);
   }
 
+  // Fallback: if PipelineStage table exists but has no rows (migration not seeded yet),
+  // return the default stages so the app keeps working
+  if (stages.length === 0) {
+    stages = DEFAULT_STAGE_SEED.map((s, i) => ({
+      id: `default_${i}`,
+      name: s.name,
+      label: s.label,
+      colorKey: s.colorKey,
+      position: s.position,
+    }));
+  }
+
   stagesCache = stages;
   stagesCacheExpiry = Date.now() + CACHE_TTL_MS;
   return stages;
