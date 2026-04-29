@@ -96,6 +96,12 @@ model Lead {
 
   // Activity log for this lead
   activityLogs     ActivityLog[]
+
+  @@index([status])
+  @@index([stage])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([stage, createdAt])
 }
 
 model StageHistory {
@@ -107,6 +113,8 @@ model StageHistory {
   changedById String?
   changedBy  User?    @relation(fields: [changedById], references: [id], onDelete: SetNull)
   changedAt  DateTime @default(now())
+
+  @@index([leadId, changedAt])
 }
 
 // ── Activity Log for Accountability ───────────────────────

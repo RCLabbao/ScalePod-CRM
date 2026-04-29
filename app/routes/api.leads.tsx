@@ -27,8 +27,8 @@ function requireScope(scopes: string[], scope: string) {
 
 // ── Zod Schemas ───────────────────────────────────────────────────
 
-const LEAD_STATUSES = ["INBOX", "ACTIVE", "REJECTED", "QUALIFIED", "CONVERTED"] as const;
-const LEAD_STAGES = ["SOURCED", "OUTREACH", "RESPONDED", "DEMO", "PROPOSAL", "NEGOTIATION", "CLOSED"] as const;
+const LEAD_STATUSES = ["INBOX", "ACTIVE", "REJECTED"] as const;
+const LEAD_STAGES = ["SOURCED", "QUALIFIED", "FIRST_CONTACT", "MEETING_BOOKED", "PROPOSAL_SENT", "CLOSED_WON", "CLOSED_LOST"] as const;
 
 const LeadPayloadSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
@@ -48,6 +48,7 @@ const LeadPayloadSchema = z.object({
 
 const LeadsQuerySchema = z.object({
   status: z.enum(LEAD_STATUSES).optional(),
+  stage: z.enum(LEAD_STAGES).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -72,7 +73,16 @@ const LEAD_PUBLIC_FIELDS = {
 } as const;
 
 // ── In-memory rate limit tracking ─────────────────────────────────
+const MAX_RATE_LIMIT_ENTRIES = 10_000;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+// Periodic cleanup of expired entries to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitStore) {
+    if (now >= entry.resetAt) rateLimitStore.delete(key);
+  }
+}, 60_000).unref();
 
 function checkRateLimit(keyId: string, tier: ApiKeyTier): { allowed: boolean; remaining: number; resetAt: number } {
   const limits = TIER_LIMITS[tier];
@@ -81,6 +91,15 @@ function checkRateLimit(keyId: string, tier: ApiKeyTier): { allowed: boolean; re
 
   if (!entry || now >= entry.resetAt) {
     entry = { count: 0, resetAt: now + 60_000 };
+    // Evict oldest entries if store is at capacity
+    if (rateLimitStore.size >= MAX_RATE_LIMIT_ENTRIES) {
+      let oldestKey: string | null = null;
+      let oldestReset = Infinity;
+      for (const [k, v] of rateLimitStore) {
+        if (v.resetAt < oldestReset) { oldestReset = v.resetAt; oldestKey = k; }
+      }
+      if (oldestKey) rateLimitStore.delete(oldestKey);
+    }
     rateLimitStore.set(keyId, entry);
   }
 
@@ -121,19 +140,22 @@ export async function loader({ request }: { request: Request }) {
   if (!queryResult.success) {
     throw data({ error: "Invalid query parameters", issues: queryResult.error.issues }, { status: 400 });
   }
-  const { status, limit, offset } = queryResult.data;
+  const { status, stage, limit, offset } = queryResult.data;
+
+  const where = {
+    ...(status ? { status } : {}),
+    ...(stage ? { stage } : {}),
+  };
 
   const leads = await prisma.lead.findMany({
-    where: status ? { status } : undefined,
+    where,
     take: limit,
     skip: offset,
     orderBy: { createdAt: "desc" },
     select: LEAD_PUBLIC_FIELDS,
   });
 
-  const total = await prisma.lead.count({
-    where: status ? { status } : undefined,
-  });
+  const total = await prisma.lead.count({ where });
 
   return data(
     { leads, total, limit, offset },
@@ -166,8 +188,10 @@ export async function action({ request }: { request: Request }) {
     const body = await request.json();
     const payload = LeadPayloadSchema.parse(body);
 
+    // Check existence first (index hit on email, very fast)
     const existing = await prisma.lead.findUnique({
       where: { email: payload.email },
+      select: { id: true, notes: true },
     });
 
     if (existing) {
@@ -175,29 +199,30 @@ export async function action({ request }: { request: Request }) {
         where: { id: existing.id },
         data: {
           companyName: payload.companyName,
-          website: payload.website ?? existing.website,
-          contactName: payload.contactName ?? existing.contactName,
-          industry: payload.industry ?? existing.industry,
-          estimatedTraffic: payload.estimatedTraffic ?? existing.estimatedTraffic,
-          techStack: payload.techStack ?? existing.techStack,
-          linkedin: payload.linkedin ?? existing.linkedin,
-          facebook: payload.facebook ?? existing.facebook,
-          instagram: payload.instagram ?? existing.instagram,
-          twitter: payload.twitter ?? existing.twitter,
+          website: payload.website ?? undefined,
+          contactName: payload.contactName ?? undefined,
+          industry: payload.industry ?? undefined,
+          estimatedTraffic: payload.estimatedTraffic ?? undefined,
+          techStack: payload.techStack ?? undefined,
+          linkedin: payload.linkedin ?? undefined,
+          facebook: payload.facebook ?? undefined,
+          instagram: payload.instagram ?? undefined,
+          twitter: payload.twitter ?? undefined,
           leadSource: payload.leadSource,
           notes: payload.notes
             ? `${existing.notes || ""}\n[Updated]: ${payload.notes}`.trim()
-            : existing.notes,
+            : undefined,
         },
       });
 
-      await logActivity({
+      // Fire-and-forget activity log
+      logActivity({
         leadId: existing.id,
         userId: apiKey.userId,
         action: "LEAD_EDITED",
         description: `External API updated lead data (${payload.leadSource})`,
         metadata: { source: payload.leadSource, merged: true },
-      });
+      }).catch(() => {});
 
       return data({ lead: updated, merged: true }, { status: 200 });
     }
@@ -222,13 +247,14 @@ export async function action({ request }: { request: Request }) {
       },
     });
 
-    await logActivity({
+    // Fire-and-forget activity log
+    logActivity({
       leadId: lead.id,
       userId: apiKey.userId,
       action: "LEAD_CREATED",
       description: `Added via external API (${payload.leadSource})`,
       metadata: { source: payload.leadSource },
-    });
+    }).catch(() => {});
 
     return data({ lead, merged: false }, { status: 201 });
   } catch (error) {
@@ -237,6 +263,10 @@ export async function action({ request }: { request: Request }) {
         { error: "Validation failed", issues: error.issues },
         { status: 400 }
       );
+    }
+    // Handle race condition: two concurrent creates with same email
+    if ((error as any)?.code === "P2002") {
+      throw data({ error: "Lead with this email already exists" }, { status: 409 });
     }
     throw data({ error: "Internal server error" }, { status: 500 });
   }

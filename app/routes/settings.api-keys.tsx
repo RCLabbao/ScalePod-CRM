@@ -1,7 +1,7 @@
 import { Form, Link, useActionData, useLoaderData, useNavigation } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAdmin } from "../lib/auth.guard.server";
-import { generateApiKey, maskKey } from "../lib/api-key.server";
+import { generateApiKey, maskKey, invalidateApiKeyCache } from "../lib/api-key.server";
 import { TIER_LIMITS, type ApiKeyTier } from "../lib/api-key.shared";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
@@ -67,6 +67,12 @@ export async function action({ request }: { request: Request }) {
     }
 
     await prisma.apiKey.delete({ where: { id: keyId } });
+
+    // Invalidate cache so the deleted key can't be used anymore
+    if (existing.hash) {
+      invalidateApiKeyCache(existing.hash);
+    }
+
     return { success: true, revoked: keyId };
   }
 

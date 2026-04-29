@@ -564,7 +564,8 @@ X-RateLimit-Reset: 1714329600`}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Query Parameters</p>
                   <div className="rounded-xl border border-border/30 bg-muted/10 px-4">
-                    <ParamRow name="status" type="string" desc="Filter by lead status: ACTIVE, INBOX, ARCHIVED" />
+                    <ParamRow name="status" type="string" desc="Filter by lead status: INBOX, ACTIVE, REJECTED" />
+                    <ParamRow name="stage" type="string" desc="Filter by pipeline stage: SOURCED, QUALIFIED, FIRST_CONTACT, MEETING_BOOKED, PROPOSAL_SENT, CLOSED_WON, CLOSED_LOST" />
                     <ParamRow name="limit" type="integer" desc="Number of results per page (max 100, default 50)" />
                     <ParamRow name="offset" type="integer" desc="Number of results to skip (default 0)" />
                   </div>
@@ -624,7 +625,7 @@ X-RateLimit-Reset: 1714329600`}
                     <ResponseField name="facebook" type="string" desc="Facebook page URL" nullable />
                     <ResponseField name="instagram" type="string" desc="Instagram profile URL" nullable />
                     <ResponseField name="twitter" type="string" desc="Twitter/X profile URL" nullable />
-                    <ResponseField name="status" type="string" desc="Lead status: ACTIVE, INBOX, ARCHIVED" />
+                    <ResponseField name="status" type="string" desc="Lead status: INBOX, ACTIVE, REJECTED" />
                     <ResponseField name="stage" type="string" desc="Pipeline stage: SOURCED, QUALIFIED, FIRST_CONTACT, MEETING_BOOKED, PROPOSAL_SENT, CLOSED_WON, CLOSED_LOST" />
                     <ResponseField name="leadSource" type="string" desc="Origin of the lead" />
                     <ResponseField name="createdAt" type="string (ISO 8601)" desc="Record creation timestamp" />
@@ -758,12 +759,13 @@ X-RateLimit-Reset: 1714329600`}
             />
             <Card className="border-border/40 hover:shadow-md hover:-translate-y-px transition-all duration-200">
               <CardContent className="p-5 space-y-6">
-                <EndpointBar method="GET" path="/api/lead-detail?leadId={'{leadId}'" scope="Requires leads:read" />
+                <EndpointBar method="GET" path="/api/lead-detail?leadId={'{leadId}'}" scope="Requires leads:read or session auth" />
 
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Returns a single lead with full relational data including creator, approver,
                   assignee, stage history, and activity logs. Use this when you need the complete
-                  picture of a lead beyond the list view.
+                  picture of a lead beyond the list view. Supports dual authentication:
+                  API key with <code className="font-mono text-xs">leads:read</code> scope, or active browser session.
                 </p>
 
                 <div>
@@ -776,7 +778,8 @@ X-RateLimit-Reset: 1714329600`}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Request Headers</p>
                   <div className="rounded-xl border border-border/30 bg-muted/10 px-4">
-                    <ParamRow name="X-API-Key" type="string" required desc="Your API key" />
+                    <ParamRow name="X-API-Key" type="string" desc="Your API key (if using API key auth)" />
+                    <ParamRow name="Cookie" type="string" desc="Session cookie (if using browser auth)" />
                   </div>
                 </div>
 

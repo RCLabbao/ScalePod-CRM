@@ -13,6 +13,19 @@ if (!process.env.DATABASE_URL && process.env.DB_USER) {
   console.log(`[DB] Built from separate vars: ${user}@${host}:${port}/${name}`);
 }
 
-export const prisma = globalForPrisma.prisma || new PrismaClient();
+// Append connection pool params if not already present
+if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("connection_limit")) {
+  const separator = process.env.DATABASE_URL.includes("?") ? "&" : "?";
+  process.env.DATABASE_URL = `${process.env.DATABASE_URL}${separator}connection_limit=15&pool_timeout=30`;
+}
+
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: [
+      { emit: "stdout", level: "warn" },
+      { emit: "stdout", level: "error" },
+    ],
+  });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

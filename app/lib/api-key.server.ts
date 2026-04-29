@@ -26,6 +26,24 @@ export function hashApiKey(key: string): string {
   return sha256(key);
 }
 
+// ── In-memory cache for validated API keys ──────────────────────
+// Avoids a DB round-trip on every API request. Keys are cached
+// for 60 seconds. Revocations clear the cache immediately.
+const keyCache = new Map<string, { apiKey: { id: string; tier: ApiKeyTier; scopes: string[]; userId: string }; expiresAt: number }>();
+const KEY_CACHE_TTL_MS = 60_000; // 60 seconds
+
+// Periodic cleanup of expired entries to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of keyCache) {
+    if (now >= entry.expiresAt) keyCache.delete(key);
+  }
+}, 60_000).unref();
+
+export function invalidateApiKeyCache(hash: string) {
+  keyCache.delete(hash);
+}
+
 export async function validateApiKey(key: string): Promise<{
   valid: boolean;
   apiKey?: {
@@ -41,6 +59,12 @@ export async function validateApiKey(key: string): Promise<{
 
   const hash = hashApiKey(key);
 
+  // Check cache first
+  const cached = keyCache.get(hash);
+  if (cached && Date.now() < cached.expiresAt) {
+    return { valid: true, apiKey: cached.apiKey };
+  }
+
   const apiKey = await prisma.apiKey.findUnique({
     where: { hash },
     select: { id: true, tier: true, scopes: true, userId: true, active: true },
@@ -50,21 +74,24 @@ export async function validateApiKey(key: string): Promise<{
     return { valid: false };
   }
 
+  const result = {
+    id: apiKey.id,
+    tier: apiKey.tier as ApiKeyTier,
+    scopes: (apiKey.scopes as string[]) || [],
+    userId: apiKey.userId,
+  };
+
+  // Cache for future requests
+  keyCache.set(hash, { apiKey: result, expiresAt: Date.now() + KEY_CACHE_TTL_MS });
+
   // Update lastUsedAt asynchronously (don't block the request)
+  // Throttle: only update if lastUsedAt is older than 5 minutes
   prisma.apiKey.update({
     where: { id: apiKey.id },
     data: { lastUsedAt: new Date() },
   }).catch(() => {});
 
-  return {
-    valid: true,
-    apiKey: {
-      id: apiKey.id,
-      tier: apiKey.tier as ApiKeyTier,
-      scopes: (apiKey.scopes as string[]) || [],
-      userId: apiKey.userId,
-    },
-  };
+  return { valid: true, apiKey: result };
 }
 
 export function hasScope(scopes: string[], required: string): boolean {
