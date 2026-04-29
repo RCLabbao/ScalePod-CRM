@@ -104,9 +104,9 @@ export async function seedDefaultStages(): Promise<void> {
 
     console.log("[stages] Seeded default pipeline stages");
     invalidateStagesCache();
+    seeded = true;
   } catch (err) {
     console.error("[stages] Failed to seed default stages:", err);
+    // Don't mark as seeded — allow retry on next call (table might not exist yet)
   }
-
-  seeded = true;
 }

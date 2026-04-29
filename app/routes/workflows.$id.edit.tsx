@@ -28,8 +28,9 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { RichEditor, type RichEditorHandle } from "../components/rich-editor";
 
 // ── Constants (shared with workflows.new.tsx) ──────────────────
 
@@ -141,7 +142,7 @@ function configFromStep(step: ActionStep): Record<string, unknown> | null {
 export async function loader({ request, params }: { request: Request; params: { id: string } }) {
   const userId = await requireAdmin(request);
 
-  const [user, users, stages, gmailTokens, rule] = await Promise.all([
+  const [user, users, stages, gmailTokens, rule, emailTemplates] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true, role: true },
@@ -158,6 +159,7 @@ export async function loader({ request, params }: { request: Request; params: { 
       where: { id: params.id },
       include: { actions: { orderBy: { order: "asc" } } },
     }),
+    prisma.emailTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   if (!rule) {
@@ -201,7 +203,7 @@ export async function loader({ request, params }: { request: Request; params: { 
 
   const triggerCondition = rule.triggerCondition as Record<string, string> | null;
 
-  return { user, users, stages, gmailUserIds, gmailAddressMap, rule, actionSteps, triggerCondition };
+  return { user, users, stages, gmailUserIds, gmailAddressMap, rule, actionSteps, triggerCondition, emailTemplates };
 }
 
 // ── Action ────────────────────────────────────────────────────
@@ -285,14 +287,16 @@ export async function action({ request, params }: { request: Request; params: { 
 
 // ── Action config component (shared with new page) ───────────
 
-function ActionConfigFields({ step, onChange, users, stages, gmailUserIds, gmailAddressMap }: {
+function ActionConfigFields({ step, onChange, users, stages, gmailUserIds, gmailAddressMap, templates }: {
   step: ActionStep;
   onChange: (updated: ActionStep) => void;
   users: { id: string; name: string; email: string }[];
   stages: { name: string; label: string }[];
   gmailUserIds: Set<string>;
   gmailAddressMap: Map<string, string>;
+  templates: { id: string; name: string; subject: string; body: string }[];
 }) {
+  const editorRef = useRef<RichEditorHandle>(null);
   const selectedFieldDef = UPDATE_FIELDS.find((f) => f.value === step.configField);
   const valueInputType = selectedFieldDef?.type || "text";
 
@@ -344,13 +348,44 @@ function ActionConfigFields({ step, onChange, users, stages, gmailUserIds, gmail
               {users.map((u) => (<option key={u.id} value={u.id} disabled={!gmailUserIds.has(u.id)}>{u.name || u.email}{gmailUserIds.has(u.id) ? ` (${gmailAddressMap.get(u.id)})` : " — Gmail not connected"}</option>))}
             </Select>
           </div>
+          {templates.length > 0 && (
+            <div>
+              <Label className="text-xs font-medium">Load Template</Label>
+              <Select
+                value=""
+                onChange={(e) => {
+                  const tmpl = templates.find((t) => t.id === e.target.value);
+                  if (tmpl) {
+                    const htmlBody = tmpl.body.includes("<") && tmpl.body.includes(">")
+                      ? tmpl.body
+                      : tmpl.body.replace(/\n/g, "<br>");
+                    onChange({ ...step, configSubject: tmpl.subject });
+                    if (editorRef.current) {
+                      editorRef.current.setHTML(htmlBody);
+                    }
+                  }
+                }}
+                className="mt-1 bg-background/50 border-border/60"
+              >
+                <option value="">Choose a template...</option>
+                {templates.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+              </Select>
+            </div>
+          )}
           <div>
             <Label className="text-xs font-medium">Subject</Label>
             <Input type="text" value={step.configSubject} onChange={(e) => onChange({ ...step, configSubject: e.target.value })} placeholder='e.g. "Re: {{companyName}}"' className="mt-1 bg-background/50 border-border/60" />
           </div>
           <div>
             <Label className="text-xs font-medium">Body</Label>
-            <Textarea value={step.configBody} onChange={(e) => onChange({ ...step, configBody: e.target.value })} placeholder="Hi {{contactName}}..." className="mt-1 bg-background/50 border-border/60" rows={4} />
+            <RichEditor
+              ref={editorRef}
+              value={step.configBody}
+              onChange={(html) => onChange({ ...step, configBody: html })}
+              placeholder="Hi {{contactName}}, I noticed {{companyName}}..."
+              minHeight={140}
+              className="mt-1"
+            />
             <p className="text-[11px] text-muted-foreground mt-1">Variables: {"{{companyName}}"}, {"{{contactName}}"}, {"{{email}}"}, {"{{industry}}"}, {"{{stage}}"}, {"{{website}}"}</p>
           </div>
         </div>
@@ -362,7 +397,7 @@ function ActionConfigFields({ step, onChange, users, stages, gmailUserIds, gmail
 // ── Page Component ────────────────────────────────────────────
 
 export default function WorkflowsEditPage() {
-  const { user, users, stages, gmailUserIds, gmailAddressMap, rule, actionSteps: initialSteps, triggerCondition: initialCondition } = useLoaderData<typeof loader>();
+  const { user, users, stages, gmailUserIds, gmailAddressMap, rule, actionSteps: initialSteps, triggerCondition: initialCondition, emailTemplates } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -512,7 +547,7 @@ export default function WorkflowsEditPage() {
                                     </Button>
                                   )}
                                 </div>
-                                <ActionConfigFields step={step} onChange={updateAction} users={users} stages={stages} gmailUserIds={gmailUserIds} gmailAddressMap={gmailAddressMap} />
+                                <ActionConfigFields step={step} onChange={updateAction} users={users} stages={stages} gmailUserIds={gmailUserIds} gmailAddressMap={gmailAddressMap} templates={emailTemplates} />
                               </div>
                             )}
                           </Draggable>

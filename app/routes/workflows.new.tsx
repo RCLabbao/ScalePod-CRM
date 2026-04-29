@@ -29,8 +29,9 @@ import {
   Trash2,
   GripVertical,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { RichEditor, type RichEditorHandle } from "../components/rich-editor";
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ function StepConnector() {
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAdmin(request);
 
-  const [user, users, stages, gmailTokens] = await Promise.all([
+  const [user, users, stages, gmailTokens, emailTemplates] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true, role: true },
@@ -149,12 +150,13 @@ export async function loader({ request }: { request: Request }) {
     prisma.gmailToken.findMany({
       select: { userId: true, gmailAddress: true },
     }),
+    prisma.emailTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const gmailUserIds = new Set(gmailTokens.map((t) => t.userId));
   const gmailAddressMap = new Map(gmailTokens.map((t) => [t.userId, t.gmailAddress || "Gmail connected"]));
 
-  return { user, users, stages, gmailUserIds, gmailAddressMap };
+  return { user, users, stages, gmailUserIds, gmailAddressMap, emailTemplates };
 }
 
 // ── Action ────────────────────────────────────────────────────
@@ -261,6 +263,7 @@ function ActionConfigFields({
   stages,
   gmailUserIds,
   gmailAddressMap,
+  templates,
 }: {
   step: ActionStep;
   onChange: (updated: ActionStep) => void;
@@ -268,7 +271,9 @@ function ActionConfigFields({
   stages: { name: string; label: string }[];
   gmailUserIds: Set<string>;
   gmailAddressMap: Map<string, string>;
+  templates: { id: string; name: string; subject: string; body: string }[];
 }) {
+  const editorRef = useRef<RichEditorHandle>(null);
   const actionDef = ACTION_TYPES.find((a) => a.value === step.type);
   const Icon = actionDef?.icon || Zap;
   const color = actionDef?.color || "slate";
@@ -383,6 +388,32 @@ function ActionConfigFields({
               ))}
             </Select>
           </div>
+          {templates.length > 0 && (
+            <div>
+              <Label className="text-xs font-medium">Load Template</Label>
+              <Select
+                value=""
+                onChange={(e) => {
+                  const tmpl = templates.find((t) => t.id === e.target.value);
+                  if (tmpl) {
+                    const htmlBody = tmpl.body.includes("<") && tmpl.body.includes(">")
+                      ? tmpl.body
+                      : tmpl.body.replace(/\n/g, "<br>");
+                    onChange({ ...step, configSubject: tmpl.subject });
+                    if (editorRef.current) {
+                      editorRef.current.setHTML(htmlBody);
+                    }
+                  }
+                }}
+                className="mt-1 bg-background/50 border-border/60"
+              >
+                <option value="">Choose a template...</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div>
             <Label className="text-xs font-medium">Subject</Label>
             <Input
@@ -395,12 +426,13 @@ function ActionConfigFields({
           </div>
           <div>
             <Label className="text-xs font-medium">Body</Label>
-            <Textarea
+            <RichEditor
+              ref={editorRef}
               value={step.configBody}
-              onChange={(e) => onChange({ ...step, configBody: e.target.value })}
+              onChange={(html) => onChange({ ...step, configBody: html })}
               placeholder="Hi {{contactName}}, I noticed {{companyName}}..."
-              className="mt-1 bg-background/50 border-border/60 min-h-[100px]"
-              rows={4}
+              minHeight={140}
+              className="mt-1"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
               Variables: {"{{companyName}}"}, {"{{contactName}}"}, {"{{email}}"}, {"{{industry}}"}, {"{{stage}}"}, {"{{website}}"}
@@ -415,7 +447,7 @@ function ActionConfigFields({
 // ── Page Component ────────────────────────────────────────────
 
 export default function WorkflowsNewPage() {
-  const { user, users, stages, gmailUserIds, gmailAddressMap } = useLoaderData<typeof loader>();
+  const { user, users, stages, gmailUserIds, gmailAddressMap, emailTemplates } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -658,6 +690,7 @@ export default function WorkflowsNewPage() {
                                   stages={stages}
                                   gmailUserIds={gmailUserIds}
                                   gmailAddressMap={gmailAddressMap}
+                                  templates={emailTemplates}
                                 />
                               </div>
                             )}

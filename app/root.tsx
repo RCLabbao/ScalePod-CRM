@@ -54,7 +54,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let details = "An unexpected error occurred.";
   let stack: string | undefined;
 
-  const isProd = typeof window !== "undefined" && window.location?.hostname !== "localhost";
+  const isDev = typeof window !== "undefined" && window.location?.hostname === "localhost";
 
   if (isRouteErrorResponse(error)) {
     message = error.status === 404 ? "404" : "Error";
@@ -63,14 +63,12 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         ? "The requested page could not be found."
         : error.statusText || details;
   } else if (error && error instanceof Error) {
-    if (isProd) {
-      details = "An unexpected error occurred. Please try again.";
-    } else {
-      details = error.message;
+    details = error.message;
+    if (isDev) {
       stack = error.stack;
     }
   } else if (error) {
-    details = isProd ? "An unexpected error occurred." : String(error);
+    details = String(error);
   }
 
   return (

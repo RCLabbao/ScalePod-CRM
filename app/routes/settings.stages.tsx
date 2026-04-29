@@ -1,7 +1,7 @@
 import { Form, Link, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAdmin } from "../lib/auth.guard.server";
-import { getStagesWithMeta, invalidateStagesCache } from "../lib/stages.server";
+import { getStagesWithMeta, invalidateStagesCache, seedDefaultStages } from "../lib/stages.server";
 import { STAGE_COLOR_PALETTE, PALETTE_OPTIONS } from "../lib/stages";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
@@ -39,6 +39,9 @@ export async function loader({ request }: { request: Request }) {
     getStagesWithMeta(),
   ]);
 
+  // Seed default stages if the table is empty (ensures table exists)
+  await seedDefaultStages();
+
   const leadCounts: Record<string, number> = {};
   for (const stage of stages) {
     try {
@@ -59,6 +62,9 @@ export async function action({ request }: { request: Request }) {
   await requireAdmin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
+
+  // Ensure the PipelineStage table exists before any mutations
+  await seedDefaultStages();
 
   if (intent === "addStage") {
     const name = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
