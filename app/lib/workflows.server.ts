@@ -11,6 +11,21 @@ interface WorkflowExecutionContext {
   metadata: Record<string, unknown>;
 }
 
+// ── Check if WorkflowAction table exists ───────────────────────
+
+let waTableExists: boolean | null = null;
+
+async function checkWorkflowActionTable(): Promise<boolean> {
+  if (waTableExists !== null) return waTableExists;
+  try {
+    await prisma.$queryRaw`SELECT 1 FROM WorkflowAction LIMIT 1`;
+    waTableExists = true;
+  } catch {
+    waTableExists = false;
+  }
+  return waTableExists;
+}
+
 // ── Evaluate and Execute ───────────────────────────────────────
 
 /**
@@ -23,15 +38,64 @@ export async function evaluateWorkflows(
   metadata: Record<string, unknown>
 ): Promise<void> {
   try {
-    const rules = await prisma.workflowRule.findMany({
-      where: { triggerEvent: event, active: true },
-      include: {
-        actions: {
-          where: { active: true },
-          orderBy: { order: "asc" },
+    // Use ORM if available, raw SQL fallback otherwise
+    const hasORM = !!(prisma as any).workflowRule;
+    let rules: any[] = [];
+
+    if (hasORM) {
+      rules = await (prisma as any).workflowRule.findMany({
+        where: { triggerEvent: event, active: true },
+        include: {
+          actions: {
+            where: { active: true },
+            orderBy: { order: "asc" },
+          },
         },
-      },
-    });
+      });
+    } else {
+      // Raw SQL path — works without generated Prisma models
+      type RuleRow = {
+        id: string; name: string; triggerEvent: string;
+        triggerCondition: string | null; action: string;
+        actionConfig: string | null; active: number;
+      };
+      const ruleRows = await prisma.$queryRaw<RuleRow[]>`
+        SELECT id, name, triggerEvent, triggerCondition, action, actionConfig, active
+        FROM WorkflowRule
+        WHERE triggerEvent = ${event} AND active = 1
+      `;
+
+      const hasActionsTable = await checkWorkflowActionTable();
+
+      for (const r of ruleRows) {
+        let actions: { type: string; config: string }[] = [];
+
+        if (hasActionsTable) {
+          type ActionRow = { id: string; type: string; config: string; order: number; active: number };
+          const actionRows = await prisma.$queryRaw<ActionRow[]>`
+            SELECT id, type, config, \`order\`, active
+            FROM WorkflowAction
+            WHERE ruleId = ${r.id} AND active = 1
+            ORDER BY \`order\` ASC
+          `;
+          actions = actionRows.map(a => ({ type: a.type, config: a.config }));
+        }
+
+        // Legacy fallback: use old action/actionConfig columns
+        if (actions.length === 0 && r.action && r.action !== "LEGACY" && r.actionConfig) {
+          actions = [{ type: r.action, config: r.actionConfig }];
+        }
+
+        rules.push({
+          ...r,
+          triggerCondition: r.triggerCondition ? JSON.parse(r.triggerCondition) : null,
+          actions: actions.map(a => ({
+            ...a,
+            config: a.config ? JSON.parse(a.config) : {},
+          })),
+        });
+      }
+    }
 
     for (const rule of rules) {
       try {
@@ -43,21 +107,18 @@ export async function evaluateWorkflows(
         // Execute all action steps for this rule
         const actions = rule.actions && rule.actions.length > 0
           ? rule.actions
-          : // Fallback: legacy single-action rules that haven't been migrated yet
-            rule.action && rule.action !== "LEGACY"
-              ? [{ id: `legacy_${rule.id}`, ruleId: rule.id, type: rule.action as string, config: rule.actionConfig as Record<string, unknown>, order: 0, active: true, createdAt: rule.createdAt, updatedAt: rule.updatedAt }]
-              : [];
+          : rule.action && rule.action !== "LEGACY"
+            ? [{ id: `legacy_${rule.id}`, ruleId: rule.id, type: rule.action, config: rule.actionConfig, order: 0, active: true }]
+            : [];
 
         for (const actionStep of actions) {
           try {
             await executeAction(actionStep.type as WorkflowAction, actionStep.config as Record<string, unknown>, ctx, rule.id);
           } catch (err) {
             await logWorkflowError(rule.id, leadId, err instanceof Error ? err.message : String(err));
-            // Continue executing remaining actions even if one fails
           }
         }
       } catch (err) {
-        // Log the error but continue evaluating other rules
         await logWorkflowError(rule.id, leadId, err instanceof Error ? err.message : String(err));
       }
     }
@@ -149,7 +210,6 @@ async function sendNotification(
   ctx: WorkflowExecutionContext,
   ruleId: string
 ): Promise<void> {
-  // Log as notification for now — future enhancement can add email/push
   await prisma.workflowLog.create({
     data: {
       ruleId,
@@ -172,7 +232,6 @@ async function updateField(
     return;
   }
 
-  // Only allow updating specific safe fields on Lead
   const allowedFields = new Set(["stage", "status", "temperature", "leadSource", "industry", "notes"]);
   if (!allowedFields.has(field)) {
     await logWorkflowError(ruleId, ctx.leadId, `Field not allowed for update: ${field}`);

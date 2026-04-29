@@ -1,7 +1,7 @@
 import { Form, Link, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { requireAdmin } from "../lib/auth.guard.server";
-import { getStagesWithMeta, invalidateStagesCache, seedDefaultStages } from "../lib/stages.server";
+import { getStagesWithMeta, invalidateStagesCache, seedDefaultStages, checkTableExists } from "../lib/stages.server";
 import { STAGE_COLOR_PALETTE, PALETTE_OPTIONS } from "../lib/stages";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
@@ -64,13 +64,10 @@ export async function action({ request }: { request: Request }) {
   const intent = formData.get("intent") as string;
 
   // Ensure the PipelineStage table exists before any mutations
-  await seedDefaultStages();
-
-  // Check if prisma.pipelineStage actually exists
-  if (!(prisma as any).pipelineStage) {
-    const available = Object.keys(prisma).filter(k => typeof (prisma as any)[k] === "object").join(", ");
-    return { error: `Prisma Client is missing the pipelineStage model. Available models: [${available || "none"}]. Run "npx prisma generate" and restart the server.` };
+  if (!(await checkTableExists())) {
+    return { error: "The PipelineStage table does not exist in the database. Please run migration 005_pipeline_stages.sql first." };
   }
+  await seedDefaultStages();
 
   try {
     if (intent === "addStage") {
@@ -82,17 +79,19 @@ export async function action({ request }: { request: Request }) {
         return { error: "Stage name and label are required" };
       }
 
-      const existing = await prisma.pipelineStage.findUnique({ where: { name } });
-      if (existing) {
+      type StageRow = { id: string; name: string; label: string; colorKey: string; position: number };
+      const existing = await prisma.$queryRaw<StageRow[]>`SELECT * FROM PipelineStage WHERE name = ${name} LIMIT 1`;
+      if (existing.length > 0) {
         return { error: `A stage with name "${name}" already exists` };
       }
 
-      const maxPos = await prisma.pipelineStage.aggregate({ _max: { position: true } });
-      const nextPos = (maxPos._max.position ?? -1) + 1;
+      const maxPosRows = await prisma.$queryRaw<{ maxPos: number | null }[]>`SELECT MAX(position) as maxPos FROM PipelineStage`;
+      const nextPos = (maxPosRows[0]?.maxPos ?? -1) + 1;
 
-      await prisma.pipelineStage.create({
-        data: { name, label, colorKey: colorKey || "slate", position: nextPos },
-      });
+      await prisma.$executeRaw`
+        INSERT INTO PipelineStage (id, name, label, colorKey, position, createdAt, updatedAt)
+        VALUES (${`stage_${name.toLowerCase()}`}, ${name}, ${label}, ${colorKey || "slate"}, ${nextPos}, NOW(), NOW())
+      `;
       invalidateStagesCache();
 
       return redirect("/settings/stages");
@@ -108,28 +107,25 @@ export async function action({ request }: { request: Request }) {
         return { error: "All fields are required" };
       }
 
-      const stage = await prisma.pipelineStage.findUnique({ where: { id } });
-      if (!stage) {
+      type StageRow = { id: string; name: string; label: string; colorKey: string; position: number };
+      const stageRows = await prisma.$queryRaw<StageRow[]>`SELECT * FROM PipelineStage WHERE id = ${id} LIMIT 1`;
+      if (stageRows.length === 0) {
         return { error: "Stage not found" };
       }
+      const stage = stageRows[0];
 
       if (newName !== stage.name) {
-        const existing = await prisma.pipelineStage.findUnique({ where: { name: newName } });
-        if (existing && existing.id !== id) {
+        const dupRows = await prisma.$queryRaw<StageRow[]>`SELECT * FROM PipelineStage WHERE name = ${newName} AND id != ${id} LIMIT 1`;
+        if (dupRows.length > 0) {
           return { error: `A stage with name "${newName}" already exists` };
         }
 
-        await prisma.$transaction([
-          prisma.pipelineStage.update({ where: { id }, data: { name: newName, label, colorKey } }),
-          prisma.lead.updateMany({ where: { stage: stage.name }, data: { stage: newName } }),
-          prisma.stageHistory.updateMany({ where: { fromStage: stage.name }, data: { fromStage: newName } }),
-          prisma.stageHistory.updateMany({ where: { toStage: stage.name }, data: { toStage: newName } }),
-        ]);
+        await prisma.$executeRaw`UPDATE PipelineStage SET name = ${newName}, label = ${label}, colorKey = ${colorKey}, updatedAt = NOW() WHERE id = ${id}`;
+        await prisma.$executeRaw`UPDATE Lead SET stage = ${newName} WHERE stage = ${stage.name}`;
+        await prisma.$executeRaw`UPDATE StageHistory SET fromStage = ${newName} WHERE fromStage = ${stage.name}`;
+        await prisma.$executeRaw`UPDATE StageHistory SET toStage = ${newName} WHERE toStage = ${stage.name}`;
       } else {
-        await prisma.pipelineStage.update({
-          where: { id },
-          data: { label, colorKey },
-        });
+        await prisma.$executeRaw`UPDATE PipelineStage SET label = ${label}, colorKey = ${colorKey}, updatedAt = NOW() WHERE id = ${id}`;
       }
 
       invalidateStagesCache();
@@ -138,19 +134,24 @@ export async function action({ request }: { request: Request }) {
 
     if (intent === "deleteStage") {
       const id = formData.get("id") as string;
-      const stage = await prisma.pipelineStage.findUnique({ where: { id } });
-      if (!stage) {
+
+      type StageRow = { id: string; name: string; label: string };
+      const stageRows = await prisma.$queryRaw<StageRow[]>`SELECT * FROM PipelineStage WHERE id = ${id} LIMIT 1`;
+      if (stageRows.length === 0) {
         return { error: "Stage not found" };
       }
+      const stage = stageRows[0];
 
-      const leadCount = await prisma.lead.count({ where: { stage: stage.name } });
+      type CountRow = { cnt: bigint };
+      const countRows = await prisma.$queryRaw<CountRow[]>`SELECT COUNT(*) as cnt FROM Lead WHERE stage = ${stage.name}`;
+      const leadCount = Number(countRows[0]?.cnt ?? 0);
       if (leadCount > 0) {
         return {
           error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`,
         };
       }
 
-      await prisma.pipelineStage.delete({ where: { id } });
+      await prisma.$executeRaw`DELETE FROM PipelineStage WHERE id = ${id}`;
       invalidateStagesCache();
       return redirect("/settings/stages");
     }
@@ -160,13 +161,9 @@ export async function action({ request }: { request: Request }) {
       if (!orderJson) return { error: "No order provided" };
 
       const order: string[] = JSON.parse(orderJson);
-      const txOps = order.map((id, index) =>
-        prisma.pipelineStage.update({
-          where: { id },
-          data: { position: index },
-        })
-      );
-      await prisma.$transaction(txOps);
+      for (let i = 0; i < order.length; i++) {
+        await prisma.$executeRaw`UPDATE PipelineStage SET position = ${i}, updatedAt = NOW() WHERE id = ${order[i]}`;
+      }
       invalidateStagesCache();
       return redirect("/settings/stages");
     }

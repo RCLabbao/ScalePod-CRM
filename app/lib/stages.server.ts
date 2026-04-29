@@ -26,7 +26,22 @@ export function invalidateStagesCache() {
   stagesCacheExpiry = 0;
 }
 
-// ── Queries ────────────────────────────────────────────────────
+// ── Check if PipelineStage table exists ────────────────────────
+
+let tableExists: boolean | null = null;
+
+export async function checkTableExists(): Promise<boolean> {
+  if (tableExists !== null) return tableExists;
+  try {
+    await prisma.$queryRaw`SELECT 1 FROM PipelineStage LIMIT 1`;
+    tableExists = true;
+  } catch {
+    tableExists = false;
+  }
+  return tableExists;
+}
+
+// ── Queries (raw SQL — works without generated Prisma model) ──
 
 export async function getStages(): Promise<StageRow[]> {
   if (stagesCache && Date.now() < stagesCacheExpiry) {
@@ -34,16 +49,19 @@ export async function getStages(): Promise<StageRow[]> {
   }
 
   let stages: StageRow[] = [];
-  try {
-    stages = await prisma.pipelineStage.findMany({
-      orderBy: { position: "asc" },
-    }) as StageRow[];
-  } catch (err) {
-    console.error("[stages] Failed to load pipeline stages — run pending migrations:", err);
+  if (await checkTableExists()) {
+    try {
+      stages = await prisma.$queryRaw<StageRow[]>`
+        SELECT id, name, label, colorKey, position
+        FROM PipelineStage
+        ORDER BY position ASC
+      `;
+    } catch (err) {
+      console.error("[stages] Failed to load pipeline stages:", err);
+    }
   }
 
-  // Fallback: if PipelineStage table exists but has no rows (migration not seeded yet),
-  // return the default stages so the app keeps working
+  // Fallback: table doesn't exist or has no rows
   if (stages.length === 0) {
     stages = DEFAULT_STAGE_SEED.map((s, i) => ({
       id: `default_${i}`,
@@ -84,22 +102,23 @@ let seeded = false;
 export async function seedDefaultStages(): Promise<void> {
   if (seeded) return;
 
+  if (!(await checkTableExists())) {
+    // Table doesn't exist yet — can't seed
+    return;
+  }
+
   try {
-    const count = await prisma.pipelineStage.count();
-    if (count > 0) {
+    const rows = await prisma.$queryRaw<StageRow[]>`SELECT id FROM PipelineStage LIMIT 1`;
+    if (rows.length > 0) {
       seeded = true;
       return;
     }
 
     for (const s of DEFAULT_STAGE_SEED) {
-      await prisma.pipelineStage.create({
-        data: {
-          name: s.name,
-          label: s.label,
-          colorKey: s.colorKey,
-          position: s.position,
-        },
-      });
+      await prisma.$executeRaw`
+        INSERT INTO PipelineStage (id, name, label, colorKey, position, createdAt, updatedAt)
+        VALUES (${s.name.toLowerCase().replace(/_/g, "")}, ${s.name}, ${s.label}, ${s.colorKey}, ${s.position}, NOW(), NOW())
+      `;
     }
 
     console.log("[stages] Seeded default pipeline stages");
@@ -107,6 +126,5 @@ export async function seedDefaultStages(): Promise<void> {
     seeded = true;
   } catch (err) {
     console.error("[stages] Failed to seed default stages:", err);
-    // Don't mark as seeded — allow retry on next call (table might not exist yet)
   }
 }

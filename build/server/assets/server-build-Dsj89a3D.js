@@ -177,17 +177,32 @@ function invalidateStagesCache() {
   stagesCache = null;
   stagesCacheExpiry = 0;
 }
+let tableExists = null;
+async function checkTableExists() {
+  if (tableExists !== null) return tableExists;
+  try {
+    await prisma.$queryRaw`SELECT 1 FROM PipelineStage LIMIT 1`;
+    tableExists = true;
+  } catch {
+    tableExists = false;
+  }
+  return tableExists;
+}
 async function getStages() {
   if (stagesCache && Date.now() < stagesCacheExpiry) {
     return stagesCache;
   }
   let stages = [];
-  try {
-    stages = await prisma.pipelineStage.findMany({
-      orderBy: { position: "asc" }
-    });
-  } catch (err) {
-    console.error("[stages] Failed to load pipeline stages — run pending migrations:", err);
+  if (await checkTableExists()) {
+    try {
+      stages = await prisma.$queryRaw`
+        SELECT id, name, label, colorKey, position
+        FROM PipelineStage
+        ORDER BY position ASC
+      `;
+    } catch (err) {
+      console.error("[stages] Failed to load pipeline stages:", err);
+    }
   }
   if (stages.length === 0) {
     stages = DEFAULT_STAGE_SEED.map((s, i) => ({
@@ -220,21 +235,20 @@ async function getFirstStageName() {
 let seeded = false;
 async function seedDefaultStages() {
   if (seeded) return;
+  if (!await checkTableExists()) {
+    return;
+  }
   try {
-    const count = await prisma.pipelineStage.count();
-    if (count > 0) {
+    const rows = await prisma.$queryRaw`SELECT id FROM PipelineStage LIMIT 1`;
+    if (rows.length > 0) {
       seeded = true;
       return;
     }
     for (const s of DEFAULT_STAGE_SEED) {
-      await prisma.pipelineStage.create({
-        data: {
-          name: s.name,
-          label: s.label,
-          colorKey: s.colorKey,
-          position: s.position
-        }
-      });
+      await prisma.$executeRaw`
+        INSERT INTO PipelineStage (id, name, label, colorKey, position, createdAt, updatedAt)
+        VALUES (${s.name.toLowerCase().replace(/_/g, "")}, ${s.name}, ${s.label}, ${s.colorKey}, ${s.position}, NOW(), NOW())
+      `;
     }
     console.log("[stages] Seeded default pipeline stages");
     invalidateStagesCache();
@@ -3037,26 +3051,68 @@ async function getScoreConfig() {
     create: { id: "default" }
   });
 }
+let waTableExists = null;
+async function checkWorkflowActionTable() {
+  if (waTableExists !== null) return waTableExists;
+  try {
+    await prisma.$queryRaw`SELECT 1 FROM WorkflowAction LIMIT 1`;
+    waTableExists = true;
+  } catch {
+    waTableExists = false;
+  }
+  return waTableExists;
+}
 async function evaluateWorkflows(event, leadId, metadata) {
   try {
-    const rules = await prisma.workflowRule.findMany({
-      where: { triggerEvent: event, active: true },
-      include: {
-        actions: {
-          where: { active: true },
-          orderBy: { order: "asc" }
+    const hasORM = !!prisma.workflowRule;
+    let rules = [];
+    if (hasORM) {
+      rules = await prisma.workflowRule.findMany({
+        where: { triggerEvent: event, active: true },
+        include: {
+          actions: {
+            where: { active: true },
+            orderBy: { order: "asc" }
+          }
         }
+      });
+    } else {
+      const ruleRows = await prisma.$queryRaw`
+        SELECT id, name, triggerEvent, triggerCondition, action, actionConfig, active
+        FROM WorkflowRule
+        WHERE triggerEvent = ${event} AND active = 1
+      `;
+      const hasActionsTable = await checkWorkflowActionTable();
+      for (const r of ruleRows) {
+        let actions = [];
+        if (hasActionsTable) {
+          const actionRows = await prisma.$queryRaw`
+            SELECT id, type, config, \`order\`, active
+            FROM WorkflowAction
+            WHERE ruleId = ${r.id} AND active = 1
+            ORDER BY \`order\` ASC
+          `;
+          actions = actionRows.map((a) => ({ type: a.type, config: a.config }));
+        }
+        if (actions.length === 0 && r.action && r.action !== "LEGACY" && r.actionConfig) {
+          actions = [{ type: r.action, config: r.actionConfig }];
+        }
+        rules.push({
+          ...r,
+          triggerCondition: r.triggerCondition ? JSON.parse(r.triggerCondition) : null,
+          actions: actions.map((a) => ({
+            ...a,
+            config: a.config ? JSON.parse(a.config) : {}
+          }))
+        });
       }
-    });
+    }
     for (const rule of rules) {
       try {
         const conditionMatch = matchesCondition(rule.triggerCondition, metadata);
         if (!conditionMatch) continue;
         const ctx = { leadId, metadata };
-        const actions = rule.actions && rule.actions.length > 0 ? rule.actions : (
-          // Fallback: legacy single-action rules that haven't been migrated yet
-          rule.action && rule.action !== "LEGACY" ? [{ id: `legacy_${rule.id}`, ruleId: rule.id, type: rule.action, config: rule.actionConfig, order: 0, active: true, createdAt: rule.createdAt, updatedAt: rule.updatedAt }] : []
-        );
+        const actions = rule.actions && rule.actions.length > 0 ? rule.actions : rule.action && rule.action !== "LEGACY" ? [{ id: `legacy_${rule.id}`, ruleId: rule.id, type: rule.action, config: rule.actionConfig, order: 0, active: true }] : [];
         for (const actionStep of actions) {
           try {
             await executeAction(actionStep.type, actionStep.config, ctx, rule.id);
@@ -16701,17 +16757,16 @@ async function loader$7({
 async function action$5({
   request
 }) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   await requireAdmin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
-  await seedDefaultStages();
-  if (!prisma.pipelineStage) {
-    const available = Object.keys(prisma).filter((k) => typeof prisma[k] === "object").join(", ");
+  if (!await checkTableExists()) {
     return {
-      error: `Prisma Client is missing the pipelineStage model. Available models: [${available || "none"}]. Run "npx prisma generate" and restart the server.`
+      error: "The PipelineStage table does not exist in the database. Please run migration 005_pipeline_stages.sql first."
     };
   }
+  await seedDefaultStages();
   try {
     if (intent === "addStage") {
       const name = (_a = formData.get("name")) == null ? void 0 : _a.trim().toUpperCase().replace(/\s+/g, "_");
@@ -16722,136 +16777,72 @@ async function action$5({
           error: "Stage name and label are required"
         };
       }
-      const existing = await prisma.pipelineStage.findUnique({
-        where: {
-          name
-        }
-      });
-      if (existing) {
+      const existing = await prisma.$queryRaw`SELECT * FROM PipelineStage WHERE name = ${name} LIMIT 1`;
+      if (existing.length > 0) {
         return {
           error: `A stage with name "${name}" already exists`
         };
       }
-      const maxPos = await prisma.pipelineStage.aggregate({
-        _max: {
-          position: true
-        }
-      });
-      const nextPos = (maxPos._max.position ?? -1) + 1;
-      await prisma.pipelineStage.create({
-        data: {
-          name,
-          label,
-          colorKey: colorKey || "slate",
-          position: nextPos
-        }
-      });
+      const maxPosRows = await prisma.$queryRaw`SELECT MAX(position) as maxPos FROM PipelineStage`;
+      const nextPos = (((_c = maxPosRows[0]) == null ? void 0 : _c.maxPos) ?? -1) + 1;
+      await prisma.$executeRaw`
+        INSERT INTO PipelineStage (id, name, label, colorKey, position, createdAt, updatedAt)
+        VALUES (${`stage_${name.toLowerCase()}`}, ${name}, ${label}, ${colorKey || "slate"}, ${nextPos}, NOW(), NOW())
+      `;
       invalidateStagesCache();
       return redirect("/settings/stages");
     }
     if (intent === "editStage") {
       const id = formData.get("id");
-      const label = (_c = formData.get("label")) == null ? void 0 : _c.trim();
+      const label = (_d = formData.get("label")) == null ? void 0 : _d.trim();
       const colorKey = formData.get("colorKey");
-      const newName = (_d = formData.get("name")) == null ? void 0 : _d.trim().toUpperCase().replace(/\s+/g, "_");
+      const newName = (_e = formData.get("name")) == null ? void 0 : _e.trim().toUpperCase().replace(/\s+/g, "_");
       if (!id || !label || !newName) {
         return {
           error: "All fields are required"
         };
       }
-      const stage = await prisma.pipelineStage.findUnique({
-        where: {
-          id
-        }
-      });
-      if (!stage) {
+      const stageRows = await prisma.$queryRaw`SELECT * FROM PipelineStage WHERE id = ${id} LIMIT 1`;
+      if (stageRows.length === 0) {
         return {
           error: "Stage not found"
         };
       }
+      const stage = stageRows[0];
       if (newName !== stage.name) {
-        const existing = await prisma.pipelineStage.findUnique({
-          where: {
-            name: newName
-          }
-        });
-        if (existing && existing.id !== id) {
+        const dupRows = await prisma.$queryRaw`SELECT * FROM PipelineStage WHERE name = ${newName} AND id != ${id} LIMIT 1`;
+        if (dupRows.length > 0) {
           return {
             error: `A stage with name "${newName}" already exists`
           };
         }
-        await prisma.$transaction([prisma.pipelineStage.update({
-          where: {
-            id
-          },
-          data: {
-            name: newName,
-            label,
-            colorKey
-          }
-        }), prisma.lead.updateMany({
-          where: {
-            stage: stage.name
-          },
-          data: {
-            stage: newName
-          }
-        }), prisma.stageHistory.updateMany({
-          where: {
-            fromStage: stage.name
-          },
-          data: {
-            fromStage: newName
-          }
-        }), prisma.stageHistory.updateMany({
-          where: {
-            toStage: stage.name
-          },
-          data: {
-            toStage: newName
-          }
-        })]);
+        await prisma.$executeRaw`UPDATE PipelineStage SET name = ${newName}, label = ${label}, colorKey = ${colorKey}, updatedAt = NOW() WHERE id = ${id}`;
+        await prisma.$executeRaw`UPDATE Lead SET stage = ${newName} WHERE stage = ${stage.name}`;
+        await prisma.$executeRaw`UPDATE StageHistory SET fromStage = ${newName} WHERE fromStage = ${stage.name}`;
+        await prisma.$executeRaw`UPDATE StageHistory SET toStage = ${newName} WHERE toStage = ${stage.name}`;
       } else {
-        await prisma.pipelineStage.update({
-          where: {
-            id
-          },
-          data: {
-            label,
-            colorKey
-          }
-        });
+        await prisma.$executeRaw`UPDATE PipelineStage SET label = ${label}, colorKey = ${colorKey}, updatedAt = NOW() WHERE id = ${id}`;
       }
       invalidateStagesCache();
       return redirect("/settings/stages");
     }
     if (intent === "deleteStage") {
       const id = formData.get("id");
-      const stage = await prisma.pipelineStage.findUnique({
-        where: {
-          id
-        }
-      });
-      if (!stage) {
+      const stageRows = await prisma.$queryRaw`SELECT * FROM PipelineStage WHERE id = ${id} LIMIT 1`;
+      if (stageRows.length === 0) {
         return {
           error: "Stage not found"
         };
       }
-      const leadCount = await prisma.lead.count({
-        where: {
-          stage: stage.name
-        }
-      });
+      const stage = stageRows[0];
+      const countRows = await prisma.$queryRaw`SELECT COUNT(*) as cnt FROM Lead WHERE stage = ${stage.name}`;
+      const leadCount = Number(((_f = countRows[0]) == null ? void 0 : _f.cnt) ?? 0);
       if (leadCount > 0) {
         return {
           error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`
         };
       }
-      await prisma.pipelineStage.delete({
-        where: {
-          id
-        }
-      });
+      await prisma.$executeRaw`DELETE FROM PipelineStage WHERE id = ${id}`;
       invalidateStagesCache();
       return redirect("/settings/stages");
     }
@@ -16861,15 +16852,9 @@ async function action$5({
         error: "No order provided"
       };
       const order = JSON.parse(orderJson);
-      const txOps = order.map((id, index) => prisma.pipelineStage.update({
-        where: {
-          id
-        },
-        data: {
-          position: index
-        }
-      }));
-      await prisma.$transaction(txOps);
+      for (let i = 0; i < order.length; i++) {
+        await prisma.$executeRaw`UPDATE PipelineStage SET position = ${i}, updatedAt = NOW() WHERE id = ${order[i]}`;
+      }
       invalidateStagesCache();
       return redirect("/settings/stages");
     }
@@ -17382,21 +17367,43 @@ async function loader$5({
   });
   let rules = [];
   try {
-    rules = await prisma.workflowRule.findMany({
-      orderBy: {
-        createdAt: "desc"
-      },
-      include: {
-        actions: {
-          where: {
-            active: true
-          },
-          orderBy: {
-            order: "asc"
+    const hasWorkflowRuleModel = !!prisma.workflowRule;
+    if (hasWorkflowRuleModel) {
+      const hasWorkflowActionModel = !!prisma.workflowAction;
+      rules = await prisma.workflowRule.findMany({
+        orderBy: {
+          createdAt: "desc"
+        },
+        ...hasWorkflowActionModel ? {
+          include: {
+            actions: {
+              where: {
+                active: true
+              },
+              orderBy: {
+                order: "asc"
+              }
+            }
           }
-        }
+        } : {}
+      });
+    } else {
+      const ruleRows = await prisma.$queryRaw`SELECT id, name, triggerEvent, triggerCondition, action, actionConfig, active, description, createdAt FROM WorkflowRule ORDER BY createdAt DESC`;
+      let actionRows = [];
+      try {
+        actionRows = await prisma.$queryRaw`SELECT id, ruleId, type, config, \`order\`, active FROM WorkflowAction WHERE active = 1 ORDER BY \`order\` ASC`;
+      } catch {
       }
-    });
+      rules = ruleRows.map((r) => ({
+        ...r,
+        triggerCondition: r.triggerCondition ? JSON.parse(r.triggerCondition) : null,
+        actionConfig: r.actionConfig ? JSON.parse(r.actionConfig) : {},
+        actions: actionRows.filter((a) => a.ruleId === r.id).map((a) => ({
+          ...a,
+          config: a.config ? JSON.parse(a.config) : {}
+        }))
+      }));
+    }
   } catch (err) {
     console.error("[workflows] Failed to load rules — run pending migrations:", err);
   }
@@ -19752,7 +19759,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-CZX4hGZP.js").then(({
+    import("./pipeline-DpyDlkCp.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -19781,7 +19788,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-CZX4hGZP.js").then(({
+    import("./pipeline-DpyDlkCp.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

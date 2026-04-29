@@ -144,15 +144,41 @@ export async function loader({ request }: { request: Request }) {
 
   let rules: any[] = [];
   try {
-    rules = await prisma.workflowRule.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        actions: {
-          where: { active: true },
-          orderBy: { order: "asc" },
-        },
-      },
-    });
+    const hasWorkflowRuleModel = !!(prisma as any).workflowRule;
+    if (hasWorkflowRuleModel) {
+      const hasWorkflowActionModel = !!(prisma as any).workflowAction;
+      rules = await (prisma as any).workflowRule.findMany({
+        orderBy: { createdAt: "desc" },
+        ...(hasWorkflowActionModel ? {
+          include: {
+            actions: {
+              where: { active: true },
+              orderBy: { order: "asc" },
+            },
+          },
+        } : {}),
+      });
+    } else {
+      // Raw SQL fallback when Prisma models aren't generated
+      type RuleRow = { id: string; name: string; triggerEvent: string; triggerCondition: string | null; action: string; actionConfig: string | null; active: number; description: string | null; createdAt: Date };
+      const ruleRows = await prisma.$queryRaw<RuleRow[]>`SELECT id, name, triggerEvent, triggerCondition, action, actionConfig, active, description, createdAt FROM WorkflowRule ORDER BY createdAt DESC`;
+
+      type ActionRow = { id: string; ruleId: string; type: string; config: string; order: number; active: number };
+      let actionRows: ActionRow[] = [];
+      try {
+        actionRows = await prisma.$queryRaw<ActionRow[]>`SELECT id, ruleId, type, config, \`order\`, active FROM WorkflowAction WHERE active = 1 ORDER BY \`order\` ASC`;
+      } catch { /* WorkflowAction table may not exist yet */ }
+
+      rules = ruleRows.map(r => ({
+        ...r,
+        triggerCondition: r.triggerCondition ? JSON.parse(r.triggerCondition) : null,
+        actionConfig: r.actionConfig ? JSON.parse(r.actionConfig) : {},
+        actions: actionRows.filter(a => a.ruleId === r.id).map(a => ({
+          ...a,
+          config: a.config ? JSON.parse(a.config) : {},
+        })),
+      }));
+    }
   } catch (err) {
     console.error("[workflows] Failed to load rules — run pending migrations:", err);
   }
