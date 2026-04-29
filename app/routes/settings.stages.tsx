@@ -161,8 +161,13 @@ export async function action({ request }: { request: Request }) {
       if (!orderJson) return { error: "No order provided" };
 
       const order: string[] = JSON.parse(orderJson);
+      let updated = 0;
       for (let i = 0; i < order.length; i++) {
-        await prisma.$executeRaw`UPDATE PipelineStage SET position = ${i}, updatedAt = NOW() WHERE id = ${order[i]}`;
+        const result = await prisma.$executeRaw`UPDATE PipelineStage SET position = ${i}, updatedAt = NOW() WHERE id = ${order[i]}`;
+        updated += Number(result);
+      }
+      if (updated === 0) {
+        return { error: `Reorder had no effect. IDs sent: [${order.join(", ")}]. The PipelineStage rows may have different IDs than what the frontend loaded.` };
       }
       invalidateStagesCache();
       return redirect("/settings/stages");

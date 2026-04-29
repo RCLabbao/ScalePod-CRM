@@ -24,6 +24,7 @@ const CACHE_TTL_MS = 60_000;
 export function invalidateStagesCache() {
   stagesCache = null;
   stagesCacheExpiry = 0;
+  tableExists = null; // Re-check table existence on next query
 }
 
 // ── Check if PipelineStage table exists ────────────────────────
