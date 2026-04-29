@@ -1,4 +1,4 @@
-import { p as prisma, l as logActivity } from "./server-build-DoUwdrn8.js";
+import { p as prisma, l as logActivity, g as getScoreConfig, s as scoreLeadWithRules } from "./server-build-CVeUVxhE.js";
 import dns from "node:dns/promises";
 import axios from "axios";
 import * as cheerio from "cheerio";
@@ -740,6 +740,27 @@ Pinterest: ${store.pinterest}`;
       createdById: userId
     }
   });
+  const scoreConfig = await getScoreConfig();
+  if (scoreConfig.autoScore) {
+    try {
+      const scoreResult = await scoreLeadWithRules(void 0, {
+        industry: store.industry,
+        estimatedTraffic: null,
+        techStack: "Shopify",
+        leadSource: "SHOPIFY_SCRAPER",
+        website: store.url
+      });
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          score: scoreResult.score,
+          maxScore: scoreResult.maxScore,
+          temperature: scoreResult.temperature
+        }
+      });
+    } catch {
+    }
+  }
   await logActivity({
     leadId: lead.id,
     userId,

@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.server";
 import { requireAuth } from "../lib/auth.guard.server";
 import { formatStage } from "../lib/activity-log";
 import { AppShell } from "../components/app-shell";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -23,6 +23,9 @@ import {
   PieChart,
   Layers,
   Calendar,
+  Thermometer,
+  Zap,
+  Clock,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -200,7 +203,7 @@ export async function loader({ request }: { request: Request }) {
 
   let totalLeads = 0;
   try {
-    totalLeads = await prisma.lead.count(startDate ? { where: { createdAt: { gte: startDate } } } : {});
+    totalLeads = await prisma.lead.count(startDate ? { where: { createdAt: { gte: startDate } } } : undefined);
   } catch (err) {
     console.error("[analytics] Failed to count leads:", err);
   }
@@ -213,6 +216,153 @@ export async function loader({ request }: { request: Request }) {
   } catch (err) {
     console.error("[analytics] Failed to count emails:", err);
   }
+
+  // ── Scoring Analytics ──────────────────────────────────────────
+
+  let temperatureDistribution: { temperature: string; count: number; avgScore: number }[] = [];
+  try {
+    const tempGroups = await prisma.lead.groupBy({
+      by: ["temperature"],
+      _count: { id: true },
+      _avg: { score: true },
+      orderBy: { _count: { id: "desc" } },
+      ...(startDate ? { where: { createdAt: { gte: startDate } } } : {}),
+    });
+    temperatureDistribution = tempGroups.map((g) => ({
+      temperature: g.temperature || "NONE",
+      count: g._count.id,
+      avgScore: Math.round((g._avg.score || 0) * 10) / 10,
+    }));
+  } catch (err) {
+    console.error("[analytics] Failed to load temperature distribution:", err);
+  }
+
+  let scoreBySource: { source: string; avgScore: number; avgMaxScore: number; count: number }[] = [];
+  try {
+    const sourceGroups = await prisma.lead.groupBy({
+      by: ["leadSource"],
+      _count: { id: true },
+      _avg: { score: true, maxScore: true },
+      orderBy: { _avg: { score: "desc" } },
+      ...(startDate ? { where: { createdAt: { gte: startDate } } } : {}),
+    });
+    scoreBySource = sourceGroups
+      .filter((g) => g.leadSource)
+      .map((g) => ({
+        source: g.leadSource || "Unknown",
+        avgScore: Math.round((g._avg.score || 0) * 10) / 10,
+        avgMaxScore: Math.round((g._avg.maxScore || 0) * 10) / 10,
+        count: g._count.id,
+      }));
+  } catch (err) {
+    console.error("[analytics] Failed to load score by source:", err);
+  }
+
+  // Score trend over time (monthly avg score)
+  let scoreTrend: { month: string; avgScore: number }[] = [];
+  try {
+    const leadsWithScores = await prisma.lead.findMany({
+      where: {
+        score: { not: null as any },
+        ...(startDate ? { createdAt: { gte: startDate } } : {}),
+      },
+      select: { createdAt: true, score: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const monthMap = new Map<string, { total: number; count: number }>();
+    for (const lead of leadsWithScores) {
+      const d = new Date(lead.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const existing = monthMap.get(key) || { total: 0, count: 0 };
+      existing.total += lead.score || 0;
+      existing.count += 1;
+      monthMap.set(key, existing);
+    }
+    scoreTrend = Array.from(monthMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([key, { total, count }]) => {
+        const [y, m] = key.split("-");
+        const label = new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+        return { month: label, avgScore: Math.round((total / count) * 10) / 10 };
+      });
+  } catch (err) {
+    console.error("[analytics] Failed to load score trend:", err);
+  }
+
+  // Conversion by temperature (CLOSED_WON rate per temperature)
+  let conversionByTemp: { temperature: string; total: number; won: number; rate: number }[] = [];
+  try {
+    const tempStageGroups = await prisma.lead.groupBy({
+      by: ["temperature", "stage"],
+      _count: { id: true },
+      ...(startDate ? { where: { createdAt: { gte: startDate } } } : {}),
+    });
+    const tempTotals = new Map<string, number>();
+    const tempWon = new Map<string, number>();
+    for (const g of tempStageGroups) {
+      const temp = g.temperature || "NONE";
+      tempTotals.set(temp, (tempTotals.get(temp) || 0) + g._count.id);
+      if (g.stage === "CLOSED_WON") {
+        tempWon.set(temp, (tempWon.get(temp) || 0) + g._count.id);
+      }
+    }
+    for (const [temp, total] of Array.from(tempTotals.entries())) {
+      const won = tempWon.get(temp) || 0;
+      conversionByTemp.push({ temperature: temp, total, won, rate: total > 0 ? Math.round((won / total) * 100) : 0 });
+    }
+    conversionByTemp.sort((a, b) => b.rate - a.rate);
+  } catch (err) {
+    console.error("[analytics] Failed to load conversion by temperature:", err);
+  }
+
+  // Pipeline velocity (avg days per stage transition)
+  let pipelineVelocity: { stage: string; avgDays: number }[] = [];
+  try {
+    const leadStageMap = new Map<string, { fromStage: string | null; toStage: string; changedAt: Date }[]>();
+    for (const h of rawHistory) {
+      if (!leadStageMap.has(h.leadId)) leadStageMap.set(h.leadId, []);
+      leadStageMap.get(h.leadId)!.push({
+        fromStage: h.fromStage,
+        toStage: h.toStage,
+        changedAt: new Date(h.changedAt),
+      });
+    }
+    const stageDurations: Record<string, number[]> = {};
+    for (const [, entries] of Array.from(leadStageMap.entries())) {
+      const sorted = entries.sort((a: { changedAt: Date }, b: { changedAt: Date }) => a.changedAt.getTime() - b.changedAt.getTime());
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const days = (curr.changedAt.getTime() - prev.changedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (days >= 0 && days < 365) {
+          const stage = prev.toStage;
+          if (!stageDurations[stage]) stageDurations[stage] = [];
+          stageDurations[stage].push(days);
+        }
+      }
+    }
+    for (const stage of [...PIPELINE_STAGES, "CLOSED_LOST"]) {
+      const durations = stageDurations[stage] || [];
+      if (durations.length > 0) {
+        pipelineVelocity.push({
+          stage,
+          avgDays: Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[analytics] Failed to compute pipeline velocity:", err);
+  }
+
+  // Overall avg score and HOT count for KPI cards
+  const avgScorePct = scoreBySource.length > 0
+    ? Math.round((scoreBySource.reduce((a, s) => a + s.avgScore, 0) / scoreBySource.length / (scoreBySource.reduce((a, s) => a + s.avgMaxScore, 0) / scoreBySource.length || 1)) * 100)
+    : 0;
+  const hotCount = temperatureDistribution.find((t) => t.temperature === "HOT")?.count || 0;
+  const avgVelocityDays = pipelineVelocity.length > 0
+    ? Math.round((pipelineVelocity.reduce((a, v) => a + v.avgDays, 0) / pipelineVelocity.length) * 10) / 10
+    : 0;
 
   return {
     user,
@@ -230,6 +380,14 @@ export async function loader({ request }: { request: Request }) {
     proposalHistory,
     contactedHistory,
     totalEmailsSent,
+    temperatureDistribution,
+    scoreBySource,
+    scoreTrend,
+    conversionByTemp,
+    pipelineVelocity,
+    avgScorePct,
+    hotCount,
+    avgVelocityDays,
   };
 }
 
@@ -559,6 +717,13 @@ export default function Analytics() {
           <KPICard icon={Target} label="Win Rate" value={`${data.winRate}%`} sub={`${data.won}W / ${data.lost}L`} accent="amber" />
         </div>
 
+        {/* Scoring KPI Cards */}
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+          <KPICard icon={Zap} label="Avg Score %" value={data.avgScorePct ? `${data.avgScorePct}%` : "—"} sub="Across all scored leads" accent="orange" />
+          <KPICard icon={Thermometer} label="HOT Leads" value={data.hotCount} sub="High-priority prospects" accent="red" />
+          <KPICard icon={Clock} label="Avg Velocity" value={data.avgVelocityDays ? `${data.avgVelocityDays}d` : "—"} sub="Avg days per stage" accent="blue" />
+        </div>
+
         {/* Row 2: Funnel + Won/Lost */}
         <div className="grid gap-6 lg:grid-cols-5">
           {/* Conversion Funnel */}
@@ -768,7 +933,227 @@ export default function Analytics() {
           </Card>
         </div>
 
-        {/* Row 5: Detail Tables */}
+        {/* Row 5: Temperature Distribution + Conversion by Temperature */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Temperature Distribution */}
+          <Card className="hover:shadow-md hover:-translate-y-px transition-all duration-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Thermometer className="h-4 w-4 text-muted-foreground/50" />
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Temperature Distribution
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {data.temperatureDistribution.length === 0 ? (
+                <EmptyState icon={Thermometer} title="No temperature data" subtitle="Score leads to see distribution" />
+              ) : (
+                <div className="space-y-2.5">
+                  {data.temperatureDistribution.map((t) => {
+                    const tempMeta: Record<string, { color: string; bg: string }> = {
+                      HOT: { color: "text-red-400", bg: "bg-red-500/50" },
+                      WARM: { color: "text-amber-400", bg: "bg-amber-500/50" },
+                      COLD: { color: "text-blue-400", bg: "bg-blue-500/50" },
+                      NONE: { color: "text-slate-400", bg: "bg-slate-400/50" },
+                    };
+                    const meta = tempMeta[t.temperature] || tempMeta.NONE;
+                    const maxCount = Math.max(...data.temperatureDistribution.map((x) => x.count), 1);
+                    return (
+                      <div key={t.temperature} className="flex items-center gap-3 group">
+                        <span className={`text-xs font-medium w-12 shrink-0 text-right ${meta.color}`}>
+                          {t.temperature}
+                        </span>
+                        <div className="flex-1 h-6 bg-muted/20 rounded-lg overflow-hidden ring-1 ring-border/20">
+                          <div
+                            className={`h-full rounded-lg ${meta.bg} flex items-center px-2 transition-all duration-500 group-hover:opacity-75`}
+                            style={{ width: `${Math.max((t.count / maxCount) * 100, 6)}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-white/90 drop-shadow-sm">{t.count}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/60 w-16 shrink-0 tabular-nums">
+                          avg {t.avgScore}pts
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Conversion by Temperature */}
+          <Card className="hover:shadow-md hover:-translate-y-px transition-all duration-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-muted-foreground/50" />
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Conversion by Temperature
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {data.conversionByTemp.length === 0 ? (
+                <EmptyState icon={Target} title="No conversion data" subtitle="Leads with temperature data needed" />
+              ) : (
+                <div className="space-y-2.5">
+                  {data.conversionByTemp.map((c) => {
+                    const tempMeta: Record<string, { color: string; bg: string }> = {
+                      HOT: { color: "text-red-400", bg: "bg-red-500/50" },
+                      WARM: { color: "text-amber-400", bg: "bg-amber-500/50" },
+                      COLD: { color: "text-blue-400", bg: "bg-blue-500/50" },
+                      NONE: { color: "text-slate-400", bg: "bg-slate-400/50" },
+                    };
+                    const meta = tempMeta[c.temperature] || tempMeta.NONE;
+                    return (
+                      <div key={c.temperature} className="flex items-center gap-3 group">
+                        <span className={`text-xs font-medium w-12 shrink-0 text-right ${meta.color}`}>
+                          {c.temperature}
+                        </span>
+                        <div className="flex-1 h-6 bg-muted/20 rounded-lg overflow-hidden ring-1 ring-border/20">
+                          <div
+                            className={`h-full rounded-lg bg-emerald-500/50 flex items-center px-2 transition-all duration-500`}
+                            style={{ width: `${Math.max(c.rate, c.rate > 0 ? 4 : 0)}%` }}
+                          >
+                            {c.rate > 5 && (
+                              <span className="text-[10px] font-bold text-white/90 drop-shadow-sm">{c.rate}%</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/60 w-20 shrink-0 tabular-nums text-right">
+                          {c.won}/{c.total} won
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Row 6: Score by Source + Pipeline Velocity */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Score by Lead Source */}
+          <Card className="hover:shadow-md hover:-translate-y-px transition-all duration-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-muted-foreground/50" />
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Score by Lead Source
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {data.scoreBySource.length === 0 ? (
+                <EmptyState icon={Zap} title="No scoring data" subtitle="Set up scoring rules to see scores by source" />
+              ) : (
+                <div className="space-y-2.5">
+                  {data.scoreBySource.slice(0, 8).map((s) => {
+                    const pct = s.avgMaxScore > 0 ? Math.round((s.avgScore / s.avgMaxScore) * 100) : 0;
+                    const maxPct = Math.max(...data.scoreBySource.map((x) => x.avgMaxScore > 0 ? (x.avgScore / x.avgMaxScore) * 100 : 0), 1);
+                    return (
+                      <div key={s.source} className="flex items-center gap-3 group">
+                        <span className="text-xs text-muted-foreground w-28 shrink-0 truncate text-right">{s.source}</span>
+                        <div className="flex-1 h-6 bg-muted/20 rounded-lg overflow-hidden ring-1 ring-border/20">
+                          <div
+                            className="h-full rounded-lg bg-orange-500/40 flex items-center px-2 transition-all duration-500 group-hover:bg-orange-500/55"
+                            style={{ width: `${Math.max(pct, 4)}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-white/90 drop-shadow-sm">{pct}%</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/60 w-12 shrink-0 tabular-nums text-right">
+                          {s.avgScore}/{s.avgMaxScore}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pipeline Velocity */}
+          <Card className="hover:shadow-md hover:-translate-y-px transition-all duration-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground/50" />
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Pipeline Velocity
+                </CardTitle>
+              </div>
+              <CardDescription>Avg days spent in each stage before advancing</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.pipelineVelocity.length === 0 ? (
+                <EmptyState icon={Clock} title="No velocity data" subtitle="Stage transitions needed to calculate velocity" />
+              ) : (
+                <div className="space-y-2.5">
+                  {data.pipelineVelocity.map((v) => {
+                    const meta = STAGE_META[v.stage] || STAGE_META.SOURCED;
+                    const maxDays = Math.max(...data.pipelineVelocity.map((x) => x.avgDays), 1);
+                    return (
+                      <div key={v.stage} className="flex items-center gap-3 group">
+                        <span className="text-xs text-muted-foreground w-32 shrink-0 truncate text-right">
+                          {formatStage(v.stage)}
+                        </span>
+                        <div className="flex-1 h-6 bg-muted/20 rounded-lg overflow-hidden ring-1 ring-border/20">
+                          <div
+                            className={`h-full rounded-lg ${meta.bar} flex items-center px-2 transition-all duration-500`}
+                            style={{ width: `${Math.max((v.avgDays / maxDays) * 100, 4)}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-white/90 drop-shadow-sm">{v.avgDays}d</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Score Trend */}
+        {data.scoreTrend.length > 0 && (
+          <Card className="hover:shadow-md hover:-translate-y-px transition-all duration-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground/50" />
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Score Trend
+                </CardTitle>
+                <CardDescription>Average lead score over time</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-3" style={{ height: 160 }}>
+                {data.scoreTrend.map((m) => {
+                  const maxScore = Math.max(...data.scoreTrend.map((x) => x.avgScore), 1);
+                  const pct = maxScore > 0 ? (m.avgScore / maxScore) * 100 : 0;
+                  return (
+                    <div key={m.month} className="flex-1 flex flex-col items-center gap-1 group">
+                      <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        {m.avgScore}pts
+                      </span>
+                      <div className="flex items-end w-full" style={{ height: 120 }}>
+                        <div
+                          className="w-full rounded-t-md bg-orange-500/50 min-h-[3px] transition-all duration-500 group-hover:bg-orange-500/65"
+                          style={{ height: `${Math.max(pct, 3)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap font-medium">{m.month}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Row 7: Detail Tables */}
         <Card className="hover:shadow-md hover:-translate-y-px transition-all duration-200">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between flex-wrap gap-3">

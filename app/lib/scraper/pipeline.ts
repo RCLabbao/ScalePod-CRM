@@ -1,5 +1,7 @@
 import { prisma } from "../prisma.server";
 import { logActivity } from "../activity-log.server";
+import { scoreLeadWithRules } from "../scoring-rules.server";
+import { getScoreConfig } from "../scoring.server";
 import { parseUploadedUrls, deduplicateUrls } from "./discovery";
 import { discoverFromDNS } from "./discovery-dns";
 import { validateShopifyStore } from "./validator";
@@ -249,6 +251,30 @@ async function importStore(store: StoreResult, jobId: string, userId: string) {
       createdById: userId,
     },
   });
+
+  // Auto-score the scraper lead using rules
+  const scoreConfig = await getScoreConfig();
+  if (scoreConfig.autoScore) {
+    try {
+      const scoreResult = await scoreLeadWithRules(undefined, {
+        industry: store.industry,
+        estimatedTraffic: null,
+        techStack: "Shopify",
+        leadSource: "SHOPIFY_SCRAPER",
+        website: store.url,
+      });
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          score: scoreResult.score,
+          maxScore: scoreResult.maxScore,
+          temperature: scoreResult.temperature,
+        },
+      });
+    } catch {
+      // Scoring failure should not block scraper import
+    }
+  }
 
   await logActivity({
     leadId: lead.id,

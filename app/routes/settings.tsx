@@ -5,7 +5,7 @@ import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { Key, Users, ShieldCheck, Database, Sun, Moon } from "lucide-react";
+import { Key, Users, ShieldCheck, Database, Sun, Moon, Zap, Workflow } from "lucide-react";
 import { useTheme } from "../hooks/use-theme";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router";
@@ -264,6 +264,48 @@ export default function Settings() {
                   <Button variant="outline" className="w-full">
                     <Key className="mr-2 h-4 w-4" />
                     Manage API Keys
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Scoring Rules (Admin) */}
+          {user?.role === "ADMIN" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Scoring Rules
+                </CardTitle>
+                <CardDescription>Attribute-based rules that auto-score leads</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link to="/settings/scoring-rules">
+                  <Button variant="outline" className="w-full">
+                    <Zap className="mr-2 h-4 w-4" />
+                    Manage Scoring Rules
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Workflows (Admin) */}
+          {user?.role === "ADMIN" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Workflow className="h-4 w-4" />
+                  Workflows
+                </CardTitle>
+                <CardDescription>Automate actions when leads change state</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link to="/settings/workflows">
+                  <Button variant="outline" className="w-full">
+                    <Workflow className="mr-2 h-4 w-4" />
+                    Manage Workflows
                   </Button>
                 </Link>
               </CardContent>

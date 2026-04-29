@@ -1,14 +1,15 @@
 import { prisma } from "./prisma.server";
 import type { ActivityAction, ActivityLogInput } from "./activity-log";
+import { evaluateWorkflows } from "./workflows.server";
 
 export type { ActivityLogInput };
 
 /**
- * Log an activity for a lead.
- * This creates an audit trail entry showing who did what and when.
+ * Log an activity for a lead and fire matching workflow rules.
+ * Workflow evaluation is fire-and-forget — errors never block the caller.
  */
 export async function logActivity(input: ActivityLogInput) {
-  return prisma.activityLog.create({
+  const log = await prisma.activityLog.create({
     data: {
       leadId: input.leadId,
       userId: input.userId,
@@ -26,6 +27,13 @@ export async function logActivity(input: ActivityLogInput) {
       },
     },
   });
+
+  // Fire-and-forget: evaluate workflow rules after logging
+  evaluateWorkflows(input.action, input.leadId, input.metadata ?? {}).catch(() => {
+    // Swallow errors — workflow failures must not break activity logging
+  });
+
+  return log;
 }
 
 /**

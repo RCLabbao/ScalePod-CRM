@@ -1,6 +1,8 @@
 import { prisma } from "./prisma.server";
 import { parseCSV, mapRowToLead, type LeadFieldName } from "./csv-parser";
 import { logActivity } from "./activity-log.server";
+import { scoreLeadWithRules } from "./scoring-rules.server";
+import { getScoreConfig } from "./scoring.server";
 
 export async function processImport(importId: string) {
   const importJob = await prisma.leadImport.findUnique({
@@ -79,6 +81,30 @@ export async function processImport(importId: string) {
         description: `${importJob.user?.name || "Unknown"} imported this lead`,
         metadata: { source: "CSV Import", fileName: importJob.fileName },
       });
+
+      // Auto-score the imported lead
+      const scoreConfig = await getScoreConfig();
+      if (scoreConfig.autoScore) {
+        try {
+          const scoreResult = await scoreLeadWithRules(undefined, {
+            industry: lead.industry,
+            estimatedTraffic: lead.estimatedTraffic,
+            techStack: lead.techStack,
+            leadSource: lead.leadSource,
+            website: lead.website,
+          });
+          await prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              score: scoreResult.score,
+              maxScore: scoreResult.maxScore,
+              temperature: scoreResult.temperature,
+            },
+          });
+        } catch {
+          // Scoring failure should not block import
+        }
+      }
 
       imported++;
     } catch (err) {

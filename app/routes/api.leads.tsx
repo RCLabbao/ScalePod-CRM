@@ -2,6 +2,8 @@ import { data } from "react-router";
 import { prisma } from "../lib/prisma.server";
 import { logActivity } from "../lib/activity-log.server";
 import { validateApiKey, hasScope, type ApiKeyTier, TIER_LIMITS } from "../lib/api-key.server";
+import { scoreLeadWithRules } from "../lib/scoring-rules.server";
+import { getScoreConfig } from "../lib/scoring.server";
 import { z } from "zod";
 
 // ── API Key Auth ──────────────────────────────────────────────────
@@ -246,6 +248,30 @@ export async function action({ request }: { request: Request }) {
         stage: "SOURCED",
       },
     });
+
+    // Auto-score the new lead using attribute-based rules
+    const scoreConfig = await getScoreConfig();
+    if (scoreConfig.autoScore) {
+      try {
+        const scoreResult = await scoreLeadWithRules(undefined, {
+          industry: payload.industry,
+          estimatedTraffic: payload.estimatedTraffic,
+          techStack: payload.techStack,
+          leadSource: payload.leadSource,
+          website: payload.website,
+        });
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            score: scoreResult.score,
+            maxScore: scoreResult.maxScore,
+            temperature: scoreResult.temperature,
+          },
+        });
+      } catch {
+        // Scoring failure should not block lead creation
+      }
+    }
 
     // Fire-and-forget activity log
     logActivity({

@@ -97,6 +97,9 @@ model Lead {
   // Activity log for this lead
   activityLogs     ActivityLog[]
 
+  // Workflow logs
+  workflowLogs     WorkflowLog[]
+
   @@index([status])
   @@index([stage])
   @@index([createdAt])
@@ -219,7 +222,26 @@ model ScoreConfig {
   hotThreshold  Float @default(80) // percentage >= this = HOT
   warmThreshold Float @default(50) // percentage >= this = WARM
   // below warmThreshold = COLD
+  autoScore     Boolean @default(true) // automatically score new leads using rules
   updatedAt DateTime @updatedAt
+}
+
+// ── Scoring Rules (attribute-based auto-scoring) ──────────
+
+model ScoringRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  fieldType   String   // INDUSTRY, ESTIMATED_TRAFFIC, TECH_STACK, LEAD_SOURCE, WEBSITE
+  operator    String   // CONTAINS, EQUALS, STARTS_WITH, REGEX
+  value       String   @db.Text // match string or regex pattern
+  points      Float    @default(0)
+  active      Boolean  @default(true)
+  priority    Int      @default(0) // lower runs first
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([fieldType, active])
 }
 
 // ── Feature 1: Web Forms / Lead Capture Forms ──────────
@@ -422,4 +444,38 @@ model ScraperJob {
   updatedAt       DateTime @updatedAt
 
   leads           Lead[]
+}
+
+// ── Workflow Automation ──────────────────────────────────
+
+model WorkflowRule {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?  @db.Text
+  triggerEvent     String   // LEAD_CREATED, STAGE_CHANGED, TEMPERATURE_CHANGED, LEAD_APPROVED, LEAD_SCORED
+  triggerCondition Json?    // optional filter, e.g. { "temperature": "HOT", "toStage": "MEETING_BOOKED" }
+  action           String   // ASSIGN_TO_USER, SEND_NOTIFICATION, UPDATE_FIELD, ADD_NOTE
+  actionConfig     Json     // e.g. { "userId": "...", "field": "stage", "value": "..." }
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  logs WorkflowLog[]
+
+  @@index([triggerEvent, active])
+}
+
+model WorkflowLog {
+  id        String   @id @default(cuid())
+  ruleId    String
+  rule      WorkflowRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  success   Boolean
+  error     String?
+  result    Json?    // what was done
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
+  @@index([ruleId, createdAt])
 }
