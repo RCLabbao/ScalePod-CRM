@@ -31,16 +31,15 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-p
 export async function loader({ request }: { request: Request }) {
   const userId = await requireAdmin(request);
 
-  const [user, stages] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, email: true, role: true },
-    }),
-    getStagesWithMeta(),
-  ]);
-
-  // Seed default stages if the table is empty (ensures table exists)
+  // Seed first so the table has real data before we query
   await seedDefaultStages();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true, role: true },
+  });
+
+  const stages = await getStagesWithMeta();
 
   const leadCounts: Record<string, number> = {};
   for (const stage of stages) {
@@ -161,21 +160,16 @@ export async function action({ request }: { request: Request }) {
       if (!orderJson) return { error: "No order provided" };
 
       const order: string[] = JSON.parse(orderJson);
-      let updated = 0;
       for (let i = 0; i < order.length; i++) {
-        const result = await prisma.$executeRaw`UPDATE PipelineStage SET position = ${i}, updatedAt = NOW() WHERE id = ${order[i]}`;
-        updated += Number(result);
-      }
-      if (updated === 0) {
-        return { error: `Reorder had no effect. IDs sent: [${order.join(", ")}]. The PipelineStage rows may have different IDs than what the frontend loaded.` };
+        await prisma.$executeRaw`UPDATE PipelineStage SET position = ${i}, updatedAt = NOW() WHERE id = ${order[i]}`;
       }
       invalidateStagesCache();
       return redirect("/settings/stages");
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : "";
-    return { error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage.\n\nError: ${msg}\n\nStack: ${stack || "none"}` };
+    console.error(`[stages] ${intent} failed:`, err);
+    return { error: msg };
   }
 
   return {};
@@ -262,9 +256,9 @@ export default function SettingsStagesPage() {
         </div>
 
         {actionData?.error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-start gap-3">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <pre className="whitespace-pre-wrap font-sans">{actionData.error}</pre>
+          <div className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-center gap-3">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {actionData.error}
           </div>
         )}
 
