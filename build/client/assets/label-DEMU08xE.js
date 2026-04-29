@@ -1,1 +1,0 @@
-import{j as a}from"./jsx-runtime-D_zvdyIk.js";import{r as s}from"./chunk-QFMPRPBF-DcELyU2R.js";import{c as t}from"./button-BPTNeDIf.js";const m=s.forwardRef(({className:e,...o},r)=>a.jsx("label",{ref:r,className:t("text-sm font-medium leading-none text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70",e),...o}));m.displayName="Label";export{m as L};

@@ -28,9 +28,21 @@ interface LeadCardProps {
 }
 
 function TemperatureIcon({ temp }: { temp?: string | null }) {
-  if (temp === "HOT") return <Flame className="h-3 w-3 text-amber-400" />;
-  if (temp === "WARM") return <ThermometerSun className="h-3 w-3 text-orange-400" />;
-  if (temp === "COLD") return <Snowflake className="h-3 w-3 text-blue-400" />;
+  if (temp === "HOT") return (
+    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-500/10">
+      <Flame className="h-3 w-3 text-amber-400" />
+    </div>
+  );
+  if (temp === "WARM") return (
+    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-500/10">
+      <ThermometerSun className="h-3 w-3 text-orange-400" />
+    </div>
+  );
+  if (temp === "COLD") return (
+    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-500/10">
+      <Snowflake className="h-3 w-3 text-blue-400" />
+    </div>
+  );
   return null;
 }
 
@@ -68,20 +80,24 @@ export const LeadCard = React.memo(function LeadCard({
           style={provided.draggableProps.style}
         >
           <Card
-            className={`cursor-default p-3 transition-all duration-200 border-border/50 ${
+            className={`cursor-default p-3.5 transition-all duration-200 border-border/40 bg-gradient-to-br from-card/90 to-card/60 backdrop-blur-sm ${
               selected
-                ? "ring-1 ring-primary/40 bg-primary/[0.03] shadow-sm"
-                : "hover:shadow-md hover:-translate-y-px hover:border-border/80"
-            } ${snapshot.isDragging ? "shadow-xl ring-1 ring-primary/20 rotate-1" : ""}`}
+                ? "ring-1 ring-primary/30 bg-primary/[0.04] shadow-md"
+                : "hover:shadow-lg hover:-translate-y-0.5 hover:border-border/70 hover:from-card hover:to-card/80"
+            } ${
+              snapshot.isDragging
+                ? "shadow-2xl ring-1 ring-primary/30 rotate-1 scale-[1.02]"
+                : ""
+            }`}
           >
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-2.5">
               {/* Checkbox for multi-select */}
               {draggable && (
                 <button
                   type="button"
                   onClick={() => onSelect?.(lead.id)}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="mt-0.5 text-muted-foreground/60 hover:text-primary shrink-0 transition-colors"
+                  className="mt-0.5 text-muted-foreground/50 hover:text-primary shrink-0 transition-colors duration-150"
                   title={selected ? "Deselect" : "Select for bulk move"}
                 >
                   {selected ? (
@@ -93,7 +109,7 @@ export const LeadCard = React.memo(function LeadCard({
               )}
               <div
                 {...provided.dragHandleProps}
-                className="mt-1 cursor-grab text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                className="mt-1 cursor-grab text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors duration-150"
               >
                 <svg
                   className="h-4 w-4"
@@ -118,20 +134,23 @@ export const LeadCard = React.memo(function LeadCard({
                     type="button"
                     onClick={() => onClick?.(lead.id)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="truncate text-sm font-semibold text-foreground/90 hover:text-foreground text-left transition-colors"
+                    className="truncate text-sm font-semibold text-foreground/90 hover:text-foreground text-left transition-colors duration-150"
                   >
                     {lead.companyName}
                   </button>
                   <TemperatureIcon temp={lead.temperature} />
                 </div>
                 {lead.contactName && (
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground/70">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground/60">
                     {lead.contactName}
                   </p>
                 )}
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2.5 flex items-center gap-2">
                   {lead.industry && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] px-1.5 py-0 font-medium rounded-md bg-muted/60"
+                    >
                       {lead.industry}
                     </Badge>
                   )}
@@ -149,9 +168,9 @@ export const LeadCard = React.memo(function LeadCard({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 rounded-full hover:bg-muted"
+                        className="h-6 w-6 rounded-lg hover:bg-muted/80 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
                       >
-                        <Mail className="h-3 w-3 text-muted-foreground/60" />
+                        <Mail className="h-3 w-3" />
                       </Button>
                     </Link>
                   </div>

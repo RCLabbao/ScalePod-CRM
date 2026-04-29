@@ -25,6 +25,7 @@ import {
   AlertCircle,
   GripVertical,
   Settings2,
+  LayoutGrid,
 } from "lucide-react";
 
 type Stage = string;
@@ -93,7 +94,6 @@ export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
-  // Any authenticated user can view lead details
   if (intent === "getLeadDetail") {
     const leadId = formData.get("leadId") as string;
     const lead = await prisma.lead.findUnique({
@@ -120,7 +120,6 @@ export async function action({ request }: { request: Request }) {
     return { lead };
   }
 
-  // Admin: edit lead details
   if (intent === "editLead") {
     const leadId = formData.get("leadId") as string;
     await prisma.lead.update({
@@ -149,7 +148,6 @@ export async function action({ request }: { request: Request }) {
       description: `${currentUser?.name || "Unknown"} edited lead details`,
     });
 
-    // Return updated lead for the modal
     const updated = await prisma.lead.findUnique({
       where: { id: leadId },
       include: {
@@ -181,7 +179,6 @@ export async function action({ request }: { request: Request }) {
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     if (!lead) return { success: false };
 
-    // Skip if same stage
     if (lead.stage === newStage) {
       return { success: true };
     }
@@ -201,7 +198,6 @@ export async function action({ request }: { request: Request }) {
       }),
     ]);
 
-    // Log activity
     await logActivity({
       leadId,
       userId,
@@ -216,7 +212,6 @@ export async function action({ request }: { request: Request }) {
     return { success: true };
   }
 
-  // Bulk move: move multiple leads at once
   if (intent === "bulkMoveStage") {
     const leadIdsJson = formData.get("leadIds") as string;
     const newStage = formData.get("newStage") as string;
@@ -243,7 +238,6 @@ export async function action({ request }: { request: Request }) {
           },
         })
       );
-      // Log outside transaction — fire and forget
       logActivity({
         leadId: lead.id,
         userId,
@@ -259,7 +253,6 @@ export async function action({ request }: { request: Request }) {
     return { success: true };
   }
 
-  // Reorder pipeline columns
   if (intent === "reorderStages") {
     const orderJson = formData.get("order") as string;
     if (!orderJson) return { success: false };
@@ -311,12 +304,10 @@ export default function Pipeline() {
   const moveFetcher = useFetcher<{ success: boolean }>();
   const reorderFetcher = useFetcher<{ success: boolean }>();
 
-  // Sync server data into local state when it changes
   useEffect(() => {
     setLocalStages(serverStages);
   }, [serverStages]);
 
-  // Derive filtered display from localStages
   const displayStages = useMemo(() => {
     return localStages.map((stage) => ({
       ...stage,
@@ -387,39 +378,37 @@ export default function Pipeline() {
 
   const onDragEnd = useCallback(
     (result: DropResult) => {
-      // Column reorder
       if (result.type === "STAGE_COLUMNS") {
         if (!result.destination) return;
         setLocalStages((prev) => {
           const items = Array.from(prev);
           const [moved] = items.splice(result.source.index, 1);
-          items.splice(result.destination.index, 0, moved);
+          items.splice(result.destination!.index, 0, moved);
           return items;
         });
-        // Persist the new order
         const currentStages = [...localStages];
         const [moved] = currentStages.splice(result.source.index, 1);
         currentStages.splice(result.destination.index, 0, moved);
         reorderFetcher.submit(
-          { intent: "reorderStages", order: JSON.stringify(currentStages.map((s) => s.id)) },
+          {
+            intent: "reorderStages",
+            order: JSON.stringify(currentStages.map((s) => s.id)),
+          },
           { method: "POST", action: "/pipeline" }
         );
         return;
       }
 
-      // Lead card move
       if (user?.role !== "ADMIN") return;
       if (!result.destination) return;
 
       const draggedId = result.draggableId;
       const newStage = result.destination.droppableId as Stage;
 
-      // Determine which leads to move
       const idsToMove = selectedIds.has(draggedId)
         ? Array.from(selectedIds)
         : [draggedId];
 
-      // Optimistic update on localStages (unfiltered)
       setLocalStages((prev) => {
         const movingLeads = prev
           .flatMap((s) => s.leads)
@@ -439,7 +428,6 @@ export default function Pipeline() {
       clearSelection();
       setMoveError(null);
 
-      // Persist via fetcher — loader will revalidate automatically
       if (idsToMove.length === 1) {
         moveFetcher.submit(
           { intent: "moveStage", leadId: idsToMove[0], newStage },
@@ -460,11 +448,16 @@ export default function Pipeline() {
   return (
     <AppShell user={user!}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Modern Header */}
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pipeline</h1>
-            <p className="text-muted-foreground mt-1">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 ring-1 ring-border/50">
+                <LayoutGrid className="h-5 w-5 text-primary/80" />
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight">Pipeline</h1>
+            </div>
+            <p className="text-muted-foreground text-sm pl-[52px]">
               {totalVisible === totalAll
                 ? `${totalAll} active leads across ${serverStages.length} stages`
                 : `Showing ${totalVisible} of ${totalAll} leads`}
@@ -473,22 +466,25 @@ export default function Pipeline() {
           <div className="flex items-center gap-2">
             {user?.role === "ADMIN" && (
               <Link to="/settings/stages">
-                <Button variant="outline" size="sm" className="h-8">
-                  <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+                <Button variant="outline" size="sm" className="h-8 rounded-lg gap-1.5">
+                  <Settings2 className="h-3.5 w-3.5" />
                   Manage Stages
                 </Button>
               </Link>
             )}
             {selectedIds.size > 0 && (
               <>
-                <Badge variant="secondary" className="text-sm px-3 py-1 rounded-full">
+                <Badge
+                  variant="secondary"
+                  className="text-sm px-3 py-1 rounded-full gap-1.5 animate-in fade-in slide-in-from-right-2 duration-200"
+                >
                   {selectedIds.size} selected
                 </Badge>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearSelection}
-                  className="h-7 px-2"
+                  className="h-7 px-2 rounded-lg"
                 >
                   <X className="h-3.5 w-3.5 mr-1" />
                   Clear
@@ -500,28 +496,30 @@ export default function Pipeline() {
 
         {/* Search + Filters */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* Search */}
+          {/* Modern Search */}
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40">
+              <Search className="h-4 w-4" />
+            </div>
             <Input
               placeholder="Search leads by company, contact, email, industry..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-background border-border/60 shadow-sm"
+              className="pl-10 pr-9 bg-background/50 border-border/60 shadow-sm rounded-xl focus-visible:ring-primary/20"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 hover:text-muted-foreground transition-colors rounded-full hover:bg-muted/50 p-0.5"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
-          {/* Temperature filters */}
-          <div className="flex items-center gap-1 rounded-xl bg-muted/40 p-1 ring-1 ring-border/40">
+          {/* Modern Temperature Pills */}
+          <div className="flex items-center gap-1 rounded-2xl bg-muted/30 p-1 ring-1 ring-border/40">
             {TEMPERATURES.map((t) => {
               const Icon = t.icon;
               const active = tempFilter === t.key;
@@ -530,13 +528,13 @@ export default function Pipeline() {
                   key={t.key}
                   type="button"
                   onClick={() => setTempFilter(t.key)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
                     active
                       ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
-                  <Icon className={`h-3.5 w-3.5 ${active ? "" : "opacity-60"}`} />
+                  <Icon className={`h-3.5 w-3.5 ${active ? "" : "opacity-50"}`} />
                   {t.label}
                 </button>
               );
@@ -546,7 +544,7 @@ export default function Pipeline() {
 
         {/* Active filters indicator */}
         {activeFilters > 0 && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground animate-in fade-in slide-in-from-top-1 duration-200">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span>
               {activeFilters} filter{activeFilters > 1 ? "s" : ""} active
@@ -554,7 +552,7 @@ export default function Pipeline() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 text-xs px-2"
+              className="h-6 text-xs px-2 rounded-lg"
               onClick={() => {
                 setSearch("");
                 setTempFilter("ALL");
@@ -567,7 +565,7 @@ export default function Pipeline() {
 
         {/* Move error */}
         {moveError && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
+          <div className="flex items-center gap-2.5 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive animate-in fade-in slide-in-from-top-1 duration-200">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {moveError}
           </div>
@@ -576,33 +574,45 @@ export default function Pipeline() {
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="STAGE_COLUMNS" type="STAGE_COLUMNS" direction="horizontal">
             {(colProvided) => (
-              <div ref={colProvided.innerRef} {...colProvided.droppableProps} className="flex gap-4 overflow-x-auto pb-4">
+              <div
+                ref={colProvided.innerRef}
+                {...colProvided.droppableProps}
+                className="flex gap-4 overflow-x-auto pb-4 px-0.5"
+              >
                 {displayStages.map((stage, colIndex) => (
-                  <Draggable key={stage.id} draggableId={`column-${stage.id}`} index={colIndex}>
+                  <Draggable
+                    key={stage.id}
+                    draggableId={`column-${stage.id}`}
+                    index={colIndex}
+                  >
                     {(colDragProvided, colDragSnapshot) => (
                       <div
                         ref={colDragProvided.innerRef}
                         {...colDragProvided.draggableProps}
-                        className={`flex w-72 shrink-0 flex-col transition-shadow ${colDragSnapshot.isDragging ? "shadow-lg opacity-90" : ""}`}
+                        className={`flex w-72 shrink-0 flex-col transition-all duration-200 ${
+                          colDragSnapshot.isDragging
+                            ? "shadow-2xl opacity-95 rotate-1"
+                            : ""
+                        }`}
                       >
-                        {/* Column header with drag handle */}
+                        {/* Modern Column Header */}
                         <div
                           {...colDragProvided.dragHandleProps}
-                          className={`rounded-t-xl border border-b-0 px-4 py-3 ${stage.color} ${stage.bg} cursor-grab active:cursor-grabbing`}
+                          className={`rounded-t-2xl border border-b-0 px-4 py-3 ${stage.color} ${stage.bg} cursor-grab active:cursor-grabbing backdrop-blur-sm transition-all duration-200`}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2.5">
                               {user?.role === "ADMIN" && (
                                 <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30" />
                               )}
-                              <div className={`h-2 w-2 rounded-full ${stage.dot}`} />
+                              <div className={`h-2.5 w-2.5 rounded-full ${stage.dot} ring-2 ring-white/20`} />
                               <h3 className="text-sm font-semibold text-card-foreground">
                                 {stage.label}
                               </h3>
                             </div>
                             <Badge
                               variant="secondary"
-                              className="text-[11px] text-secondary-foreground tabular-nums"
+                              className="text-[11px] text-secondary-foreground tabular-nums rounded-lg px-2 py-0.5"
                             >
                               {stage.leads.length}
                             </Badge>
@@ -614,17 +624,22 @@ export default function Pipeline() {
                             <div
                               ref={provided.innerRef}
                               {...provided.droppableProps}
-                              className={`flex-1 space-y-2 rounded-b-xl border border-t-0 bg-muted/30 p-2 transition-colors overflow-y-auto ${
-                                snapshot.isDraggingOver ? "bg-muted/60" : ""
+                              className={`flex-1 space-y-2 rounded-b-2xl border border-t-0 bg-muted/20 p-2.5 transition-colors duration-200 overflow-y-auto ${
+                                snapshot.isDraggingOver
+                                  ? "bg-muted/50 ring-1 ring-primary/20"
+                                  : ""
                               }`}
-                              style={{ maxHeight: "calc(100vh - 320px)", minHeight: "200px" }}
+                              style={{
+                                maxHeight: "calc(100vh - 320px)",
+                                minHeight: "200px",
+                              }}
                             >
                               {stage.leads.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-8 px-2 text-center">
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50 ring-1 ring-border/50">
-                                    <Inbox className="h-4 w-4 text-muted-foreground/40" />
+                                <div className="flex flex-col items-center justify-center py-10 px-2 text-center">
+                                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 ring-1 ring-border/40">
+                                    <Inbox className="h-5 w-5 text-muted-foreground/30" />
                                   </div>
-                                  <p className="mt-2 text-xs text-muted-foreground/60">
+                                  <p className="mt-3 text-xs text-muted-foreground/50 font-medium">
                                     No leads
                                   </p>
                                 </div>

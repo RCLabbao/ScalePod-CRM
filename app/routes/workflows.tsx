@@ -6,7 +6,20 @@ import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
-import { Plus, Trash2, Workflow, History, ToggleLeft, ToggleRight } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Workflow,
+  History,
+  Zap,
+  ArrowRight,
+  Filter,
+  Play,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
 
 type WorkflowRuleRow = {
   id: string;
@@ -42,6 +55,14 @@ const TRIGGER_LABELS: Record<string, string> = {
   LEAD_SCORED: "Lead Scored",
 };
 
+const TRIGGER_ICONS: Record<string, React.ReactNode> = {
+  LEAD_CREATED: <Zap className="h-3.5 w-3.5" />,
+  STAGE_CHANGED: <ArrowRight className="h-3.5 w-3.5" />,
+  TEMPERATURE_CHANGED: <Filter className="h-3.5 w-3.5" />,
+  LEAD_APPROVED: <CheckCircle2 className="h-3.5 w-3.5" />,
+  LEAD_SCORED: <Zap className="h-3.5 w-3.5" />,
+};
+
 const ACTION_LABELS: Record<string, string> = {
   ASSIGN_TO_USER: "Assign to User",
   SEND_NOTIFICATION: "Send Notification",
@@ -49,42 +70,45 @@ const ACTION_LABELS: Record<string, string> = {
   ADD_NOTE: "Add Note",
 };
 
+const ACTION_COLORS: Record<string, string> = {
+  ASSIGN_TO_USER: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  SEND_NOTIFICATION: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  UPDATE_FIELD: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  ADD_NOTE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+};
+
 function formatCondition(event: string, condition: Record<string, unknown>): string {
   if (condition.toStage) return `to ${formatStage(condition.toStage as string)}`;
   if (condition.temperature) return `temp is ${condition.temperature}`;
-  return Object.entries(condition).map(([k, v]) => `${k}=${v}`).join(", ");
+  return Object.entries(condition)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(", ");
 }
 
 function formatAction(action: string, config: Record<string, unknown>, userMap: Map<string, string>): string {
   switch (action) {
     case "ASSIGN_TO_USER": {
-      const name = config.userId ? userMap.get(config.userId as string) || String(config.userId).slice(0, 8) : "?";
+      const name = config.userId
+        ? userMap.get(config.userId as string) || String(config.userId).slice(0, 8)
+        : "?";
       return `Assign to ${name}`;
     }
     case "SEND_NOTIFICATION":
-      return 'Notify: "' + String(config.message || "").slice(0, 25) + '"';
+      return `"${String(config.message || "").slice(0, 30)}"`;
     case "UPDATE_FIELD":
-      return "Set " + (config.field as string || "?") + " = " + (config.value as string || "?");
+      return `Set ${config.field as string || "?"} → ${(config.value as string || "?").slice(0, 20)}`;
     case "ADD_NOTE":
-      return 'Note: "' + String(config.note || "").slice(0, 25) + '"';
+      return `"${String(config.note || "").slice(0, 30)}"`;
     default:
       return action;
   }
 }
 
 function hasCondition(triggerEvent: string): boolean {
-  return triggerEvent === "STAGE_CHANGED" || triggerEvent === "TEMPERATURE_CHANGED" || triggerEvent === "LEAD_SCORED";
-}
-
-// ── Step dot component ────────────────────────────────────────
-
-function StepDot({ n, color }: { n: 1 | 2 | 3; color: "blue" | "amber" | "emerald" }) {
-  const bg: Record<string, string> = { blue: "bg-blue-500/20", amber: "bg-amber-500/20", emerald: "bg-emerald-500/20" };
-  const text: Record<string, string> = { blue: "text-blue-400", amber: "text-amber-400", emerald: "text-emerald-400" };
   return (
-    <div className={`flex h-5 w-5 items-center justify-center rounded-full ${bg[color]}`}>
-      <span className={`text-[10px] font-bold ${text[color]}`}>{n}</span>
-    </div>
+    triggerEvent === "STAGE_CHANGED" ||
+    triggerEvent === "TEMPERATURE_CHANGED" ||
+    triggerEvent === "LEAD_SCORED"
   );
 }
 
@@ -158,7 +182,10 @@ export async function action({ request }: { request: Request }) {
     const active = formData.get("active") === "true";
     if (!ruleId) return { error: "Rule ID required" };
     try {
-      await prisma.workflowRule.update({ where: { id: ruleId }, data: { active: !active } });
+      await prisma.workflowRule.update({
+        where: { id: ruleId },
+        data: { active: !active },
+      });
     } catch (err) {
       console.error("[workflows] Failed to toggle rule:", err);
       return { error: "Failed to update workflow rule." };
@@ -167,6 +194,166 @@ export async function action({ request }: { request: Request }) {
   }
 
   return {};
+}
+
+// ── Components ────────────────────────────────────────────────
+
+function RuleFlowCard({
+  rule,
+  userMap,
+}: {
+  rule: WorkflowRuleRow;
+  userMap: Map<string, string>;
+}) {
+  const showFilter =
+    hasCondition(rule.triggerEvent) &&
+    rule.triggerCondition &&
+    Object.keys(rule.triggerCondition).length > 0;
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm transition-all duration-300 hover:border-border/60 hover:shadow-lg hover:shadow-primary/5">
+      {/* Subtle gradient accent on the left */}
+      <div
+        className={`absolute left-0 top-0 h-full w-1 transition-colors duration-300 ${
+          rule.active ? "bg-emerald-500/60" : "bg-muted-foreground/20"
+        }`}
+      />
+
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        {/* Flow visualization */}
+        <div className="flex flex-col gap-3 min-w-0 flex-1">
+          {/* Rule name */}
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-sm font-semibold text-foreground">{rule.name}</h3>
+            {rule.active ? (
+              <Badge
+                variant="outline"
+                className="text-[10px] border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-medium px-2"
+              >
+                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Active
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="text-[10px] border-muted-foreground/20 bg-muted/40 text-muted-foreground font-medium px-2"
+              >
+                Inactive
+              </Badge>
+            )}
+          </div>
+
+          {/* Flow nodes */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Trigger node */}
+            <div className="flex items-center gap-2 rounded-xl bg-blue-500/8 border border-blue-500/15 px-3 py-1.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400">
+                {TRIGGER_ICONS[rule.triggerEvent] || <Zap className="h-3.5 w-3.5" />}
+              </div>
+              <span className="text-xs font-medium text-blue-400/90">
+                {TRIGGER_LABELS[rule.triggerEvent] || rule.triggerEvent}
+              </span>
+            </div>
+
+            {/* Arrow */}
+            {showFilter ? (
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+            ) : (
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+            )}
+
+            {/* Condition node (if applicable) */}
+            {showFilter ? (
+              <>
+                <div className="flex items-center gap-2 rounded-xl bg-amber-500/8 border border-amber-500/15 px-3 py-1.5">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+                    <Filter className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-xs font-medium text-amber-400/90">
+                    {formatCondition(rule.triggerEvent, rule.triggerCondition!)}
+                  </span>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+              </>
+            ) : null}
+
+            {/* Action node */}
+            <div
+              className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 ${
+                ACTION_COLORS[rule.action] || "bg-muted/40 border-border/40 text-muted-foreground"
+              }`}
+            >
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5">
+                <Play className="h-3 w-3" />
+              </div>
+              <span className="text-xs font-medium">
+                {formatAction(rule.action, rule.actionConfig, userMap)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Modern toggle switch */}
+          <Form method="post">
+            <input type="hidden" name="intent" value="toggleActive" />
+            <input type="hidden" name="ruleId" value={rule.id} />
+            <input type="hidden" name="active" value={String(rule.active)} />
+            <button
+              type="submit"
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                rule.active ? "bg-emerald-500/80" : "bg-muted-foreground/25"
+              }`}
+              title={rule.active ? "Deactivate" : "Activate"}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
+                  rule.active ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </Form>
+
+          <Form method="post">
+            <input type="hidden" name="intent" value="delete" />
+            <input type="hidden" name="ruleId" value={rule.id} />
+            <Button
+              type="submit"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/10 opacity-60 group-hover:opacity-100 transition-all duration-200"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </Form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyRulesState() {
+  return (
+    <div className="flex flex-col items-center py-16 text-center">
+      <div className="relative">
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent blur-2xl" />
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-muted/80 to-muted/40 ring-1 ring-border/50 shadow-xl">
+          <Workflow className="h-7 w-7 text-muted-foreground/40" />
+        </div>
+      </div>
+      <p className="mt-5 text-sm font-semibold text-foreground/80">No workflows yet</p>
+      <p className="mt-1 text-xs text-muted-foreground max-w-[260px]">
+        Create your first workflow to automate actions when leads change state.
+      </p>
+      <Link to="/workflows/new" className="mt-4">
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <Plus className="h-3.5 w-3.5" />
+          Create Workflow
+        </Button>
+      </Link>
+    </div>
+  );
 }
 
 // ── Page Component ────────────────────────────────────────────
@@ -178,173 +365,158 @@ export default function WorkflowsPage() {
 
   const userMap = new Map(users.map((u) => [u.id, u.name || u.email]));
 
+  const activeCount = rules.filter((r) => r.active).length;
+
   return (
     <AppShell user={user!}>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <div className="space-y-8">
+        {/* Modern header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Workflow className="h-8 w-8" />
-              Workflows
-            </h1>
-            <p className="text-muted-foreground">Automate actions when leads change state</p>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 ring-1 ring-border/50">
+                <Workflow className="h-5 w-5 text-blue-400" />
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight">Workflows</h1>
+            </div>
+            <p className="text-muted-foreground text-sm pl-[52px]">
+              {rules.length > 0
+                ? `${activeCount} of ${rules.length} rule${rules.length !== 1 ? "s" : ""} active`
+                : "Automate actions when leads change state"}
+            </p>
           </div>
           <Link to="/workflows/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button className="gap-2 shadow-lg shadow-primary/5 hover:shadow-primary/10 transition-shadow">
+              <Plus className="h-4 w-4" />
               Create Workflow
             </Button>
           </Link>
         </div>
 
+        {/* Alerts */}
         {actionData?.error && (
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+          <div className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-center gap-3">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
             {actionData.error}
           </div>
         )}
         {actionData?.success && actionData?.deleted && (
-          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-400">
-            Workflow deleted.
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm text-emerald-400 flex items-center gap-3">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            Workflow deleted successfully.
           </div>
         )}
 
         {/* Workflow rules */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Workflow Rules</CardTitle>
-            <CardDescription>{rules.length} rule{rules.length !== 1 ? "s" : ""} configured</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {rules.length === 0 ? (
-              <div className="flex flex-col items-center py-12 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-muted to-muted/50 ring-1 ring-border/50">
-                  <Workflow className="h-5 w-5 text-muted-foreground/40" />
-                </div>
-                <p className="mt-4 text-sm font-medium text-foreground/80">No workflows yet</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Create one to start automating lead actions.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {rules.map((rule) => {
-                  const showFilter = hasCondition(rule.triggerEvent) && rule.triggerCondition && Object.keys(rule.triggerCondition).length > 0;
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="h-4 w-4 text-muted-foreground/60" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Rules
+            </h2>
+          </div>
 
-                  return (
-                    <div key={rule.id} className="flex items-center justify-between rounded-lg border p-4 gap-4">
-                      {/* Mini-flow visualization */}
-                      <div className="flex items-center gap-2 flex-wrap min-w-0">
-                        {/* Step 1: Trigger */}
-                        <div className="flex items-center gap-1.5">
-                          <StepDot n={1} color="blue" />
-                          <Badge variant="secondary">{TRIGGER_LABELS[rule.triggerEvent] || rule.triggerEvent}</Badge>
-                        </div>
-
-                        {/* Arrow + Step 2: Filter (conditional) */}
-                        {showFilter ? (
-                          <>
-                            <span className="text-muted-foreground/40 text-xs">─▶</span>
-                            <div className="flex items-center gap-1.5">
-                              <StepDot n={2} color="amber" />
-                              <Badge variant="outline">{formatCondition(rule.triggerEvent, rule.triggerCondition!)}</Badge>
-                            </div>
-                          </>
-                        ) : null}
-
-                        {/* Arrow + Step 3: Action */}
-                        <span className="text-muted-foreground/40 text-xs">─▶</span>
-                        <div className="flex items-center gap-1.5">
-                          <StepDot n={3} color="emerald" />
-                          <Badge variant="outline">{formatAction(rule.action, rule.actionConfig, userMap)}</Badge>
-                        </div>
-
-                        {/* Active badge */}
-                        <Badge variant={rule.active ? "success" : "outline"} className="ml-1">
-                          {rule.active ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
-
-                      {/* Controls */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="toggleActive" />
-                          <input type="hidden" name="ruleId" value={rule.id} />
-                          <input type="hidden" name="active" value={String(rule.active)} />
-                          <Button type="submit" variant="ghost" size="sm">
-                            {rule.active ? (
-                              <ToggleRight className="h-4 w-4 text-emerald-400" />
-                            ) : (
-                              <ToggleLeft className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </Form>
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="delete" />
-                          <input type="hidden" name="ruleId" value={rule.id} />
-                          <Button type="submit" variant="outline" size="sm" className="text-red-400 hover:text-red-300">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </Form>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {rules.length === 0 ? (
+            <Card className="border-border/40 bg-gradient-to-br from-card/60 to-card/30 backdrop-blur-sm">
+              <CardContent>
+                <EmptyRulesState />
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {rules.map((rule) => (
+                <RuleFlowCard key={rule.id} rule={rule} userMap={userMap} />
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Recent workflow logs */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-4 w-4" />
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <History className="h-4 w-4 text-muted-foreground/60" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
               Recent Executions
-            </CardTitle>
-            <CardDescription>Last {recentLogs.length} executions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentLogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No workflow executions yet.</p>
-            ) : (
-              <div className="space-y-2">
-                <div className="grid grid-cols-[1fr_1fr_80px_60px] text-[10px] text-muted-foreground/50 uppercase tracking-wider pb-1.5 border-b border-border/40 font-bold">
-                  <span>Rule</span>
-                  <span>Lead</span>
-                  <span>Result</span>
-                  <span>Time</span>
+            </h2>
+          </div>
+
+          <Card className="border-border/40 bg-gradient-to-br from-card/60 to-card/30 backdrop-blur-sm overflow-hidden">
+            <CardContent className="p-0">
+              {recentLogs.length === 0 ? (
+                <div className="flex items-center gap-3 px-6 py-8 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4 text-muted-foreground/40" />
+                  No workflow executions yet.
                 </div>
-                {recentLogs.map((log) => (
-                  <div key={log.id} className="grid grid-cols-[1fr_1fr_80px_60px] items-center text-xs py-1.5 hover:bg-muted/15 rounded-lg transition-colors px-1 -mx-1">
-                    <span className="truncate font-medium">{log.rule.name}</span>
-                    <span className="truncate text-muted-foreground">{log.lead?.companyName || "—"}</span>
-                    <span>
-                      {log.success ? (
-                        <Badge variant="success" className="text-[10px]">OK</Badge>
-                      ) : (
-                        <Badge variant="destructive" className="text-[10px]">Fail</Badge>
-                      )}
-                    </span>
-                    <span className="text-muted-foreground/60 tabular-nums text-[11px]">
-                      {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </span>
+              ) : (
+                <div className="divide-y divide-border/30">
+                  {/* Header row */}
+                  <div className="grid grid-cols-[1fr_1fr_100px_80px] gap-4 px-6 py-3 text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-wider bg-muted/20">
+                    <span>Rule</span>
+                    <span>Lead</span>
+                    <span>Result</span>
+                    <span className="text-right">Time</span>
                   </div>
-                ))}
-                {recentLogs.some((l) => !l.success && l.error) && (
-                  <div className="pt-2 border-t border-border/30 space-y-1">
-                    {recentLogs
-                      .filter((l) => !l.success && l.error)
-                      .slice(0, 3)
-                      .map((l) => (
-                        <p key={l.id} className="text-xs text-red-400/80 font-mono">
-                          {l.rule.name}: {l.error}
-                        </p>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
+                  {recentLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="grid grid-cols-[1fr_1fr_100px_80px] gap-4 items-center px-6 py-3 text-sm hover:bg-muted/20 transition-colors duration-150"
+                    >
+                      <span className="truncate font-medium text-foreground/90">
+                        {log.rule.name}
+                      </span>
+                      <span className="truncate text-muted-foreground text-xs">
+                        {log.lead?.companyName || "—"}
+                      </span>
+                      <span>
+                        {log.success ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-medium gap-1"
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                            OK
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-red-500/30 bg-red-500/10 text-red-400 font-medium gap-1"
+                          >
+                            <XCircle className="h-3 w-3" />
+                            Fail
+                          </Badge>
+                        )}
+                      </span>
+                      <span className="text-right text-muted-foreground/60 tabular-nums text-[11px]">
+                        {new Date(log.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Error summary */}
+                  {recentLogs.some((l) => !l.success && l.error) && (
+                    <div className="px-6 py-3 bg-red-500/5 border-t border-red-500/10 space-y-1.5">
+                      {recentLogs
+                        .filter((l) => !l.success && l.error)
+                        .slice(0, 3)
+                        .map((l) => (
+                          <p key={l.id} className="text-xs text-red-400/80 font-mono flex items-center gap-2">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            {l.rule.name}: {l.error}
+                          </p>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </AppShell>
   );

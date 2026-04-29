@@ -5,12 +5,24 @@ import { getStagesWithMeta, invalidateStagesCache } from "../lib/stages.server";
 import { STAGE_COLOR_PALETTE, PALETTE_OPTIONS } from "../lib/stages";
 import { AppShell } from "../components/app-shell";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
-import { ArrowLeft, Plus, Trash2, GripVertical, Pencil, Save, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  GripVertical,
+  Pencil,
+  Save,
+  X,
+  AlertTriangle,
+  Layers,
+  CheckCircle2,
+  Palette,
+} from "lucide-react";
 import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 
@@ -27,7 +39,6 @@ export async function loader({ request }: { request: Request }) {
     getStagesWithMeta(),
   ]);
 
-  // Count leads per stage
   const leadCounts: Record<string, number> = {};
   for (const stage of stages) {
     try {
@@ -58,7 +69,6 @@ export async function action({ request }: { request: Request }) {
       return { error: "Stage name and label are required" };
     }
 
-    // Check for duplicate name
     const existing = await prisma.pipelineStage.findUnique({ where: { name } });
     if (existing) {
       return { error: `A stage with name "${name}" already exists` };
@@ -96,7 +106,6 @@ export async function action({ request }: { request: Request }) {
     }
 
     try {
-      // If name changed, cascade update all leads and stage history
       if (newName !== stage.name) {
         const existing = await prisma.pipelineStage.findUnique({ where: { name: newName } });
         if (existing && existing.id !== id) {
@@ -132,10 +141,11 @@ export async function action({ request }: { request: Request }) {
       return { error: "Stage not found" };
     }
 
-    // Safety check: cannot delete if leads exist in this stage
     const leadCount = await prisma.lead.count({ where: { stage: stage.name } });
     if (leadCount > 0) {
-      return { error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.` };
+      return {
+        error: `Cannot delete "${stage.label}" — ${leadCount} lead${leadCount !== 1 ? "s" : ""} are currently in this stage. Move them first.`,
+      };
     }
 
     try {
@@ -179,9 +189,9 @@ export async function action({ request }: { request: Request }) {
 function ColorSwatch({ colorKey }: { colorKey: string }) {
   const classes = STAGE_COLOR_PALETTE[colorKey] || STAGE_COLOR_PALETTE.slate;
   return (
-    <div className="flex items-center gap-1.5">
-      <div className={`h-3 w-3 rounded-full ${classes.dot}`} />
-      <span className="text-xs text-muted-foreground capitalize">{colorKey}</span>
+    <div className="flex items-center gap-2">
+      <div className={`h-3 w-3 rounded-full ${classes.dot} ring-2 ring-white/10`} />
+      <span className="text-[11px] text-muted-foreground capitalize font-medium">{colorKey}</span>
     </div>
   );
 }
@@ -199,7 +209,6 @@ export default function SettingsStagesPage() {
   const [localStages, setLocalStages] = useState(stages);
   const [editName, setEditName] = useState("");
 
-  // Sync from server data
   if (navigation.state === "idle" && localStages !== stages) {
     setLocalStages(stages);
     setEditingId(null);
@@ -227,81 +236,96 @@ export default function SettingsStagesPage() {
   return (
     <AppShell user={user!}>
       <div className="space-y-6 max-w-2xl mx-auto">
-        {/* Header */}
+        {/* Modern Header */}
         <div className="flex items-center gap-4">
           <Link to="/settings">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="rounded-xl hover:bg-muted/80">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight">Pipeline Stages</h1>
-            <p className="text-muted-foreground">Add, edit, delete, and reorder your pipeline stages</p>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 ring-1 ring-border/50">
+                <Layers className="h-5 w-5 text-primary/80" />
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight">Pipeline Stages</h1>
+            </div>
+            <p className="text-muted-foreground text-sm pl-[52px]">
+              Add, edit, and reorder your sales pipeline stages
+            </p>
           </div>
           <Button
             onClick={() => { setShowAdd(!showAdd); setEditingId(null); }}
             size="sm"
+            className="rounded-lg gap-1.5"
           >
-            <Plus className="h-4 w-4 mr-1.5" />
+            <Plus className="h-4 w-4" />
             Add Stage
           </Button>
         </div>
 
         {actionData?.error && (
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+          <div className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-400 flex items-center gap-3">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
             {actionData.error}
           </div>
         )}
 
         {/* Add stage form */}
         {showAdd && (
-          <Card>
+          <Card className="border-border/40 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-blue-500/40 to-violet-500/40" />
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">New Stage</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Plus className="h-4 w-4 text-blue-400" />
+                New Stage
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Form method="post" className="space-y-4">
                 <input type="hidden" name="intent" value="addStage" />
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="add-name">Name (stored key)</Label>
+                    <Label htmlFor="add-name" className="text-sm font-medium">Name (stored key)</Label>
                     <Input
                       id="add-name"
                       name="name"
                       type="text"
                       required
                       placeholder="e.g. NEGOTIATION"
-                      className="mt-1.5 uppercase"
+                      className="mt-1.5 bg-background/50 border-border/60 uppercase"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1.5">
                       Auto-formatted to UPPERCASE_SNAKE
                     </p>
                   </div>
                   <div>
-                    <Label htmlFor="add-label">Display Label</Label>
+                    <Label htmlFor="add-label" className="text-sm font-medium">Display Label</Label>
                     <Input
                       id="add-label"
                       name="label"
                       type="text"
                       required
                       placeholder="e.g. Negotiation"
-                      className="mt-1.5"
+                      className="mt-1.5 bg-background/50 border-border/60"
                     />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="add-colorKey">Color</Label>
-                  <Select name="colorKey" defaultValue="slate" className="mt-1.5">
+                  <Label htmlFor="add-colorKey" className="text-sm font-medium">Color</Label>
+                  <Select name="colorKey" defaultValue="slate" className="mt-1.5 bg-background/50 border-border/60">
                     {PALETTE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
                     ))}
                   </Select>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={isSubmitting} size="sm">
+                <div className="flex gap-2 pt-1">
+                  <Button type="submit" disabled={isSubmitting} size="sm" className="rounded-lg">
                     {isSubmitting ? "Creating..." : "Create Stage"}
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
+                  <Button type="button" variant="ghost" size="sm" className="rounded-lg" onClick={() => setShowAdd(false)}>
                     <X className="h-4 w-4 mr-1" />
                     Cancel
                   </Button>
@@ -332,85 +356,97 @@ export default function SettingsStagesPage() {
                         <div
                           ref={dragProvided.innerRef}
                           {...dragProvided.draggableProps}
-                          className={`rounded-xl border ${meta.border} ${meta.bg} transition-shadow ${
-                            dragSnapshot.isDragging ? "shadow-lg" : ""
+                          className={`rounded-2xl border ${meta.border} ${meta.bg} backdrop-blur-sm transition-all duration-200 ${
+                            dragSnapshot.isDragging
+                              ? "shadow-2xl opacity-95 rotate-1 scale-[1.01]"
+                              : "hover:shadow-md hover:border-border/60"
                           }`}
                         >
                           {isEditing ? (
-                            /* Edit mode */
-                            <Form method="post" className="p-4 space-y-4">
+                            <Form method="post" className="p-5 space-y-4">
                               <input type="hidden" name="intent" value="editStage" />
                               <input type="hidden" name="id" value={stage.id} />
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <Label>Name (stored key)</Label>
+                                  <Label className="text-sm font-medium">Name (stored key)</Label>
                                   <Input
                                     name="name"
                                     type="text"
                                     required
                                     defaultValue={stage.name}
-                                    className="mt-1.5 uppercase"
+                                    className="mt-1.5 bg-background/50 border-border/60 uppercase"
                                     onChange={(e) => setEditName(e.target.value)}
                                   />
                                 </div>
                                 <div>
-                                  <Label>Display Label</Label>
+                                  <Label className="text-sm font-medium">Display Label</Label>
                                   <Input
                                     name="label"
                                     type="text"
                                     required
                                     defaultValue={stage.label}
-                                    className="mt-1.5"
+                                    className="mt-1.5 bg-background/50 border-border/60"
                                   />
                                 </div>
                               </div>
                               <div>
-                                <Label>Color</Label>
-                                <Select name="colorKey" defaultValue={stage.colorKey} className="mt-1.5">
+                                <Label className="text-sm font-medium">Color</Label>
+                                <Select name="colorKey" defaultValue={stage.colorKey} className="mt-1.5 bg-background/50 border-border/60">
                                   {PALETTE_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
                                   ))}
                                 </Select>
                               </div>
                               {editName.toUpperCase().replace(/\s+/g, "_") !== stage.name && editName !== "" && (
-                                <p className="text-xs text-amber-400">
-                                  Renaming will cascade update all leads and stage history in this stage.
-                                </p>
+                                <div className="flex items-center gap-2 rounded-xl bg-amber-500/5 border border-amber-500/10 p-3">
+                                  <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                                  <p className="text-xs text-amber-400/80">
+                                    Renaming will cascade update all leads and stage history in this stage.
+                                  </p>
+                                </div>
                               )}
                               <div className="flex gap-2">
-                                <Button type="submit" disabled={isSubmitting} size="sm">
-                                  <Save className="h-3.5 w-3.5 mr-1" />
+                                <Button type="submit" disabled={isSubmitting} size="sm" className="rounded-lg gap-1.5">
+                                  <Save className="h-3.5 w-3.5" />
                                   {isSubmitting ? "Saving..." : "Save"}
                                 </Button>
-                                <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                                <Button type="button" variant="ghost" size="sm" className="rounded-lg" onClick={() => setEditingId(null)}>
                                   Cancel
                                 </Button>
                               </div>
                             </Form>
                           ) : (
-                            /* Display mode */
                             <div className="flex items-center gap-3 p-4">
-                              <div {...dragProvided.dragHandleProps} className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground shrink-0">
+                              <div
+                                {...dragProvided.dragHandleProps}
+                                className="cursor-grab text-muted-foreground/30 hover:text-muted-foreground/60 shrink-0 transition-colors"
+                              >
                                 <GripVertical className="h-4 w-4" />
                               </div>
-                              <div className={`h-2.5 w-2.5 rounded-full ${meta.dot} shrink-0`} />
+                              <div className={`h-2.5 w-2.5 rounded-full ${meta.dot} ring-2 ring-white/10 shrink-0`} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium text-sm">{stage.label}</span>
-                                  <Badge variant="outline" className="text-[10px] font-mono">
+                                  <Badge variant="outline" className="text-[10px] font-mono rounded-md px-1.5">
                                     {stage.name}
                                   </Badge>
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  {count} lead{count !== 1 ? "s" : ""} &middot; Position {stage.position}
+                                  {count} lead{count !== 1 ? "s" : ""} · Position {stage.position}
                                 </p>
                               </div>
                               <ColorSwatch colorKey={stage.colorKey} />
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 w-7 p-0"
-                                onClick={() => { setEditingId(stage.id); setShowAdd(false); setEditName(stage.name); }}
+                                className="h-7 w-7 p-0 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors"
+                                onClick={() => {
+                                  setEditingId(stage.id);
+                                  setShowAdd(false);
+                                  setEditName(stage.name);
+                                }}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -420,7 +456,7 @@ export default function SettingsStagesPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-red-400"
+                                  className="h-7 w-7 p-0 rounded-lg text-muted-foreground/30 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                                   disabled={isSubmitting}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -440,24 +476,33 @@ export default function SettingsStagesPage() {
         </DragDropContext>
 
         {orderChanged && (
-          <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-            <p className="text-sm text-amber-400 flex-1">
+          <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+            <p className="text-sm text-amber-400/90 flex-1">
               Stage order has changed. Save to persist the new order.
             </p>
-            <Button size="sm" onClick={submitReorder} disabled={isSubmitting}>
-              <Save className="h-3.5 w-3.5 mr-1.5" />
+            <Button size="sm" onClick={submitReorder} disabled={isSubmitting} className="rounded-lg gap-1.5">
+              <Save className="h-3.5 w-3.5" />
               {isSubmitting ? "Saving..." : "Save Order"}
             </Button>
           </div>
         )}
 
         {stages.length === 0 && (
-          <Card>
+          <Card className="border-border/40 bg-gradient-to-br from-card/60 to-card/30 backdrop-blur-sm">
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No pipeline stages configured.</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Add stages to define your sales pipeline workflow.
-              </p>
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent blur-2xl" />
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-muted/80 to-muted/40 ring-1 ring-border/50 shadow-xl">
+                    <Layers className="h-7 w-7 text-muted-foreground/40" />
+                  </div>
+                </div>
+                <p className="mt-5 text-sm font-semibold text-foreground/80">No pipeline stages configured</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+                  Add stages to define your sales pipeline workflow.
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
