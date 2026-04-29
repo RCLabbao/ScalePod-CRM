@@ -66,6 +66,11 @@ export async function action({ request }: { request: Request }) {
   // Ensure the PipelineStage table exists before any mutations
   await seedDefaultStages();
 
+  // Debug: log what the prisma client actually has
+  console.log("[stages] prisma keys:", Object.keys(prisma).filter(k => typeof (prisma as any)[k] === "object").join(", "));
+  console.log("[stages] pipelineStage type:", typeof (prisma as any).pipelineStage);
+  console.log("[stages] intent:", intent);
+
   try {
     if (intent === "addStage") {
       const name = (formData.get("name") as string)?.trim().toUpperCase().replace(/\s+/g, "_");
@@ -165,8 +170,10 @@ export async function action({ request }: { request: Request }) {
       return redirect("/settings/stages");
     }
   } catch (err) {
-    console.error("[stages] Action failed:", err);
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[stages] Action failed — full error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : "";
+    console.error("[stages] Stack:", stack);
     return { error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage: ${msg}` };
   }
 

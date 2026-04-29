@@ -264,6 +264,9 @@ const prisma = globalForPrisma.prisma || new PrismaClient({
   ]
 });
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+console.log("[DB] Prisma Client models:", Object.keys(prisma).filter((k) => typeof prisma[k] === "object").join(", "));
+console.log("[DB] pipelineStage:", typeof prisma.pipelineStage);
+console.log("[DB] workflowAction:", typeof prisma.workflowAction);
 seedDefaultStages().catch((err) => console.error("[DB] Stage seed failed:", err));
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
@@ -16703,6 +16706,9 @@ async function action$5({
   const formData = await request.formData();
   const intent = formData.get("intent");
   await seedDefaultStages();
+  console.log("[stages] prisma keys:", Object.keys(prisma).filter((k) => typeof prisma[k] === "object").join(", "));
+  console.log("[stages] pipelineStage type:", typeof prisma.pipelineStage);
+  console.log("[stages] intent:", intent);
   try {
     if (intent === "addStage") {
       const name = (_a = formData.get("name")) == null ? void 0 : _a.trim().toUpperCase().replace(/\s+/g, "_");
@@ -16865,8 +16871,10 @@ async function action$5({
       return redirect("/settings/stages");
     }
   } catch (err) {
-    console.error("[stages] Action failed:", err);
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[stages] Action failed — full error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : "";
+    console.error("[stages] Stack:", stack);
     return {
       error: `Failed to ${intent === "addStage" ? "create" : intent === "editStage" ? "update" : intent === "deleteStage" ? "delete" : "reorder"} stage: ${msg}`
     };
@@ -19736,7 +19744,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-ZGHjCnIa.js").then(({
+    import("./pipeline-C3et7aNR.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -19765,7 +19773,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-ZGHjCnIa.js").then(({
+    import("./pipeline-C3et7aNR.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);

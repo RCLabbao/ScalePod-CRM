@@ -30,6 +30,11 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+// Debug: log available Prisma models on first load
+console.log("[DB] Prisma Client models:", Object.keys(prisma).filter(k => typeof (prisma as any)[k] === "object").join(", "));
+console.log("[DB] pipelineStage:", typeof (prisma as any).pipelineStage);
+console.log("[DB] workflowAction:", typeof (prisma as any).workflowAction);
+
 // Seed default pipeline stages on first startup
 import { seedDefaultStages } from "./stages.server";
 seedDefaultStages().catch((err) => console.error("[DB] Stage seed failed:", err));
