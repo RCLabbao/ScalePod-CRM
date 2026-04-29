@@ -88,7 +88,18 @@ export async function applyPendingMigrations(): Promise<{
       await prisma.$transaction(async (tx) => {
         const statements = parseSQLStatements(sql);
         for (const stmt of statements) {
-          await tx.$executeRawUnsafe(stmt);
+          try {
+            await tx.$executeRawUnsafe(stmt);
+          } catch (stmtErr: unknown) {
+            // Gracefully skip "duplicate key name" errors for ADD INDEX —
+            // the index already exists (e.g., from a prior `prisma db push`)
+            const msg = stmtErr instanceof Error ? stmtErr.message : String(stmtErr);
+            if (stmt.trimStart().toUpperCase().startsWith("ALTER TABLE") && msg.includes("Duplicate key name")) {
+              // Index already exists — skip and continue
+            } else {
+              throw stmtErr; // Re-throw all other errors
+            }
+          }
         }
         await recordMigration(migration.name);
       });
@@ -168,7 +179,16 @@ export async function applySingleMigration(
     await prisma.$transaction(async (tx) => {
       const statements = parseSQLStatements(sql);
       for (const stmt of statements) {
-        await tx.$executeRawUnsafe(stmt);
+        try {
+          await tx.$executeRawUnsafe(stmt);
+        } catch (stmtErr: unknown) {
+          const msg = stmtErr instanceof Error ? stmtErr.message : String(stmtErr);
+          if (stmt.trimStart().toUpperCase().startsWith("ALTER TABLE") && msg.includes("Duplicate key name")) {
+            // Index already exists — skip
+          } else {
+            throw stmtErr;
+          }
+        }
       }
       await recordMigration(filename);
     });

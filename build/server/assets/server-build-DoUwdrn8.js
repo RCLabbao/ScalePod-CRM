@@ -13833,7 +13833,15 @@ async function applyPendingMigrations() {
       await prisma.$transaction(async (tx) => {
         const statements = parseSQLStatements(sql);
         for (const stmt of statements) {
-          await tx.$executeRawUnsafe(stmt);
+          try {
+            await tx.$executeRawUnsafe(stmt);
+          } catch (stmtErr) {
+            const msg = stmtErr instanceof Error ? stmtErr.message : String(stmtErr);
+            if (stmt.trimStart().toUpperCase().startsWith("ALTER TABLE") && msg.includes("Duplicate key name")) {
+            } else {
+              throw stmtErr;
+            }
+          }
         }
         await recordMigration(migration.name);
       });
@@ -13889,7 +13897,15 @@ async function applySingleMigration(filename) {
     await prisma.$transaction(async (tx) => {
       const statements = parseSQLStatements(sql);
       for (const stmt of statements) {
-        await tx.$executeRawUnsafe(stmt);
+        try {
+          await tx.$executeRawUnsafe(stmt);
+        } catch (stmtErr) {
+          const msg = stmtErr instanceof Error ? stmtErr.message : String(stmtErr);
+          if (stmt.trimStart().toUpperCase().startsWith("ALTER TABLE") && msg.includes("Duplicate key name")) {
+          } else {
+            throw stmtErr;
+          }
+        }
       }
       await recordMigration(filename);
     });
@@ -15315,7 +15331,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-DV6dK6q6.js").then(({
+    import("./pipeline-aZejRftf.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
@@ -15344,7 +15360,7 @@ async function action$1({
         }
       }
     });
-    import("./pipeline-DV6dK6q6.js").then(({
+    import("./pipeline-aZejRftf.js").then(({
       runScraperPipeline
     }) => {
       runScraperPipeline(job.id).catch(console.error);
